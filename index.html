@@ -2,6 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>3D Tutting 模擬器 · Day61 BG-6</title>
 <link rel="stylesheet" href="./styles/simulator.css">
 </head>
@@ -54,6 +55,7 @@
   <div id="uiDragHandle" title="拖曳移動面板（雙擊重置位置與大小）"><div class="grip"></div><span class="uiDragHandleLabel">⣿ 拖曳移動面板</span></div>
   <div id="uiResizeHandle" title="拖曳調整面板高度"><div class="grip"></div></div>
   <div id="uiTopBtnRow">
+    <button id="mobilePanelToggle" class="uiTopBtn" type="button" aria-expanded="true" aria-controls="uiCommon uiTabBar uiTabBody">收合面板 ▾</button>
     <button id="uiFloatBtn" class="uiTopBtn" title="切換成可拖曳/縮放的浮動面板">🗗 浮動面板</button>
     <button id="uiHideBtn" class="uiTopBtn" title="隱藏面板（快速鍵 H）">隱藏面板 ▾</button>
   </div>

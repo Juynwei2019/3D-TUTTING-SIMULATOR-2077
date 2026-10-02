@@ -1,3 +1,4 @@
+import { initMobileLayout } from "./ui/mobile-layout.js";
 import { createCameraController } from "./scene/camera-controller.js";
 import { createSplitView } from "./scene/split-view.js";
 import { createSceneSelection } from "./scene/selection.js";
@@ -3378,6 +3379,7 @@ function bindTopUI(){
   initUIVisibility();
   initUIResize();
   initUIFloat();
+  initMobileLayout({ onLayoutChange:onResize, onInitialLayout:() => goToCameraPreset("front", true) });
   initFingerFloatPanel();
   bindIKUI();
   bindGrabBoxUI();

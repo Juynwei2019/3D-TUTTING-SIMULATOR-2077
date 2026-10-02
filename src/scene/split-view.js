@@ -143,9 +143,11 @@ export function createSplitView(context){
   }
 
   function onResize(){
-    context.camera.aspect = innerWidth/innerHeight;
+    const { width, height } = document.getElementById("canvasHolder").getBoundingClientRect();
+    if (!(width > 0 && height > 0)) return;
+    context.camera.aspect = width/height;
     context.camera.updateProjectionMatrix();
-    context.renderer.setSize(innerWidth, innerHeight);
+    context.renderer.setSize(width, height);
     resizeAllSplitPanes(); // 內部會呼叫 invalidateSplitViewFraming()
   }
   return { createSplitPane, destroySplitPane, resizeSplitPane, resizeAllSplitPanes, updateSplitViewCheckboxDisabled, saveSplitViewState, bindSplitViewUI, loadSplitViewState, initSplitView, invalidateSplitViewFraming, updateSplitViewPanes, onResize };

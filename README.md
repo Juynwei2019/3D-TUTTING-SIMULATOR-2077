@@ -29,6 +29,7 @@ npm run build
 npm test
 npm run build
 CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
+CHROMIUM_PATH=/usr/bin/chromium npm run test:mobile
 ```
 
 `npm test` 驗證骨架定義、角度限制、四元數、IK、軌跡、緩動曲線、候選生成器、姿勢控制器與時間軸模組。姿勢測試涵蓋副本隔離、部分套用、限制、精確還原、骨骼同步及 FK／IK／拖曳的分工。時間軸測試涵蓋資料複製、選取索引、分數拍數、延遲跨拍、播放結束、整段／範圍循環與 Wave 分流。音訊控制器測試涵蓋 URL 釋放、試聽、時間換算與播放拒絕。波形測試涵蓋峰值、快取、過期解碼、資源清理、繪圖比例與拍點對齊。歷史／儲存測試涵蓋 Undo 分支與上限、還原重入、存檔排程與失敗、專案確認流程及快照格式。偏好／素材庫測試涵蓋設定合併、legacy 讀取、儲存備份與共用控制器操作。時間軸編輯測試另涵蓋混合多選、剪貼簿隔離、Range 相交、重複／刪除與循環互斥。
@@ -50,6 +51,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
 3. `npm run build` 產生單檔 HTML。
 4. 安裝與 Playwright Core 版本一致的 Chromium 及系統依賴。
 5. `npm run test:browser` 驗證模組版與單檔版。
+6. `npm run test:mobile` 驗證手機直向／橫向布局及觸控面板操作。
 
 在 GitHub 的 **Actions → Verify** 查看結果。瀏覽器測試失敗時，工作流程會上傳 `browser-failure-…` 診斷附件，保留 7 天，包含可取得的畫面截圖、Playwright trace、瀏覽器 console／請求錯誤及失敗訊息。若失敗發生在啟動瀏覽器之前，可能只有工作流程紀錄或失敗文字。
 
@@ -62,3 +64,5 @@ node node_modules/playwright-core/cli.js show-trace path/to/trace.zip
 本機失敗紀錄也保存在 `test-results/`，不提交至 Git。每次檢查前可先清除舊紀錄，避免與新結果混淆。
 
 自動驗證不會部署或合併程式碼。若要阻止未通過檢查的 Pull Request 合併，可另設定 `main` 的分支保護，要求 **Tests, build and browser regression** 檢查通過。
+
+手機布局測試沿用桌面瀏覽器測試下載的 `.cache/Xbot.glb`，請先執行 `test:browser`。目前支援手機可收合底部／橫向側面板；觸控排序及實機音訊／效能仍待後續驗證，詳見 [手機評估](docs/mobile-readiness.md)。
