@@ -1,3 +1,5 @@
+import { createTimelinePlayback } from "./timeline/playback.js";
+import { insertKeyframe, duplicateKeyframeData, reorderKeyframeData, totalKeyframeBeats, keyframeStartBeat as timelineStartBeat, locateKeyframeSegmentAtBeat as locateTimelineSegment } from "./timeline/data.js";
 import { initGlobalTooltips } from "./ui/tooltips.js";
 import { EASINGS, EASING_GROUPS } from "./math/easings.js";
 import { D, R, clampNum } from "./math/angles.js";
@@ -5497,13 +5499,7 @@ function applyBodyTransform(bodyData){
 // 所以下一次新增仍然等同「加到最尾端」，原本的操作習慣不會被打斷。
 function addKeyframe(){
   const newKf = { angles: snapshotCurrentAngles(), body: snapshotBodyTransform(), easing: kfPendingEasing, beats: kfPendingBeats };
-  if (kfEditingIndex >= 0 && kfEditingIndex < keyframes.length){
-    keyframes.splice(kfEditingIndex + 1, 0, newKf);
-    kfEditingIndex = kfEditingIndex + 1;
-  } else {
-    keyframes.push(newKf);
-    kfEditingIndex = keyframes.length - 1;
-  }
+  kfEditingIndex = insertKeyframe(keyframes, newKf, kfEditingIndex);
   renderKeyframeChips();
   scheduleAutoSave();
 }
@@ -5511,10 +5507,9 @@ function addKeyframe(){
 // 複製第 i 個拍點（含角度、身體位置、Easing/拍數、軌跡資料），插入緊接在它後面。
 // 用深拷貝，複製出來的拍點之後各自修改不會互相影響。
 function duplicateKeyframe(i){
-  if (i < 0 || !keyframes[i]) return;
-  const copy = JSON.parse(JSON.stringify(keyframes[i]));
-  keyframes.splice(i + 1, 0, copy);
-  kfEditingIndex = i + 1;
+  const index = duplicateKeyframeData(keyframes, i);
+  if (index === null) return;
+  kfEditingIndex = index;
   renderKeyframeChips();
   scheduleAutoSave();
 }
@@ -5522,12 +5517,9 @@ function duplicateKeyframe(i){
 // 拖曳排序：把 from 移到 to 的位置。跟著調整 kfEditingIndex，讓選取狀態黏著在
 // 「同一個邏輯拍點」上，而不是黏著在原本的數字位置上（否則拖曳完選取會跳到別的拍點去）。
 function reorderKeyframe(from, to){
-  if (from < 0 || from >= keyframes.length || to < 0 || to >= keyframes.length || from === to) return;
-  const [item] = keyframes.splice(from, 1);
-  keyframes.splice(to, 0, item);
-  if (kfEditingIndex === from) kfEditingIndex = to;
-  else if (from < kfEditingIndex && kfEditingIndex <= to) kfEditingIndex -= 1;
-  else if (to <= kfEditingIndex && kfEditingIndex < from) kfEditingIndex += 1;
+  const index = reorderKeyframeData(keyframes, from, to, kfEditingIndex);
+  if (index === null) return;
+  kfEditingIndex = index;
   renderKeyframeChips();
   scheduleAutoSave();
 }
@@ -5566,10 +5558,7 @@ function updateKfTotalDurationLabel(){
 // 編舞（拍點清單）的真實總拍數：加總每段轉場各自的「拍數」設定，跟 updateKfTotalDurationLabel()
 // 算 totalMs 用的是同一份資料，只是這裡要的是拍子數而不是換算成毫秒，供跟律動序列總拍數互相比對。
 function kfTotalBeats(){
-  if (keyframes.length < 2) return keyframes.length;
-  let total = 0;
-  for (let i = 0; i < keyframes.length - 1; i++) total += (keyframes[i].beats || 1);
-  return total;
+  return totalKeyframeBeats(keyframes);
 }
 
 // ---- 多選批次刪除 ----
@@ -5905,9 +5894,7 @@ function stepBeatGridZoom(direction, anchorViewportX = null){
 }
 
 function keyframeStartBeat(index){
-  let beat = 0;
-  for (let i = 0; i < index; i++) beat += Number(keyframes[i].beats || 1);
-  return beat;
+  return timelineStartBeat(keyframes, index);
 }
 
 function grooveSegmentStartBeat(index){
@@ -6277,18 +6264,7 @@ function bindBeatGridRangeSelection(){
 }
 
 function locateKeyframeSegmentAtBeat(beat){
-  const total = beatGridPoseTotalBeats();
-  const target = clampNum(Number(beat) || 0, 0, Math.max(0, total));
-  if (keyframes.length < 2) return { index:0, localBeat:0 };
-  let acc = 0;
-  for (let i = 0; i < keyframes.length - 1; i++){
-    const dur = Math.max(0.0001, Number(keyframes[i].beats || 1));
-    if (target < acc + dur - 1e-9 || i === keyframes.length - 2){
-      return { index:i, localBeat:clampNum(target - acc, 0, dur) };
-    }
-    acc += dur;
-  }
-  return { index:keyframes.length - 2, localBeat:Number(keyframes[keyframes.length - 2].beats || 1) };
+  return locateTimelineSegment(keyframes, beat, beatGridPoseTotalBeats());
 }
 
 function seekRunningPlaybackToBeat(beat, now = performance.now()){
@@ -8720,67 +8696,7 @@ function bindGrooveSequenceUI(){
 // 每幀呼叫：在 keyframes[kfIndex] 與 keyframes[kfIndex+1] 之間用四元數 Slerp 平滑過渡
 // 過渡時長 = 該拍點自訂的「拍數」× BPM 換算出的一拍毫秒數；過渡曲線 = 該拍點自訂的 Easing
 function updateKeyframePlayback(now){
-  if(waveClips.length){updateWaveTrackPlayback(now);return;}
-  // BG-5：Range Loop 優先於整段 Loop。到達選取區段右界時直接把播放時鐘跳回左界，
-  // 不改 keyframe 資料本身；Pose / Groove / Audio 都重新對齊同一個 Beat。
-  if (beatGridRangeLoop && hasBeatGridRange()) {
-    const currentBeat = getBeatGridPosePlayheadBeat(now);
-    if (currentBeat >= beatGridRangeEnd - 1e-5) seekRunningPlaybackToBeat(beatGridRangeStart, now);
-  }
-  let frameA = keyframes[kfIndex];
-  let frameB = keyframes[kfIndex + 1];
-
-  let beatMs = (60000 / bpm) * (frameA.beats || 1);
-  const elapsed = now - kfStartTime;
-  let t = Math.min(elapsed / beatMs, 1); // 線性時間進度，用來判斷這一段是否播完
-
-  while (t >= 1){
-    // 🔧 修正（原本的 bug）：這一段轉場結束時，過去的作法是先在「舊 frameA/frameB」上算完
-    // 姿勢＋律動、render 用的是「姿勢＋律動」，緊接著卻又呼叫 applyPose/applyBodyTransform
-    // 把姿勢蓋回「frameB 原始值、完全沒有律動位移」——等於每次跨拍都多渲染一幀「被清空律動」
-    // 的乾淨姿勢，肉眼看起來就是每次跨拍全身彈一下，密集跨拍時就是連續的全身抖動。
-    // 修法：先把 kfIndex/kfStartTime 換到新的一段（et 歸零），姿勢＋律動一律等下面統一用
-    // 新的 frameA/frameB 重新算一次，讓「乾淨姿勢」跟「律動位移」永遠是同一幀算出來的結果，
-    // 不會有先蓋掉、下一幀才補回律動的時間差。
-    kfIndex++;
-    if (kfIndex >= keyframes.length - 1){
-      if (beatGridRangeLoop && hasBeatGridRange()){
-        seekRunningPlaybackToBeat(beatGridRangeStart, now);
-        frameA = keyframes[kfIndex];
-        frameB = keyframes[kfIndex + 1];
-        t = 0;
-        updateBeatGridPlaybackUI(now);
-        return;
-      } else if (kfLoop){
-        kfIndex = 0;
-      } else {
-        // 播放到最後一段結尾，直接把姿勢定格在最後一個拍點（不含律動殘留），再停止播放。
-        applyPose(frameB.angles);
-        applyBodyTransform(frameB.body);
-        stopKeyframePlayback();
-        return;
-      }
-    }
-    kfStartTime += beatMs;
-    frameA = keyframes[kfIndex];
-    frameB = keyframes[kfIndex + 1];
-    beatMs = (60000 / bpm) * (frameA.beats || 1);
-    t = Math.min((now-kfStartTime)/beatMs,1);
-    grooveSquatAnchored = false; // 蹲彈的「原地錨點」跟著換到新一段的站位重新捕捉，
-                                 // 不再整段編舞鎖死在播放開始那一刻的第一拍站位。
-    updateOnionSkins(); // 換到新的過渡區段了，殘影要跟著往前挪一格（見 updateOnionSkinsForPlayback）
-    // BG-2 改由連續 Playhead 自動跟隨，不在跨拍瞬間 scrollIntoView，避免兩套捲動機制互相拉扯。
-  }
-
-  const easeFn = EASINGS[frameA.easing] || EASINGS.linear;
-  const et = easeFn(t); // 緩動後的進度餵給 slerp；Back/Elastic 允許超出 [0,1]，做出甩過頭再回彈的效果
-
-  const overrideKeysThisFrame = applyKeyframeFramePose(frameA, frameB, et);
-  applyGroove(now, overrideKeysThisFrame);
-  applySquatGroove(now, grooveStartTime, false, overrideKeysThisFrame);
-
-  updatePlayingKeyframeHighlight();
-  updateBeatGridPlaybackUI(now);
+  timelinePlayback.update(now);
 }
 
 function bindTopUI(){
@@ -10872,4 +10788,34 @@ function animate(now){
 }
 
 // All declarations are initialized before startup. Model loading remains asynchronous.
+const timelinePlayback = createTimelinePlayback({
+  get waveClips(){ return waveClips; },
+  updateWaveTrackPlayback,
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  hasBeatGridRange,
+  getBeatGridPosePlayheadBeat,
+  get beatGridRangeEnd(){ return beatGridRangeEnd; },
+  seekRunningPlaybackToBeat,
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  get keyframes(){ return keyframes; },
+  get kfIndex(){ return kfIndex; },
+  set kfIndex(value){ kfIndex = value; },
+  get kfStartTime(){ return kfStartTime; },
+  set kfStartTime(value){ kfStartTime = value; },
+  get bpm(){ return bpm; },
+  updateBeatGridPlaybackUI,
+  get kfLoop(){ return kfLoop; },
+  applyPose,
+  applyBodyTransform,
+  stopKeyframePlayback,
+  get grooveSquatAnchored(){ return grooveSquatAnchored; },
+  set grooveSquatAnchored(value){ grooveSquatAnchored = value; },
+  updateOnionSkins,
+  applyKeyframeFramePose,
+  applyGroove,
+  applySquatGroove,
+  get grooveStartTime(){ return grooveStartTime; },
+  updatePlayingKeyframeHighlight,
+});
+
 init();
