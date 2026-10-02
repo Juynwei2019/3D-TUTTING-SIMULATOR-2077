@@ -28,7 +28,7 @@ const probe = `
 window.__smoke = {
   snapshotTimelineData, restoreTimelineData, setTarget, resetPose, mirrorPose,
   pushHistory, undo, redo, applyTimelinePreviewAtElapsed,
-  setIKEnabled, solveIKAll, updateBones,
+  setIKEnabled, solveIKAll, updateBones, deleteKeyframe,
   get bones() { return bones; }, get model() { return model; },
   get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
   get current() { return typeof poseController === "undefined" ? current : poseController.snapshotState().current; },
@@ -169,12 +169,42 @@ try {
       await page.evaluate(() => { window.__smoke.setTarget('rForeArm', [-20, 10, 45]); });
       await page.locator('#kfAddBtn').click();
       assert.equal(await page.locator('#kfList .kfChip').count(), 2);
+      // Exercise the extracted clip UI, then restore the two-frame test timeline.
+      // Compact clips hide this button; dispatch its editing callback directly.
+      await page.locator('#kfList .kfChip .dup').first().evaluate(el => el.click());
+      assert.equal(await page.locator('#kfList .kfChip').count(), 3);
+      const duplicated = await page.evaluate(() => structuredClone(window.__smoke.keyframes));
+      assert.deepEqual(duplicated[0], duplicated[1]);
+      await page.evaluate(() => window.__smoke.deleteKeyframe(1));
+      assert.equal(await page.locator('#kfList .kfChip').count(), 2);
+      // Real PCM WAV exercises media events and Web Audio decoding without a CDN.
+      const samples = 8000 * 4;
+      const wav = Buffer.alloc(44 + samples * 2);
+      wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+      wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+      wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28);
+      wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+      wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
+      await page.locator('#kfMusicFile').setInputFiles({ name: 'smoke.wav', mimeType: 'audio/wav', buffer: wav });
+      await page.waitForFunction(() => document.getElementById('kfAudioEl').readyState >= 2 &&
+        !document.getElementById('beatGridWaveformTrack').classList.contains('waveformLoading'));
+      assert.equal(await page.locator('#beatGridWaveformTrack').evaluate(el => el.classList.contains('waveformError')), false);
+      assert.equal(await page.locator('#kfMusicName').textContent(), 'smoke.wav');
+      await page.locator('#kfMusicPreviewBtn').evaluate(el => el.click());
+      await page.waitForFunction(() => !document.getElementById('kfAudioEl').paused);
+      await page.locator('#kfMusicPreviewBtn').evaluate(el => el.click());
+      await page.waitForFunction(() => document.getElementById('kfAudioEl').paused);
       await page.locator('#kfLoopBtn').click();
       await page.locator('#kfPlayBtn').click();
       assert.equal(await page.evaluate(() => window.__smoke.playing), true);
+      await page.waitForFunction(() => !document.getElementById('kfAudioEl').paused);
       await page.locator('#kfPlayBtn').click();
       assert.equal(await page.evaluate(() => window.__smoke.playing), false);
       await page.locator('#kfLoopBtn').click();
+      assert.equal(await page.locator('#kfAudioEl').evaluate(el => el.paused), true);
+      await page.locator('#kfMusicRemoveBtn').evaluate(el => el.click());
+      assert.equal(await page.locator('#kfAudioEl').getAttribute('src'), null);
+      assert.equal(await page.locator('#kfMusicName').textContent(), '尚未匯入音樂');
       const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#kfExportBtn').click()]);
       const exported = JSON.parse((await readFile(await download.path())).toString());
       assert.equal(exported.keyframes.length, 2);
@@ -208,7 +238,7 @@ try {
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
       results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
-      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, timeline playback, JSON roundtrip, split view, autosave reload`);
+      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
       const directory = resolve('test-results', entry.replace(/^\//, '').replace(/[^a-zA-Z0-9_.-]/g, '_'));
       await mkdir(directory, { recursive: true });

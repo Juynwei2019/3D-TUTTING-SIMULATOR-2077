@@ -23,6 +23,8 @@
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
 | `src/interaction/grab-shapes.js` | 扶握形狀、幾何建構與表面投影 |
 | `src/interaction/grab-core.js` | 扶握狀態與控制環；以 `deps` 注入模型、手部骨骼和 IK 操作 |
+| `src/timeline/audio-controller.js` | 音訊 object URL 所有權、匯入／移除、試聽／暫停與 beat／秒換算；注入 media element 與即時 BPM／offset |
+| `src/ui/timeline-editor.js` | POSE 拍點 DOM、拖曳／縮放／複製／選取事件及播放高亮；資料操作由 host 回呼執行 |
 | `src/ui/grab-panel.js` | 只透過核心方法／訂閱更新扶握面板，不 import Three.js |
 | `src/ui/easing-gallery.js`、`tooltips.js` | 緩動預覽、圖鑑、Tooltip；不讀骨骼或時間軸狀態 |
 
@@ -71,3 +73,11 @@
 `createTimelinePlayback(adapter).update(now)` 使用既有動畫循環的時間，不建立第二個循環。Adapter 的 getter 每次取得當前拍點、BPM、播放時鐘及循環狀態，因此匯入、Undo 或生成編舞替換陣列後不會讀到舊資料。播放器透過 setter 更新段落索引、起始時間與蹲彈錨點；音訊、UI、開始／停止與尋位的同步仍由主程式負責。
 
 跨段先推進時鐘，再統一套用姿勢與律動；非循環結束時定格最後姿勢，範圍循環優先於整段循環，Wave 軌仍使用原有播放路徑。資料格式、JSON 版本與音訊同步方式保持相容。這一階段尚未將所有拍點寫入集中到私有 store，批次編輯與生成器仍由主程式持有狀態。
+
+## 音訊與拍點介面
+
+`createTimelineAudio()` 不查詢 DOM。主程式注入 media element、當前 BPM／offset；控制器擁有自己建立的 object URL，替換或移除時釋放，保留試聽獨立於拍點播放的行為。媒體事件仍驅動按鈕文字及 playhead。音訊檔不寫入 JSON、Undo 或 localStorage。波形解碼、快取、繪圖與尋位同步仍留在主程式，後續可單獨抽出。
+
+`createTimelineEditor(adapter).render()` 產生既有 POSE 拍點介面；`updateHighlight()` 僅更新既有節點的播放 class，不逐幀重建 DOM。Adapter getter 讀取即時拍點、選取、播放、縮放狀態；事件回呼將修改委派給 host。原有 DOM ID、樣式 class、End Marker、備註、Easing、軌跡標籤及多選手勢保持一致。此模組涵蓋 POSE 拍點清單，GROOVE／WAVING 編輯與工具列仍在主程式。
+
+瀏覽器回歸新增實際 WAV 匯入、Web Audio 波形解碼、試聽／暫停、拍點播放後音訊暫停、移除，以及拍點複製與刪除。音訊單元測試另外驗證 URL 釋放、即時 BPM／offset 換算與播放拒絕處理。

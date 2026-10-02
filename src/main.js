@@ -1,3 +1,5 @@
+import { createTimelineAudio } from "./timeline/audio-controller.js";
+import { createTimelineEditor } from "./ui/timeline-editor.js";
 import { createTimelinePlayback } from "./timeline/playback.js";
 import { insertKeyframe, duplicateKeyframeData, reorderKeyframeData, totalKeyframeBeats, keyframeStartBeat as timelineStartBeat, locateKeyframeSegmentAtBeat as locateTimelineSegment } from "./timeline/data.js";
 import { initGlobalTooltips } from "./ui/tooltips.js";
@@ -6442,136 +6444,13 @@ function bindTimelineReorderHost(kind,host){
 }
 
 function renderKeyframeChips(){
-  renderWaveTrack();
-  updateMoveLibRangeHint();
-  updateKfTotalDurationLabel(); // 不管清單是否為空都要更新（空清單/只有1拍時顯示空字串）
-  updateBeatGridPoseInspector();
-  const host = document.getElementById("kfList");
-  bindTimelineReorderHost("pose", host);
-  updateBeatGridGeometry();
-  host.innerHTML = "";
-  kfChipEls = [];
-  if (keyframes.length === 0){
-    // 動態建立空清單提示文字，不依賴靜態 #kfEmpty 節點——
-    // 該節點一旦在非空清單時被 host.innerHTML="" 清掉就永久脫離DOM，
-    // 之後 getElementById 回傳 null，host.appendChild(null) 會拋例外中斷整個函式（已修正的舊bug）。
-    const empty = document.createElement("span");
-    empty.id = "kfEmpty";
-    empty.textContent = "尚未新增任何拍點——先用關節控制環擺出第一個姿勢，再按「+ 新增拍點」";
-    host.appendChild(empty);
-    updateBeatGridGeometry();
-    renderGrooveLoopGhosts();
-    updateOnionSkins();
-    drawKfWaveform();
-    return;
-  }
-  keyframes.forEach((kf, i) => {
-    const chip = document.createElement("div");
-    chip.className = "kfChip";
-    const startBeat = keyframeStartBeat(i);
-    const durationBeats = i < keyframes.length - 1 ? Number(kf.beats || 1) : 0;
-    const widthPx = i < keyframes.length - 1 ? Math.max(2, durationBeats * BEAT_GRID_PX_PER_BEAT - 2) : 48;
-    chip.style.left = `${startBeat * BEAT_GRID_PX_PER_BEAT}px`;
-    chip.style.width = `${widthPx}px`;
-    if (i === keyframes.length - 1) chip.classList.add("beatGridEndMarker");
-    if (widthPx < 92) chip.classList.add("beatGridCompact");
-    if (!kfMultiSelectMode && i === kfEditingIndex) chip.classList.add("active");
-    if (kfMultiSelectMode && kfMultiSelected.has(i)) chip.classList.add("multiChecked");
-    if (kfPlaying && i === kfIndex) chip.classList.add("playing");
-
-    // ---- BG-3.2 拖曳排序：真正 drop 前只顯示插入線/HUD，不邊拖邊重建資料。 ----
-    chip.draggable = !kfPlaying && (!kfMultiSelectMode || kfMultiSelected.has(i));
-    chip.addEventListener("dragstart", (ev) => {
-      kfDragSrcIndex = i; // 保留舊狀態變數供相容/除錯
-      if (!beginTimelineReorderDrag("pose", i, chip, ev)) kfDragSrcIndex = -1;
-    });
-    chip.addEventListener("dragend", () => {
-      endTimelineReorderDrag("pose");
-      kfDragSrcIndex = -1;
-    });
-
-    // 多選模式：chip 最前面加一個勾選方塊，視覺上提示目前處於「勾選拍點準備批次刪除」的狀態
-    if (kfMultiSelectMode){
-      const check = document.createElement("span");
-      check.className = "kfCheckMark";
-      check.textContent = "✓";
-      check.setAttribute("data-tooltip", kfMultiSelected.has(i) ? "已選取；可拖曳任一已選 POSE 整組移動" : "點 F 按鈕加入多選");
-      chip.appendChild(check);
-    }
-
-    const sel = document.createElement("button");
-    sel.className = "sel";
-    sel.textContent = (kf.waveBake?"🌊 ":"")+`F${i+1}`;
-    sel.setAttribute("data-tooltip", kfMultiSelectMode ? "點擊勾選／取消勾選" : "點擊套用這個拍點的姿勢");
-    sel.onclick = () => { if (kfMultiSelectMode) toggleKfMultiSelectItem(i); else selectKeyframe(i); };
-
-    const labelBtn = document.createElement("button");
-    labelBtn.className = "kfLabelBtn" + (kf.label ? " hasLabel" : "");
-    labelBtn.textContent = kf.label ? kf.label : "✎";
-    labelBtn.setAttribute("data-tooltip", kf.label ? `備註：${kf.label}（點擊編輯／清空）` : "點擊新增備註（例如「插腰」「收拍」）");
-    labelBtn.onclick = (ev) => { ev.stopPropagation(); renameKeyframeLabel(i); };
-
-    const dup = document.createElement("button");
-    dup.className = "dup";
-    dup.textContent = "⧉";
-    dup.setAttribute("data-tooltip", "複製此拍點（插入在後面）");
-    dup.onclick = (ev) => { ev.stopPropagation(); duplicateKeyframe(i); pushHistory(); };
-
-
-    chip.appendChild(sel);
-    chip.appendChild(labelBtn);
-
-    // 若這個拍點是「生成拍點（軌跡）」批次寫入的，加一個小標籤提示（滑鼠移上去看是哪些肢體）
-    if (kf.traj && Object.keys(kf.traj).length > 0){
-      const trajTag = document.createElement("span");
-      trajTag.className = "kfTrajTag";
-      trajTag.textContent = "〜";
-      trajTag.title = "含軌跡資料：" + Object.keys(kf.traj).map(l => IK_CHAINS[l] ? IK_CHAINS[l].label : l).join("、");
-      chip.appendChild(trajTag);
-    }
-
-    // 顯示這個拍點「跳到下一拍」時使用的 Easing 縮圖 + 拍數（最後一個拍點沒有下一段轉場）
-    if (i < keyframes.length - 1){
-      const easeTag = document.createElement("div");
-      easeTag.className = "kfEaseTag";
-      const beats = kf.beats || 1;
-      const easeName = kf.easing || "easeInOutQuad";
-      easeTag.title = `${easeName} · ${beats} 拍`;
-      easeTag.innerHTML = buildEasingSVG(easeName, 26, 15) + `<span>${beats}拍</span>`;
-      chip.appendChild(easeTag);
-    }
-
-    // 最後一個 POSE 是 End Marker，沒有 outgoing transition；其他 POSE 可直接拖右緣調整到下一拍的長度。
-    if (i < keyframes.length - 1 && !kfMultiSelectMode){
-      const resizeHandle = document.createElement("div");
-      resizeHandle.className = "timelineResizeHandle poseResizeHandle";
-      resizeHandle.setAttribute("data-tooltip", `拖曳調整 F${i+1} → F${i+2} 轉場長度（1/4拍吸附）`);
-      resizeHandle.addEventListener("pointerdown", (ev) => beginPoseResize(ev, i, chip, resizeHandle));
-      resizeHandle.addEventListener("click", (ev) => ev.stopPropagation());
-      chip.appendChild(resizeHandle);
-    }
-
-    // 單顆刪除統一使用 Delete / Backspace；多選模式仍沿用批次刪除工具列。
-    if (!kfMultiSelectMode){
-      chip.appendChild(dup);
-    }
-    host.appendChild(chip);
-    kfChipEls[i] = chip;
-  });
-  updateBeatGridGeometry();
-  renderGrooveLoopGhosts();
-  updateOnionSkins();
-  drawKfWaveform(); // 拍點增刪/拍數/easing變動都會影響橘色參考線在音樂上的位置，這裡統一重畫
-  if (!kfMultiSelectMode && kfEditingIndex >= 0) scrollKfChipIntoView(kfEditingIndex); // 新增/選取/改易入拍點時，確保它在單列時間軸的可視範圍內
+  timelineEditor.render();
 }
 
 // 播放時每幀呼叫：只切換既有 chip 節點的 "playing" class，不重建 DOM、不重新產生 SVG。
 // 跟 highlightOverviewRows() 是同一種「結構只建一次、逐幀只動 class」的做法。
 function updatePlayingKeyframeHighlight(){
-  for (let i = 0; i < kfChipEls.length; i++){
-    const chip = kfChipEls[i];
-    if (chip) chip.classList.toggle("playing", kfPlaying && i === kfIndex);
-  }
+  timelineEditor.updateHighlight();
 }
 
 // BG-2：目前 Pose 在共用 Beat 軸上的連續位置。
@@ -6871,15 +6750,11 @@ function stopKeyframePlayback(){
 // ---- 時間軸配樂（音樂試聽）----
 // 只存在這次瀏覽階段：不寫進自動存檔／匯出 JSON，重新整理頁面或匯入編舞後都需要重新匯入音樂檔。
 // 理由：音樂檔通常數MB起跳，塞進localStorage容易爆容量、塞進JSON也會讓檔案暴增又難以分享。
-let kfMusicObjectUrl = null;
+
 
 function importKfMusic(file){
   if (!file) return;
-  if (kfMusicObjectUrl) URL.revokeObjectURL(kfMusicObjectUrl);
-  kfMusicObjectUrl = URL.createObjectURL(file);
-  const audioEl = document.getElementById("kfAudioEl");
-  audioEl.src = kfMusicObjectUrl;
-  audioEl.volume = parseFloat(document.getElementById("kfMusicVolume").value);
+  timelineAudio.importFile(file, parseFloat(document.getElementById("kfMusicVolume").value));
   document.getElementById("kfMusicName").textContent = file.name;
   document.getElementById("kfMusicRemoveBtn").style.display = "";
   document.getElementById("kfMusicControlsRow").style.display = "flex";
@@ -6897,11 +6772,7 @@ function importKfMusic(file){
 }
 
 function removeKfMusic(){
-  const audioEl = document.getElementById("kfAudioEl");
-  audioEl.pause();
-  audioEl.removeAttribute("src");
-  audioEl.load();
-  if (kfMusicObjectUrl){ URL.revokeObjectURL(kfMusicObjectUrl); kfMusicObjectUrl = null; }
+  timelineAudio.remove();
   kfAudioDuration = 0;
   kfWaveformChannelData = null;
   _kfPeaksCacheKey = null;
@@ -6924,27 +6795,19 @@ function removeKfMusic(){
 
 // 拍點播放開始時呼叫：若已匯入音樂，跳到「起始秒數」並同步播放；沒匯入音樂則不做任何事。
 function playKfMusicIfLoaded(){
-  const audioEl = document.getElementById("kfAudioEl");
-  if (!audioEl || !audioEl.src) return;
-  const offset = parseFloat(document.getElementById("kfMusicOffset").value) || 0;
-  try { audioEl.currentTime = Math.max(0, offset); } catch (e) {}
-  audioEl.play().catch((e) => console.warn("音樂播放失敗（可能需要先跟頁面互動一次）：", e));
+  return timelineAudio.playFromOffset();
 }
 
 // 拍點播放停止時呼叫：暫停音樂（若有在播放）。
 function pauseKfMusic(){
-  const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && !audioEl.paused) audioEl.pause();
+  return timelineAudio.pause();
 }
 
 // 「🎵 試聽」：單純播放/暫停音樂本身，跟拍點播放狀態無關——確認音樂內容時常常
 // 還沒有任何拍點（甚至還沒開始編舞），這時「▶ 播放拍點」按不了（需要至少2個拍點），
 // 所以獨立出這顆按鈕。按鈕文字用 audioEl 的 play/pause/ended 事件同步，不用自己管狀態機。
 function toggleKfMusicPreview(){
-  const audioEl = document.getElementById("kfAudioEl");
-  if (!audioEl || !audioEl.src) return;
-  if (audioEl.paused) audioEl.play().catch((e) => console.warn("音樂播放失敗：", e));
-  else audioEl.pause();
+  return timelineAudio.togglePreview();
 }
 
 function syncKfMusicPreviewBtn(){
@@ -6972,11 +6835,11 @@ function getKfMusicOffsetSec(){
 }
 
 function timelineBeatToAudioTime(beat){
-  return getKfMusicOffsetSec() + Math.max(0, beat) * 60 / bpm;
+  return timelineAudio.beatToTime(beat);
 }
 
 function audioTimeToTimelineBeat(sec){
-  return Math.max(0, (sec - getKfMusicOffsetSec()) * bpm / 60);
+  return timelineAudio.timeToBeat(sec);
 }
 
 async function decodeKfWaveform(file){
@@ -10816,6 +10679,45 @@ const timelinePlayback = createTimelinePlayback({
   applySquatGroove,
   get grooveStartTime(){ return grooveStartTime; },
   updatePlayingKeyframeHighlight,
+});
+
+const timelineAudio = createTimelineAudio({
+  getAudio: () => document.getElementById("kfAudioEl"),
+  getOffset: getKfMusicOffsetSec,
+  getBpm: () => bpm,
+});
+const timelineEditor = createTimelineEditor({
+  renderWaveTrack,
+  updateMoveLibRangeHint,
+  updateKfTotalDurationLabel,
+  updateBeatGridPoseInspector,
+  bindTimelineReorderHost,
+  updateBeatGridGeometry,
+  get kfChipEls(){ return kfChipEls; },
+  set kfChipEls(value){ kfChipEls = value; },
+  get keyframes(){ return keyframes; },
+  renderGrooveLoopGhosts,
+  updateOnionSkins,
+  drawKfWaveform,
+  keyframeStartBeat,
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  get kfPlaying(){ return kfPlaying; },
+  get kfIndex(){ return kfIndex; },
+  get kfDragSrcIndex(){ return kfDragSrcIndex; },
+  set kfDragSrcIndex(value){ kfDragSrcIndex = value; },
+  beginTimelineReorderDrag,
+  endTimelineReorderDrag,
+  toggleKfMultiSelectItem,
+  selectKeyframe,
+  renameKeyframeLabel,
+  duplicateKeyframe,
+  pushHistory,
+  IK_CHAINS,
+  beginPoseResize,
+  scrollKfChipIntoView,
 });
 
 init();
