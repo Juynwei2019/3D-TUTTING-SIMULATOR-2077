@@ -99,7 +99,16 @@ try{
         await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
         await page.waitForFunction(before=>document.getElementById('beatGridScroll').scrollLeft>before,scrollStart);
         assert.deepEqual(await page.evaluate(()=>window.__touchSmoke.frames.map(f=>f.beats)),[4,4,4]);
-        await page.locator('#touchTimelineEdit').scrollIntoViewIfNeeded();await page.locator('#touchTimelineEdit').tap();
+        await page.waitForFunction(()=>{
+          const state=JSON.stringify(['beatGridScroll','uiTabBody','uiTabBar'].map(id=>{const el=document.getElementById(id);return [el.scrollLeft,el.scrollTop];}));
+          const now=performance.now(),last=window.__touchScroll;
+          if(!last||last.state!==state){window.__touchScroll={state,changedAt:now};return false;}
+          return now-last.changedAt>150;
+        });
+        await page.locator('#touchTimelineEdit').scrollIntoViewIfNeeded();
+        assert.equal(await page.locator('#touchTimelineEdit').getAttribute('aria-pressed'),'false','scrolling must not toggle edit mode');
+        await page.locator('#touchTimelineEdit').tap();
+        await page.waitForFunction(()=>document.getElementById('touchTimelineEdit').getAttribute('aria-pressed')==='true');
         assert.equal(await page.locator('#touchTimelineEdit').getAttribute('aria-pressed'),'true');
         if(viewport.width===390){
           const handle=page.locator('#kfList .poseResizeHandle').first();await handle.scrollIntoViewIfNeeded();
