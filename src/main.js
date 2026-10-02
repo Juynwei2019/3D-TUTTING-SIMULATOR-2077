@@ -1,3 +1,13 @@
+import { createLimbController } from "./ik/limb-controller.js";
+import { createSpineController } from "./ik/spine-controller.js";
+import { createFingerController } from "./ik/finger-controller.js";
+import { createFootPlant } from "./ik/foot-plant.js";
+import { createPoleEditor } from "./ik/pole-editor.js";
+import { createOrientationController } from "./ik/orientation-controller.js";
+import { createTrajectoryEditor } from "./motion/trajectory-editor.js";
+import { createHandCollision } from "./collision/hand-collision.js";
+import { createCollisionView } from "./collision/collision-view.js";
+import { createJointOwnership } from "./ik/joint-ownership.js";
 import { createTimelineSelection } from "./timeline/selection-clipboard.js";
 import { createRangeEditor } from "./timeline/range-editor.js";
 import { createPreferences } from "./storage/preferences.js";
@@ -754,189 +764,29 @@ let footPlantCalibration = {};
 let footPlantSafe = null;
 let footPlantLimited = false;
 let footPlantNotice = "";
-function isFootPlanted(limb) {
-  return footPlantEnabled && !!ikEnabled[limb] && !!footPlantAnchors[limb];
+function isFootPlanted(...args){
+  return footPlantController.isFootPlanted(...args);
 }
-function calibrateFootGround() {
-  model.updateWorldMatrix(true, true);
-  // Use skinned foot/toe vertices in the loaded neutral pose, not ankle Y=0.
-  for (const limb of FOOT_PLANT_LIMBS) {
-    const foot = bones[IK_CHAINS[limb].end];
-    if (!foot) continue;
-    const descendants = new Set(); foot.traverse(b => descendants.add(b));
-    let minY = Infinity;
-    const v = new THREE.Vector3();
-    model.traverse(mesh => {
-      if (!mesh.isSkinnedMesh || !mesh.geometry.attributes.skinWeight) return;
-      mesh.skeleton.update();
-      const weights = mesh.geometry.attributes.skinWeight, indices = mesh.geometry.attributes.skinIndex;
-      const ids = new Set(mesh.skeleton.bones.map((b,i) => descendants.has(b) ? i : -1));
-      ids.delete(-1);
-      const components = ['getX','getY','getZ','getW'];
-      for (let i=0; i<weights.count; i++) {
-        let weight = 0;
-        for (const c of components) if (ids.has(indices[c](i))) weight += weights[c](i);
-        if (weight < 0.5) continue;
-        mesh.getVertexPosition(i, v).applyMatrix4(mesh.matrixWorld);
-        minY = Math.min(minY, v.y);
-      }
-    });
-    const pos = foot.getWorldPosition(new THREE.Vector3());
-    footPlantCalibration[limb] = {
-      height: Number.isFinite(minY) ? Math.max(0, pos.y-minY) : Math.max(0, pos.y),
-      quaternion: foot.getWorldQuaternion(new THREE.Quaternion())
-    };
-  }
+function calibrateFootGround(...args){
+  return footPlantController.calibrateFootGround(...args);
 }
-function captureFootPlant(limb) {
-  const foot = bones[IK_CHAINS[limb].end], c = footPlantCalibration[limb];
-  if (!foot || !c) return;
-  const p = foot.getWorldPosition(new THREE.Vector3()); p.y = c.height;
-  // Preserve heading, use the neutral foot's pitch/roll so the sole is level.
-  const now = foot.getWorldQuaternion(new THREE.Quaternion());
-  const delta = now.clone().multiply(c.quaternion.clone().invert());
-  const yaw = new THREE.Euler().setFromQuaternion(delta, 'YXZ').y;
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw).multiply(c.quaternion);
-  footPlantAnchors[limb] = {position:p, quaternion:q};
-  ikTargetMeshes[limb].position.copy(p);
-  footLockedWorldQuat[limb] = q.clone();
+function captureFootPlant(...args){
+  return footPlantController.captureFootPlant(...args);
 }
-function setFootPlantEnabled(on) {
-  if(waveRun&&waveHasBody(waveRun.config))stopWave();
-  if (kfPlaying) { updateFootPlantUI(); return; }
-  if (!on) for (const limb of FOOT_PLANT_LIMBS) {
-    if (!isFootPlanted(limb)) continue;
-    const foot = bones[IK_CHAINS[limb].end];
-    if (foot) {
-      foot.getWorldQuaternion(ikTargetMeshes[limb].quaternion);
-      captureFootLock(limb);
-    }
-  }
-  footPlantEnabled = !!on && (ikEnabled.rLeg || ikEnabled.lLeg);
-  footPlantAnchors = {}; footPlantSafe = null; footPlantLimited = false; footPlantNotice = "";
-  if (footPlantEnabled) {
-    deselectJoint();
-    for (const limb of FOOT_PLANT_LIMBS) if (ikEnabled[limb]) captureFootPlant(limb);
-  }
-  updateFootPlantUI();
+function setFootPlantEnabled(...args){
+  return footPlantController.setFootPlantEnabled(...args);
 }
-function updateFootPlantUI() {
-  const cb = document.getElementById('footPlantCb');
-  if (!cb) return;
-  cb.checked = footPlantEnabled;
-  cb.disabled = !model || kfPlaying || (!ikEnabled.rLeg && !ikEnabled.lLeg);
-  const active = FOOT_PLANT_LIMBS.filter(isFootPlanted);
-  const label = document.getElementById('footPlantStatus');
-  const message = kfPlaying ? '播放中：腳底固定暫停' : active.length
-    ? (footPlantLimited ? '已達腿部伸展範圍 · ' : '已固定 · ') + active.map(l => IK_CHAINS[l].label).join('、')
-    : (footPlantNotice || (ikEnabled.rLeg || ikEnabled.lLeg ? '開啟後將腳底對齊地面並固定' : '請先啟用左腳或右腳 IK'));
-  if (label.textContent !== message) label.textContent = message;
-  for (const limb of FOOT_PLANT_LIMBS) {
-    const b = document.getElementById('orientBtn_'+limb);
-    if (b) b.disabled = isFootPlanted(limb);
-  }
+function updateFootPlantUI(...args){
+  return footPlantController.updateFootPlantUI(...args);
 }
-function solveFootPlant() {
-  if (!model || kfPlaying || !footPlantEnabled) return;
-  const limbs = FOOT_PLANT_LIMBS.filter(isFootPlanted);
-  if (!limbs.length) return;
-  model.updateWorldMatrix(true,true);
-  const startPosition = model.position.clone();
-  const constraints = limbs.map(limb => {
-    const c = IK_CHAINS[limb], a = bones[c.root].getWorldPosition(new THREE.Vector3());
-    const b = bones[c.mid].getWorldPosition(new THREE.Vector3());
-    const e = bones[c.end].getWorldPosition(new THREE.Vector3());
-    const u = a.distanceTo(b), v = b.distanceTo(e);
-    return {limb, offset:a.sub(model.position), min:Math.abs(u-v)+0.0002, max:u+v-0.0002};
-  });
-  // Alternating projections constrain the body translation to both legs' reachable shells.
-  const candidate = model.position.clone();
-  for (let pass=0; pass<100; pass++) {
-    let error = 0;
-    for (const c of constraints) {
-      const anchor = footPlantAnchors[c.limb].position;
-      const d = candidate.clone().add(c.offset).sub(anchor), length = d.length();
-      const wanted = Math.max(c.min, Math.min(c.max,length));
-      error = Math.max(error, Math.abs(wanted-length));
-      if (Math.abs(wanted-length)<1e-7) continue;
-      if (length<1e-9) d.set(0,1,0); else d.divideScalar(length);
-      candidate.copy(anchor).addScaledVector(d,wanted).sub(c.offset);
-    }
-    if (error<1e-7) break;
-  }
-  const feasible = constraints.every(c => {
-    const d = candidate.clone().add(c.offset).distanceTo(footPlantAnchors[c.limb].position);
-    return d <= c.max+1e-6 && d >= c.min-1e-6;
-  });
-  footPlantLimited = candidate.distanceTo(startPosition)>0.00001 || !feasible;
-  if (feasible) model.position.copy(candidate);
-  else if (footPlantSafe) {
-    model.position.fromArray(footPlantSafe.position);
-    model.quaternion.fromArray(footPlantSafe.quaternion);
-    for (const [key,q] of Object.entries(footPlantSafe.bones)) if (bones[key]) {
-      bones[key].quaternion.fromArray(q); syncTargetFromBone(key);
-    }
-  } else {
-    // Impossible initial contact configuration: fail explicitly rather than claim a lock.
-    setFootPlantEnabled(false);
-    footPlantNotice = '無法同時貼地，請先調整腿部姿勢再開啟';
-    updateFootPlantUI();
-    return;
-  }
-  model.updateWorldMatrix(true,true);
-  for (const limb of limbs) {
-    const c = IK_CHAINS[limb], a = footPlantAnchors[limb];
-    ikTargetMeshes[limb].position.copy(a.position);
-    solveTwoBoneIK(bones[c.root],bones[c.mid],bones[c.end],a.position,ikPoleMeshes[limb].position);
-    applyBoneWorldQuatLock(bones[c.end],a.quaternion);
-    footLockedWorldQuat[limb] = a.quaternion.clone();
-    for (const key of [c.root,c.mid,c.end]) syncTargetFromBone(key);
-  }
-  footPlantSafe = {position:model.position.toArray(), quaternion:model.quaternion.toArray(), bones:{}};
-  for (const key of ALL_JOINT_KEYS) if (bones[key]) footPlantSafe.bones[key] = bones[key].quaternion.toArray();
-  // Keep the next gizmo delta relative to its corrected position (no accumulated overshoot).
-  const correction = model.position.clone().sub(startPosition);
-  if (selectedIK?.limb === 'body' && bodyGizmoProxy && bodyProxyLastPos) {
-    bodyGizmoProxy.position.add(correction); bodyProxyLastPos.copy(bodyGizmoProxy.position);
-  }
-  updateIKPoleLines();
+function solveFootPlant(...args){
+  return footPlantController.solveFootPlant(...args);
 }
-function snapshotFootPlant() {
-  if (!model) return null;
-  const state = {enabled:footPlantEnabled, body:snapshotBodyTransform(), legs:{}, angles:{}};
-  if (footPlantEnabled) for (const key of ALL_JOINT_KEYS) if (bones[key]) state.angles[key]=bones[key].quaternion.toArray();
-  for (const limb of FOOT_PLANT_LIMBS) {
-    const a=footPlantAnchors[limb];
-    state.legs[limb]={enabled:ikEnabled[limb], target:ikTargetMeshes[limb]?.position.toArray(),
-      pole:ikPoleMeshes[limb]?.position.toArray(), orientation:ikTargetMeshes[limb]?.quaternion.toArray(),
-      orientEnabled:effectorOrientEnabled[limb], lock:footLockedWorldQuat[limb]?.toArray(),
-      anchor:a ? {position:a.position.toArray(), quaternion:a.quaternion.toArray()} : null};
-  }
-  return state;
+function snapshotFootPlant(...args){
+  return footPlantController.snapshotFootPlant(...args);
 }
-function restoreFootPlant(state) {
-  footPlantEnabled=false; footPlantAnchors={}; footPlantSafe=null; footPlantNotice="";
-  const vector = (v,n) => Array.isArray(v) && v.length===n && v.every(Number.isFinite);
-  const quat = q => vector(q,4) && q.reduce((a,b)=>a+b*b,0)>1e-10;
-  if (!state || !model) { updateFootPlantUI(); return; }
-  if (vector(state.body?.position,3) && quat(state.body?.quaternion)) applyBodyTransform(state.body);
-  for (const [key,q] of Object.entries(state.angles || {})) if (bones[key] && quat(q)) {
-    bones[key].quaternion.fromArray(q).normalize(); syncTargetFromBone(key);
-  }
-  model.updateWorldMatrix(true,true);
-  for (const limb of FOOT_PLANT_LIMBS) {
-    const s=state.legs?.[limb]; if (!s) continue;
-    setIKEnabled(limb,s.enabled===true);
-    if (vector(s.target,3)) ikTargetMeshes[limb].position.fromArray(s.target);
-    if (vector(s.pole,3)) ikPoleMeshes[limb].position.fromArray(s.pole);
-    if (quat(s.orientation)) ikTargetMeshes[limb].quaternion.fromArray(s.orientation).normalize();
-    effectorOrientEnabled[limb]=s.orientEnabled===true;
-    if (quat(s.lock)) footLockedWorldQuat[limb]=new THREE.Quaternion().fromArray(s.lock).normalize();
-    if (s.enabled && vector(s.anchor?.position,3) && quat(s.anchor?.quaternion))
-      footPlantAnchors[limb]={position:new THREE.Vector3().fromArray(s.anchor.position),quaternion:new THREE.Quaternion().fromArray(s.anchor.quaternion).normalize()};
-  }
-  footPlantEnabled=state.enabled===true && Object.keys(footPlantAnchors).length>0;
-  solveFootPlant(); updateFootPlantUI(); updateEffectorOrientButtons();
+function restoreFootPlant(...args){
+  return footPlantController.restoreFootPlant(...args);
 }
 
 
@@ -953,111 +803,36 @@ let ikPoleLines = {};      // 輔助虛線：從 mid 骨骼連到極向球，方
 let poleRadiusCustom = {};
 let poleDrag = null;
 let poleRangeHelper = null;
-function poleMid(limb){
-  const b=bones[IK_CHAINS[limb]?.mid];
-  return b ? b.getWorldPosition(new THREE.Vector3()) : null;
+function poleMid(...args){
+  return poleEditorController.poleMid(...args);
 }
-function poleRadius(limb){
-  if (Number.isFinite(poleRadiusCustom[limb]) && poleRadiusCustom[limb]>=0.01) return poleRadiusCustom[limb];
-  const c=IK_CHAINS[limb], a=bones[c.root], b=bones[c.mid], e=bones[c.end];
-  if (!a || !b || !e) return 0.4;
-  const x=a.getWorldPosition(new THREE.Vector3()), y=b.getWorldPosition(new THREE.Vector3()), z=e.getWorldPosition(new THREE.Vector3());
-  return Math.max(0.01, (x.distanceTo(y)+y.distanceTo(z))*0.5);
+function poleRadius(...args){
+  return poleEditorController.poleRadius(...args);
 }
-function snapshotPoleEditor(){
-  const limbs={};
-  for(const limb of IK_LIMB_KEYS) limbs[limb]={enabled:ikEnabled[limb],pole:ikPoleMeshes[limb]?.position.toArray(),target:ikTargetMeshes[limb]?.position.toArray()};
-  return {radii:{...poleRadiusCustom},limbs};
+function snapshotPoleEditor(...args){
+  return poleEditorController.snapshotPoleEditor(...args);
 }
-function restorePoleEditor(state){
-  poleDrag=null; poleRadiusCustom={};
-  for(const limb of IK_LIMB_KEYS){
-    const r=state?.radii?.[limb];
-    if(Number.isFinite(r)&&r>=0.01) poleRadiusCustom[limb]=r;
-    const v=state?.limbs?.[limb]; if(!v) continue;
-    if(typeof v.enabled==='boolean') setIKEnabled(limb,v.enabled);
-    for(const [key,meshes] of [['pole',ikPoleMeshes],['target',ikTargetMeshes]])
-      if(Array.isArray(v[key])&&v[key].length===3&&v[key].every(Number.isFinite)&&meshes[limb]) meshes[limb].position.fromArray(v[key]);
-  }
-  updatePoleRadiusUI();
+function restorePoleEditor(...args){
+  return poleEditorController.restorePoleEditor(...args);
 }
 // Reposition along the SAME solver-side direction, preserving its bend plane.
-function alignPoleInRadius(limb){
-  const c=IK_CHAINS[limb], mid=poleMid(limb), pole=ikPoleMeshes[limb];
-  if(!mid||!pole||!bones[c.root]) return false;
-  const root=bones[c.root].getWorldPosition(new THREE.Vector3());
-  const axis=ikTargetMeshes[limb].position.clone().sub(root);
-  if(axis.lengthSq()<1e-10) return false;
-  axis.normalize();
-  const side=pole.position.clone().sub(root); side.addScaledVector(axis,-side.dot(axis));
-  if(side.lengthSq()<1e-8){side.copy(mid).sub(root);side.addScaledVector(axis,-side.dot(axis));}
-  if(side.lengthSq()<1e-8) return false;
-  side.normalize();
-  const candidate=mid.clone().addScaledVector(side,poleRadius(limb)*0.8);
-  const projected=candidate.clone().sub(root);projected.addScaledVector(axis,-projected.dot(axis));
-  if(projected.dot(side)<=1e-6 || projected.clone().cross(side).length()>1e-5) return false;
-  pole.position.copy(candidate);return true;
+function alignPoleInRadius(...args){
+  return poleEditorController.alignPoleInRadius(...args);
 }
-function updatePoleRadiusUI(){
-  const panel=document.getElementById('poleRadiusPanel'); if(!panel) return;
-  const limb=selectedIK?.role==='pole'&&IK_CHAINS[selectedIK.limb]?selectedIK.limb:null;
-  panel.style.display=limb?'':'none';
-  if(!limb) return;
-  document.getElementById('poleRadiusTitle').textContent=IK_CHAINS[limb].label+'・極向球範圍';
-  document.getElementById('poleRadiusInput').value=Number(poleRadius(limb).toFixed(4));
+function updatePoleRadiusUI(...args){
+  return poleEditorController.updatePoleRadiusUI(...args);
 }
-function bindPoleRadiusUI(){
-  const input=document.getElementById('poleRadiusInput');
-  const change=(reset)=>{
-    const limb=selectedIK?.role==='pole'?selectedIK.limb:null;
-    if(!IK_CHAINS[limb]||poleDrag||kfPlaying) return;
-    const r=Number(input.value);
-    if(!reset&&(!Number.isFinite(r)||r<0.01)){updatePoleRadiusUI();return;}
-    pushHistory();
-    if(reset) delete poleRadiusCustom[limb]; else poleRadiusCustom[limb]=r;
-    const mid=poleMid(limb);
-    const ok=!mid||ikPoleMeshes[limb].position.distanceTo(mid)<=poleRadius(limb)||alignPoleInRadius(limb);
-    document.getElementById('poleRadiusNotice').textContent=ok?'':'目前方向無法安全對齊，請先調整肢體姿勢再對齊。';
-    updatePoleRadiusUI();pushHistory();scheduleAutoSave();
-  };
-  input.onchange=()=>change(false);
-  document.getElementById('poleRadiusDefault').onclick=()=>change(true);
-  document.getElementById('poleRadiusAlign').onclick=()=>{
-    if(selectedIK?.role!=='pole'||kfPlaying||poleDrag)return;
-    pushHistory();const ok=alignPoleInRadius(selectedIK.limb);
-    document.getElementById('poleRadiusNotice').textContent=ok?'已保留彎曲方向並對齊。':'肢體方向退化或不一致，請先稍微彎曲肢體再試。';
-    pushHistory();scheduleAutoSave();
-  };
+function bindPoleRadiusUI(...args){
+  return poleEditorController.bindPoleRadiusUI(...args);
 }
-function beginPoleDrag(){
-  if(selectedIK?.role!=='pole'||!IK_CHAINS[selectedIK.limb]) return;
-  const limb=selectedIK.limb, center=poleMid(limb), mesh=ikPoleMeshes[limb];
-  if(!center)return;
-  // No relocation during mouseDown: TransformControls has already captured its start position.
-  if(kfPlaying||mesh.position.distanceTo(center)>poleRadius(limb)+1e-7){
-    poleDrag={limb,blocked:true,start:mesh.position.clone()};
-    document.getElementById('poleRadiusNotice').textContent='請先按「對齊目前彎曲方向」再拖曳；播放時請先暫停。';
-    return;
-  }
-  pushHistory();poleDrag={limb,center,radius:poleRadius(limb)};
-  document.getElementById('poleRadiusNotice').textContent='';
+function beginPoleDrag(...args){
+  return poleEditorController.beginPoleDrag(...args);
 }
-function clampPoleDrag(){
-  if(!poleDrag)return;
-  const p=ikPoleMeshes[poleDrag.limb].position;
-  if(poleDrag.blocked){p.copy(poleDrag.start);return;}
-  const delta=p.clone().sub(poleDrag.center);
-  if(delta.length()>poleDrag.radius) p.copy(poleDrag.center).add(delta.setLength(poleDrag.radius));
+function clampPoleDrag(...args){
+  return poleEditorController.clampPoleDrag(...args);
 }
-function updatePoleRange(){
-  const limb=selectedIK?.role==='pole'&&IK_CHAINS[selectedIK.limb]?selectedIK.limb:null;
-  if(!limb||!ikPoleMeshes[limb]?.visible||kfPlaying){if(poleRangeHelper)poleRangeHelper.visible=false;return;}
-  if(!poleRangeHelper){
-    poleRangeHelper=new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(1,16,10)),new THREE.LineBasicMaterial({color:0xccff33,transparent:true,opacity:0.18,depthTest:false,depthWrite:false}));
-    poleRangeHelper.renderOrder=997;scene.add(poleRangeHelper);
-  }
-  const center=poleDrag?.center||poleMid(limb);if(!center)return;
-  poleRangeHelper.visible=true;poleRangeHelper.position.copy(center);poleRangeHelper.scale.setScalar(poleDrag?.radius||poleRadius(limb));
+function updatePoleRange(...args){
+  return poleEditorController.updatePoleRange(...args);
 }
 
 let selectedIK = null;     // { limb, role: 'target' | 'pole' | 'trajPoint', index? }
@@ -2377,699 +2152,215 @@ function highlightFingerButtons(){
 }
 
 // ---- 手腳 IK：目標球（橙色）＋極向球（黃綠色八面體） ----
-function buildIKMarkers(){
-  const targetGeo = new THREE.SphereGeometry(0.038, 16, 16);
-  const poleGeo = new THREE.OctahedronGeometry(0.032, 0);
-
-  for (const limb of IK_LIMB_KEYS){
-    const targetMat = new THREE.MeshBasicMaterial({ color:0xff8c1a, transparent:true, opacity:0.95, depthTest:false });
-    const targetMesh = new THREE.Mesh(targetGeo, targetMat);
-    targetMesh.renderOrder = 998;
-    targetMesh.visible = false;
-    targetMesh.userData.pickType = "ikTarget";
-    targetMesh.userData.limb = limb;
-    scene.add(targetMesh);
-    ikTargetMeshes[limb] = targetMesh;
-
-    const poleMat = new THREE.MeshBasicMaterial({ color:0xccff33, transparent:true, opacity:0.95, depthTest:false });
-    const poleMesh = new THREE.Mesh(poleGeo, poleMat);
-    poleMesh.renderOrder = 998;
-    poleMesh.visible = false;
-    poleMesh.userData.pickType = "ikPole";
-    poleMesh.userData.limb = limb;
-    scene.add(poleMesh);
-    ikPoleMeshes[limb] = poleMesh;
-
-    const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    const lineMat = new THREE.LineBasicMaterial({ color:0xccff33, transparent:true, opacity:0.5, depthTest:false });
-    const line = new THREE.Line(lineGeo, lineMat);
-    line.renderOrder = 997;
-    line.visible = false;
-    scene.add(line);
-    ikPoleLines[limb] = line;
-
-    syncIKMarkersToDefault(limb);
-  }
+function buildIKMarkers(...args){
+  return limbController.buildIKMarkers(...args);
 }
 
 // 把某肢體的目標球／極向球對齊「目前姿勢」算出的預設位置（開啟 IK 當下、或按重置時呼叫，避免瞬間跳動）
-function syncIKMarkersToDefault(limb){
-  const chain = IK_CHAINS[limb];
-  const endBone = bones[chain.end];
-  const midBone = bones[chain.mid];
-  if (!endBone || !midBone) return;
-
-  const rootBone = bones[chain.root];
-  const rootPos = new THREE.Vector3();
-  const midPos = new THREE.Vector3();
-  const endPos = new THREE.Vector3();
-  if (rootBone) rootBone.getWorldPosition(rootPos);
-  midBone.getWorldPosition(midPos);
-  endBone.getWorldPosition(endPos);
-
-  // 目標球：對齊目前手掌/腳掌的世界座標
-  ikTargetMeshes[limb].position.copy(endPos);
-
-  // 極向球：反推「目前 FK 姿勢」實際的彎曲方向（root→mid 相對 root→end 連線的側向分量），
-  // 而不是用固定猜測方向 —— 這樣切換 FK→IK 當下的彎曲平面會對齊現有姿勢，不會瞬間跳動。
-  // 只有手臂/腿完全打直（沒有側向分量可反推）時才退回用猜測方向。
-  let bendDir;
-  if (rootBone){
-    const toEnd = endPos.clone().sub(rootPos);
-    const rootToEndDir = toEnd.lengthSq() > 1e-10 ? toEnd.normalize() : new THREE.Vector3(0, 0, 1);
-    const toMid = midPos.clone().sub(rootPos);
-    const onAxis = rootToEndDir.clone().multiplyScalar(toMid.dot(rootToEndDir));
-    const lateral = toMid.clone().sub(onAxis);
-    bendDir = lateral.lengthSq() > 1e-8 ? lateral.normalize() : chain.poleOffset.clone().normalize();
-  } else {
-    bendDir = chain.poleOffset.clone().normalize();
-  }
-
-  const poleDist = Math.min(chain.poleOffset.length(), poleRadius(limb)*0.8);
-  ikPoleMeshes[limb].position.copy(midPos.clone().add(bendDir.multiplyScalar(poleDist)));
+function syncIKMarkersToDefault(...args){
+  return limbController.syncIKMarkersToDefault(...args);
 }
 
 // ---- 脊椎 IK 目標球（藍色實心球）----
-function buildSpineIKMarker(){
-  const targetGeo = new THREE.SphereGeometry(0.038, 16, 16);
-  const targetMat = new THREE.MeshBasicMaterial({ color:0x33ccff, transparent:true, opacity:0.95, depthTest:false });
-  const mesh = new THREE.Mesh(targetGeo, targetMat);
-  mesh.renderOrder = 998;
-  mesh.visible = false;
-  mesh.userData.pickType = "spineIKTarget";
-  scene.add(mesh);
-  spineIKTargetMesh = mesh;
-  syncSpineIKMarkerToDefault();
+function buildSpineIKMarker(...args){
+  return spineController.buildSpineIKMarker(...args);
 }
 
 // 把脊椎目標球對齊「目前姿勢」頭部所在的世界座標（開啟當下、或按重置時呼叫，避免瞬間跳動）
-function syncSpineIKMarkerToDefault(){
-  const effectorBone = bones[SPINE_IK_CHAIN.effector];
-  if (!effectorBone || !spineIKTargetMesh) return;
-  const pos = new THREE.Vector3();
-  effectorBone.getWorldPosition(pos);
-  spineIKTargetMesh.position.copy(pos);
+function syncSpineIKMarkerToDefault(...args){
+  return spineController.syncSpineIKMarkerToDefault(...args);
 }
 
 // 開關脊椎 IK：開啟時鎖住 Spine/Spine1/Spine2/Neck（隱藏它們的關節球，改由 CCD 求解），
 // Head 自己的旋轉仍保留 FK 可調整（跟手腳 IK 保留末端 FK 是同樣設計）。
-function setSpineIKEnabled(on){
-  if(waveRun)stopWave();
-  spineIKEnabled = on;
-  // 緊接在賦值後重建，而不是放函式結尾：下面有跟 setLookAtEnabled 互斥的互相呼叫，
-  // 內層呼叫也會各自重建一次。因為 rebuildIKDrivenKeys() 是「整份重算」而非增量更新，
-  // 不管誰先誰後、重建幾次，最終結果都等於當下四個開關狀態的正解。
-  rebuildIKDrivenKeys();
-  if (on) syncSpineIKMarkerToDefault();
-  spineIKTargetMesh.visible = on;
-  for (const key of SPINE_IK_CHAIN.bones){
-    if (markerMeshes[key]) markerIKHidden[key] = on;
-  }
-  if (on && lookAtEnabled.chest) setLookAtEnabled("chest", false);
-  if (!on && selectedIK && selectedIK.limb === "spine") deselectJoint();
-  updateSpineIKButton();
+function setSpineIKEnabled(...args){
+  return spineController.setSpineIKEnabled(...args);
 }
 
-function calibrateHandAim(name){
-  const b=bones[name],side=name[0],index=bones[side+'Index1'],pinky=bones[side+'Pinky1'],middle=bones[side+'Middle1'];
-  if(!b||!index||!pinky||!middle)return false;
-  b.updateWorldMatrix(true,true);
-  const point=x=>b.worldToLocal(x.getWorldPosition(new THREE.Vector3()));
-  const forward=point(middle).normalize(),across=point(index).sub(point(pinky)).normalize();
-  const normal=new THREE.Vector3().crossVectors(forward,across).multiplyScalar(side==='r'?1:-1);
-  if(normal.lengthSq()<1e-8||forward.lengthSq()<1e-8)return false;
-  handAimAxes[name]={palm:normal.normalize(),finger:forward};return true;
+function calibrateHandAim(...args){
+  return orientationController.calibrateHandAim(...args);
 }
-function handAimAxis(name){return handAimAxes[name][handAim[name].mode].clone().multiplyScalar(handAim[name].flip?-1:1);}
-function captureHandAim(name){
-  if(!handAimAxes[name]&&!calibrateHandAim(name))return false;
-  handFollowLast[name]=null;
-  bones[name].getWorldQuaternion(handAim[name].reference).normalize();handAim[name].roll=0;
-  LOOKAT_CONFIG[name].localForward.copy(handAimAxis(name));return true;
+function handAimAxis(...args){
+  return orientationController.handAimAxis(...args);
 }
-function handFollowDirection(name,pos){
-  const other=name==='rHand'?'lHand':'rHand',bone=bones[other];
-  if(!bone)return null;
-  const point=bone.getWorldPosition(new THREE.Vector3());lookAtTargetMesh[name].position.copy(point);
-  const dir=point.sub(pos),distance=dir.length();
-  // Keep the last direction inside 0.01; resume beyond 0.015 to avoid boundary jitter.
-  const threshold=handFollowLast[name]?.near?0.015:0.01;
-  if(distance<threshold){
-    if(!handFollowLast[name])handFollowLast[name]={dir:handAimAxis(name).applyQuaternion(bones[name].getWorldQuaternion(new THREE.Quaternion())).normalize(),near:true};
-    handFollowLast[name].near=true;return handFollowLast[name].dir.clone();
-  }
-  dir.normalize();handFollowLast[name]={dir:dir.clone(),near:false};return dir;
+function captureHandAim(...args){
+  return orientationController.captureHandAim(...args);
 }
-function updateHandFollowUI(){
-  for(const name of HAND_AIM_NAMES){
-    const select=document.getElementById('handFollowSource_'+name);if(!select)continue;
-    const other=name==='rHand'?'lHand':'rHand',bound=handFollowSource[name]==='other';
-    select.value=handFollowSource[name];select.querySelector('option[value="other"]').disabled=!bones[other];
-    for(const prefix of ['handRangeMin_','handRangeMax_','handRangeDefault_'])document.getElementById(prefix+name).disabled=bound;
-    document.getElementById('handFollowStatus_'+name).textContent=bound?(lookAtEnabled[name]?'追蹤另一手的實際手腕；半徑暫停。':'追蹤已暫停。'):'';
-    if(lookAtTargetMesh[name])lookAtTargetMesh[name].visible=lookAtEnabled[name]&&!bound;
-  }
+function handFollowDirection(...args){
+  return orientationController.handFollowDirection(...args);
 }
-function bindHandFollowUI(){
-  for(const name of HAND_AIM_NAMES)document.getElementById('handFollowSource_'+name).onchange=e=>{
-    const next=e.target.value,other=name==='rHand'?'lHand':'rHand';
-    if(kfPlaying||!['free','other'].includes(next)||(next==='other'&&!bones[other])){updateHandFollowUI();return;}
-    pushHistory();if(selectedIK?.limb==='lookAt_'+name)deselectJoint();handRangeDrag=null;
-    handFollowSource[name]=next;handFollowLast[name]=null;
-    if(next==='other')setLookAtEnabled(name,true);else syncLookAtMarkerToDefault(name);
-    solveHandAim(name);updateHandFollowUI();pushHistory();scheduleAutoSave();
-  };
+function updateHandFollowUI(...args){
+  return orientationController.updateHandFollowUI(...args);
+}
+function bindHandFollowUI(...args){
+  return orientationController.bindHandFollowUI(...args);
 }
 
 // Single-part editor preview. Only configuration is persisted; playback never auto-starts.
-function sampleLACustom(c,phase){
-  const pts=(c.points||[]).map(p=>new THREE.Vector3().fromArray(p));
-  if(!pts.length)return new THREE.Vector3();if(pts.length===1)return pts[0];
-  const closed=c.closed&&pts.length>=3;
-  const cycle=((phase%1)+1)%1,u=closed?cycle:1-Math.abs(2*cycle-1);
-  if(c.mode==='curve'&&pts.length>=3)return new THREE.CatmullRomCurve3(pts,closed,'centripetal').getPoint(u);
-  const segments=closed?pts.length:pts.length-1,t=u*segments,i=Math.min(Math.floor(t),segments-1);
-  return pts[i].clone().lerp(pts[(i+1)%pts.length],t-i);
+function sampleLACustom(...args){
+  return orientationController.sampleLACustom(...args);
 }
-function laCustomCenter(){const bone=bones[LOOKAT_CONFIG[laPathConfig.part]?.key];return bone?bone.getWorldPosition(new THREE.Vector3()):null;}
-function selectLACustom(i){
-  if(laPathRun||kfPlaying||!laCustomMeshes[i])return;
-  transformControls.detach();selectedKey=null;selectedIK={limb:'laCustom',role:'laPoint',index:i};
-  transformControlsIK.setMode('translate');transformControlsIK.setSpace('world');transformControlsIK.attach(laCustomMeshes[i]);
-  updateSelectedBar();renderLACustomList();
+function laCustomCenter(...args){
+  return orientationController.laCustomCenter(...args);
 }
-function renderLACustomList(){
-  const host=document.getElementById('laCustomList');if(!host)return;host.replaceChildren();
-  const points=laPathConfig.points||[];
-  points.forEach((p,i)=>{
-    const group=document.createElement('span'),select=document.createElement('button'),del=document.createElement('button');
-    select.textContent='P'+(i+1);select.title=p.map(x=>x.toFixed(3)).join(', ');select.disabled=!!laPathRun;
-    select.classList.toggle('active',selectedIK?.role==='laPoint'&&selectedIK.index===i);select.onclick=()=>selectLACustom(i);
-    del.textContent='×';del.title='刪除 P'+(i+1);del.disabled=!!laPathRun;del.onclick=()=>mutateLACustom(()=>laPathConfig.points.splice(i,1));
-    group.append(select,del);host.append(group);
-  });
-  if(!points.length)host.textContent='尚無控制點：按「建立方形」開始，或新增控制點。';
+function selectLACustom(...args){
+  return orientationController.selectLACustom(...args);
 }
-function rebuildLACustomMeshes(){
-  if(selectedIK?.role==='laPoint')deselectJoint();laCustomDrag=null;
-  for(const m of laCustomMeshes){scene.remove(m);m.geometry.dispose();m.material.dispose();}laCustomMeshes=[];
-  if(!scene)return;
-  for(let i=0;i<(laPathConfig.points||[]).length;i++){
-    const m=new THREE.Mesh(new THREE.SphereGeometry(.022,12,8),new THREE.MeshBasicMaterial({color:0xffaa55,depthTest:false}));
-    m.renderOrder=999;m.userData.pickType='laPoint';m.userData.index=i;m.visible=false;scene.add(m);laCustomMeshes.push(m);
-  }
-  renderLACustomList();updateLACustomVisual();
+function renderLACustomList(...args){
+  return orientationController.renderLACustomList(...args);
 }
-function mutateLACustom(action){
-  if(laPathRun||kfPlaying)return;pushHistory();if(selectedIK?.role==='laPoint')deselectJoint();
-  if(!laPathConfig.points)laPathConfig.points=[];action();laPathConfig=cleanLAPath(laPathConfig);
-  rebuildLACustomMeshes();updateLAPathUI();pushHistory();scheduleAutoSave();
+function rebuildLACustomMeshes(...args){
+  return orientationController.rebuildLACustomMeshes(...args);
 }
-function updateLACustomVisual(){
-  const visible=!laPathRun&&!kfPlaying&&laPathConfig.shape==='custom'&&document.getElementById('tabLookAt')?.classList.contains('active');
-  for(const m of laCustomMeshes)m.visible=visible;
-  if(!visible){if(!laPathRun&&laPathLine)laPathLine.visible=false;if(selectedIK?.role==='laPoint')deselectJoint();return;}
-  const center=laCustomDrag?.center||laCustomCenter();if(!center)return;
-  const offset=new THREE.Vector3(laPathConfig.x,laPathConfig.y,laPathConfig.z);
-  laCustomMeshes.forEach((m,i)=>{if(!(laCustomDrag&&selectedIK?.index===i))m.position.fromArray(laPathConfig.points[i]).add(offset).add(center);});
-  if(!laPathLine){laPathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffaa55,transparent:true,opacity:.8,depthTest:false}));scene.add(laPathLine);}
-  const range=handAimRange[laPathConfig.part],fallback=handRangeDirection(laPathConfig.part),pts=[];
-  for(let i=0;i<=96;i++)pts.push(laPathPoint(laPathConfig,i/96,center,range.min,range.max,fallback));
-  laPathLine.geometry.setFromPoints(pts);laPathLine.geometry.computeBoundingSphere();laPathLine.visible=(laPathConfig.points||[]).length>=2;
+function mutateLACustom(...args){
+  return orientationController.mutateLACustom(...args);
 }
-function dragLACustom(){
-  if(!laCustomDrag||selectedIK?.role!=='laPoint')return;
-  const i=selectedIK.index,m=laCustomMeshes[i];if(!m)return;
-  const range=handAimRange[laPathConfig.part];clampHandRangePoint(m.position,laCustomDrag.center,range.min,range.max,handRangeDirection(laPathConfig.part));
-  laPathConfig.points[i]=m.position.clone().sub(laCustomDrag.center).sub(new THREE.Vector3(laPathConfig.x,laPathConfig.y,laPathConfig.z)).toArray();
-  updateSelectedBar();
+function updateLACustomVisual(...args){
+  return orientationController.updateLACustomVisual(...args);
 }
-function bindLACustom(){
-  document.getElementById('laCustomMode').onchange=e=>mutateLACustom(()=>laPathConfig.mode=e.target.value);
-  document.getElementById('laCustomClosed').onchange=e=>mutateLACustom(()=>laPathConfig.closed=e.target.value==='closed');
-  document.getElementById('laCustomSquare').onclick=()=>mutateLACustom(()=>{const r=laPathConfig.size;laPathConfig.points=[[-r,-r,0],[r,-r,0],[r,r,0],[-r,r,0]];laPathConfig.closed=true;});
-  document.getElementById('laCustomAdd').onclick=()=>mutateLACustom(()=>{
-    if(laPathConfig.points.length>=64)return;
-    const p=laPathConfig.points.length?laPathConfig.points.at(-1).slice():[0,0,0];p[0]+=.05;laPathConfig.points.push(p);
-  });
+function dragLACustom(...args){
+  return orientationController.dragLACustom(...args);
+}
+function bindLACustom(...args){
+  return orientationController.bindLACustom(...args);
 }
 
-function cleanLAPath(v){
-  const d={part:'rHand',shape:'circle',plane:'xy',size:.12,beats:4,x:0,y:0,z:.25},out={...d};
-  for(const [key,values] of Object.entries({part:['rHand','lHand','head','chest'],shape:['circle','horizontal','vertical','custom'],plane:['xy','xz','yz']}))if(values.includes(v?.[key]))out[key]=v[key];
-  for(const [key,min,max] of [['size',.001,5],['beats',.25,128],['x',-5,5],['y',-5,5],['z',-5,5]])if(Number.isFinite(v?.[key]))out[key]=Math.min(max,Math.max(min,v[key]));
-  out.mode=v?.mode==='curve'?'curve':'line';out.closed=v?.closed===true;
-  out.points=Array.isArray(v?.points)?v.points.filter(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)).slice(0,64).map(p=>p.slice()):[];
-  return out;
+function cleanLAPath(...args){
+  return orientationController.cleanLAPath(...args);
 }
-function laPathPoint(c,phase,center,min,max,fallback){
-  const t=phase*Math.PI*2,p=new THREE.Vector3(c.x,c.y,c.z);
-  if(c.shape==='custom')p.add(sampleLACustom(c,phase));
-  else if(c.shape==='horizontal')p.x+=c.size*Math.sin(t);
-  else if(c.shape==='vertical')p.y+=c.size*Math.sin(t);
-  else {p[c.plane[0]]+=c.size*Math.cos(t);p[c.plane[1]]+=c.size*Math.sin(t);}
-  p.add(center);clampHandRangePoint(p,center,min,max,fallback);return p;
+function laPathPoint(...args){
+  return orientationController.laPathPoint(...args);
 }
-function updateLAPathUI(){
-  const custom=laPathConfig.shape==='custom',panel=document.getElementById('laCustomPanel');
-  if(panel){panel.style.display=custom?'':'none';document.getElementById('laCustomMode').value=laPathConfig.mode||'line';document.getElementById('laCustomClosed').value=laPathConfig.closed?'closed':'open';
-    for(const id of ['laCustomMode','laCustomClosed','laCustomAdd','laCustomSquare'])document.getElementById(id).disabled=!!laPathRun;renderLACustomList();}
-
-  const fields={Part:'part',Shape:'shape',Plane:'plane',Size:'size',Beats:'beats',X:'x',Y:'y',Z:'z'};
-  for(const [id,key] of Object.entries(fields)){const el=document.getElementById('laPath'+id);if(el){el.value=laPathConfig[key];el.disabled=!!laPathRun;}}
-  if(custom){document.getElementById('laPathSize').disabled=true;document.getElementById('laPathPlane').disabled=true;}
-  const play=document.getElementById('laPathPlay');if(!play)return;
-  play.disabled=!!laPathRun?.playing;play.textContent=laPathRun?'▶ 繼續':'▶ 播放預覽';
-  document.getElementById('laPathPause').disabled=!laPathRun?.playing;
-  document.getElementById('laPathStop').disabled=!laPathRun;
-  // Only the owned part is locked. Other parts remain editable.
-  for(const n of LOOKAT_RANGE_NAMES){
-    const ids=['lookAtBtn_'+n,'handRangeMin_'+n,'handRangeMax_'+n,'handRangeDefault_'+n];
-    if(n==='head')ids.push('headFollowSource');
-    if(HAND_AIM_NAMES.includes(n))ids.push('handFollowSource_'+n,'handAimMode_'+n,'handAimFlip_'+n,'handAimRoll_'+n,'handAimReset_'+n);
-    for(const id of ids){const el=document.getElementById(id);if(el&&laPathRun?.name===n)el.disabled=true;}
-  }
+function updateLAPathUI(...args){
+  return orientationController.updateLAPathUI(...args);
 }
-function stopLAPath(){
-  if(!laPathRun)return;
-  const n=laPathRun.name;laPathRun=null;if(laPathLine)laPathLine.visible=false;
-  // Clear preview locks before restoring normal availability rules.
-  for(const el of document.querySelectorAll('#tabLookAt button,#tabLookAt input,#tabLookAt select'))el.disabled=false;
-  if(bones[LOOKAT_CONFIG[n].key])syncTargetFromBone(LOOKAT_CONFIG[n].key);
-  updateLookAtButtons();updateLAPathUI();
+function stopLAPath(...args){
+  return orientationController.stopLAPath(...args);
 }
-function startLAPath(reset=false){
-  if(waveRun)stopWave();
-  if(laPathConfig.shape==='custom'&&(laPathConfig.points||[]).length<((laPathConfig.closed||laPathConfig.mode==='curve')?3:2)){document.getElementById('laPathStatus').textContent=(laPathConfig.closed||laPathConfig.mode==='curve')?'封閉路徑或平滑曲線至少需要 3 個控制點。':'開放折線至少需要 2 個控制點。';return;}
-  if(selectedIK?.role==='laPoint')deselectJoint();
-
-  if(kfPlaying){document.getElementById('laPathStatus').textContent='請先停止時間軸播放，再啟動軌跡預覽。';return;}
-  if(laPathRun){if(reset)laPathRun.phase=0;laPathRun.playing=!reset;laPathRun.last=performance.now();updateLAPathUI();return;}
-  const n=laPathConfig.part,b=bones[LOOKAT_CONFIG[n].key];
-  if(!b||(HAND_AIM_NAMES.includes(n)&&!handAimAxes[n])){document.getElementById('laPathStatus').textContent='模型或所需骨骼尚未就緒。';return;}
-  pushHistory();if(selectedIK?.limb==='lookAt_'+n)deselectJoint();handRangeDrag=null;
-  if(n==='head')headFollowSource='free';if(HAND_AIM_NAMES.includes(n))handFollowSource[n]='free';
-  const roll=handAim[n]?.roll||0;setLookAtEnabled(n,true);if(handAim[n])handAim[n].roll=roll;
-  const ref=HAND_AIM_NAMES.includes(n)?handAim[n].reference.clone():b.getWorldQuaternion(new THREE.Quaternion()).normalize();
-  const local=HAND_AIM_NAMES.includes(n)?handAimAxis(n):LOOKAT_CONFIG[n].localForward.clone();
-  laPathRun={name:n,phase:0,last:performance.now(),playing:!reset,ref,local,roll,range:{...handAimRange[n]},config:cleanLAPath(laPathConfig)};
-  solveLAPath(n);updateLookAtButtons();updateLAPathUI();pushHistory();scheduleAutoSave();
-  document.getElementById('laPathStatus').textContent='預覽中：路徑跟隨部位平移；橘色路徑已套用內外半徑限制。停止後可修改設定。';
+function startLAPath(...args){
+  return orientationController.startLAPath(...args);
 }
-function tickLAPath(now){
-  if(!laPathRun)return;
-  if(kfPlaying){stopLAPath();return;}
-  const r=laPathRun;
-  if(r.playing)r.phase=(r.phase+Math.max(0,now-r.last)*bpm/(60000*r.config.beats))%1;
-  r.last=now;
+function tickLAPath(...args){
+  return orientationController.tickLAPath(...args);
 }
-function solveLAPath(name){
-  const r=laPathRun;if(!r||r.name!==name)return false;
-  const b=bones[LOOKAT_CONFIG[name].key],center=b.getWorldPosition(new THREE.Vector3());
-  const forward=r.local.clone().applyQuaternion(r.ref).normalize();
-  const point=laPathPoint(r.config,r.phase,center,r.range.min,r.range.max,forward);lookAtTargetMesh[name].position.copy(point);
-  const dir=point.clone().sub(center).normalize(),swing=new THREE.Quaternion();
-  if(forward.dot(dir)<-1+1e-12){const helper=Math.abs(forward.x)<.8?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);swing.setFromAxisAngle(new THREE.Vector3().crossVectors(forward,helper).normalize(),Math.PI);}
-  else swing.setFromUnitVectors(forward,dir);
-  const q=new THREE.Quaternion().setFromAxisAngle(dir,THREE.MathUtils.degToRad(r.roll)).multiply(swing).multiply(r.ref);
-  const parent=b.parent?b.parent.getWorldQuaternion(new THREE.Quaternion()):new THREE.Quaternion();b.quaternion.copy(parent.invert().multiply(q)).normalize();b.updateWorldMatrix(true,true);syncTargetFromBone(LOOKAT_CONFIG[name].key);
-  if(!laPathLine){laPathLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffaa55,transparent:true,opacity:.8,depthTest:false}));laPathLine.renderOrder=990;scene.add(laPathLine);}
-  const points=[];for(let i=0;i<=96;i++)points.push(laPathPoint(r.config,i/96,center,r.range.min,r.range.max,forward));
-  laPathLine.geometry.setFromPoints(points);laPathLine.geometry.computeBoundingSphere();laPathLine.visible=true;
-  return true;
+function solveLAPath(...args){
+  return orientationController.solveLAPath(...args);
 }
-function restoreLAPath(v){stopLAPath();laPathConfig=cleanLAPath(v);rebuildLACustomMeshes();updateLAPathUI();}
-function bindLAPath(){
-  bindLACustom();
-  const fields={Part:'part',Shape:'shape',Plane:'plane',Size:'size',Beats:'beats',X:'x',Y:'y',Z:'z'};
-  for(const [id,key] of Object.entries(fields))document.getElementById('laPath'+id).onchange=e=>{
-    if(laPathRun||kfPlaying){updateLAPathUI();return;}
-    const value=['part','shape','plane'].includes(key)?e.target.value:Number(e.target.value);
-    if(typeof value==='number'&&(!Number.isFinite(value)||e.target.value.trim()==='')){updateLAPathUI();return;}
-    pushHistory();laPathConfig=cleanLAPath({...laPathConfig,[key]:value});rebuildLACustomMeshes();updateLAPathUI();pushHistory();scheduleAutoSave();
-  };
-  document.getElementById('laPathPlay').onclick=()=>startLAPath();
-  document.getElementById('laPathPause').onclick=()=>{tickLAPath(performance.now());if(laPathRun)laPathRun.playing=false;updateLAPathUI();};
-  document.getElementById('laPathReset').onclick=()=>{startLAPath(true);if(laPathRun)solveLAPath(laPathRun.name);};
-  document.getElementById('laPathStop').onclick=()=>{stopLAPath();pushHistory();scheduleAutoSave();document.getElementById('laPathStatus').textContent='已停止，保留目前姿勢與自由目標位置。';};
-  updateLAPathUI();
+function restoreLAPath(...args){
+  return orientationController.restoreLAPath(...args);
+}
+function bindLAPath(...args){
+  return orientationController.bindLAPath(...args);
 }
 
-function solveHandAim(name){
-  if(solveLAPath(name))return;
-  if(!lookAtEnabled[name]||!handAimAxes[name])return;
-  const b=bones[name],state=handAim[name],pos=b.getWorldPosition(new THREE.Vector3());
-  const dir=handFollowSource[name]==='other'?handFollowDirection(name,pos):lookAtTargetMesh[name].position.clone().sub(pos);if(!dir||dir.lengthSq()<1e-8)return;
-  dir.normalize();
-  const forward=handAimAxis(name).applyQuaternion(state.reference).normalize();
-  const swing=new THREE.Quaternion();
-  if(forward.dot(dir)<-1+1e-12){
-    const local=handAimAxis(name),helper=Math.abs(local.x)<0.8?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
-    const axis=new THREE.Vector3().crossVectors(local,helper).normalize().applyQuaternion(state.reference).normalize();
-    swing.setFromAxisAngle(axis,Math.PI);
-  }else swing.setFromUnitVectors(forward,dir);
-  const q=new THREE.Quaternion().setFromAxisAngle(dir,THREE.MathUtils.degToRad(state.roll)).multiply(swing).multiply(state.reference);
-  const parent=b.parent?b.parent.getWorldQuaternion(new THREE.Quaternion()):new THREE.Quaternion();
-  b.quaternion.copy(parent.invert().multiply(q)).normalize();b.updateWorldMatrix(true,true);syncTargetFromBone(name);
+function solveHandAim(...args){
+  return orientationController.solveHandAim(...args);
 }
 // Limits are an editor interaction constraint, not a change to the animation solver.
-function validHandRange(min,max){return Number.isFinite(min)&&Number.isFinite(max)&&min>=0.001&&max>min;}
-function clampHandRangePoint(point,center,min,max,fallback){
-  const delta=point.clone().sub(center),len=delta.length();
-  if(len>1e-10)delta.multiplyScalar(1/len);
-  else {delta.copy(fallback);if(delta.lengthSq()<1e-12)delta.set(0,0,1);delta.normalize();}
-  point.copy(center).addScaledVector(delta,Math.min(max,Math.max(min,len)));
-  return delta;
+function validHandRange(...args){
+  return orientationController.validHandRange(...args);
 }
-function handRangeDirection(name){
-  if(handAimAxes[name]&&bones[LOOKAT_CONFIG[name]?.key])return handAimAxis(name).applyQuaternion(bones[LOOKAT_CONFIG[name]?.key].getWorldQuaternion(new THREE.Quaternion())).normalize();
-  const bone=bones[LOOKAT_CONFIG[name]?.key];
-  if(bone)return LOOKAT_CONFIG[name].localForward.clone().applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion())).normalize();
-  return new THREE.Vector3(0,0,1);
+function clampHandRangePoint(...args){
+  return orientationController.clampHandRangePoint(...args);
 }
-function alignHandRange(name){
-  if(!bones[LOOKAT_CONFIG[name]?.key]||!lookAtTargetMesh[name])return;
-  const r=handAimRange[name],center=bones[LOOKAT_CONFIG[name]?.key].getWorldPosition(new THREE.Vector3());
-  clampHandRangePoint(lookAtTargetMesh[name].position,center,r.min,r.max,handRangeDirection(name));
+function handRangeDirection(...args){
+  return orientationController.handRangeDirection(...args);
 }
-function beginHandRangeDrag(name){
-  if(!bones[LOOKAT_CONFIG[name]?.key]||!lookAtTargetMesh[name])return;
-  const p=lookAtTargetMesh[name].position,raw=p.clone(),center=bones[LOOKAT_CONFIG[name]?.key].getWorldPosition(new THREE.Vector3()),r=handAimRange[name];
-  // TransformControls captured raw start before dragging-changed. Retain the correction
-  // as an offset for subsequent absolute objectChange positions to prevent a second jump.
-  const last=clampHandRangePoint(p,center,r.min,r.max,handRangeDirection(name));
-  handRangeDrag={name,center,min:r.min,max:r.max,last,offset:p.clone().sub(raw)};
+function alignHandRange(...args){
+  return orientationController.alignHandRange(...args);
 }
-function clampHandRangeDrag(){
-  const d=handRangeDrag;if(!d)return;
-  const p=lookAtTargetMesh[d.name].position;p.add(d.offset);
-  d.last.copy(clampHandRangePoint(p,d.center,d.min,d.max,d.last));
+function beginHandRangeDrag(...args){
+  return orientationController.beginHandRangeDrag(...args);
 }
-function bindHandRangeUI(){
-  for(const name of LOOKAT_RANGE_NAMES){
-    const apply=reset=>{
-      if(kfPlaying||handRangeDrag){updateLookAtRangeUI();return;}
-      const min=reset?0.08:Number(document.getElementById('handRangeMin_'+name).value);
-      const max=reset?0.4:Number(document.getElementById('handRangeMax_'+name).value);
-      const notice=document.getElementById('handRangeNotice_'+name);
-      if(!validHandRange(min,max)){notice.textContent='內半徑須至少 0.001，外半徑須大於內半徑。';updateLookAtRangeUI();return;}
-      pushHistory();handAimRange[name]={min,max};alignHandRange(name);
-      notice.textContent='已保留目標方向並套用範圍。';updateLookAtRangeUI();pushHistory();scheduleAutoSave();
-    };
-    document.getElementById('handRangeMin_'+name).onchange=()=>apply(false);
-    document.getElementById('handRangeMax_'+name).onchange=()=>apply(false);
-    document.getElementById('handRangeDefault_'+name).onclick=()=>apply(true);
-  }
+function clampHandRangeDrag(...args){
+  return orientationController.clampHandRangeDrag(...args);
 }
-function updateHandRangeHelper(){
-  const name=selectedIK?.limb?.startsWith('lookAt_')?selectedIK.limb.slice(7):null;
-  if(handFollowSource[name]==="other"||(name==="head"&&headFollowSource!=="free")||!LOOKAT_RANGE_NAMES.includes(name)||!lookAtEnabled[name]||kfPlaying){if(handRangeHelper)handRangeHelper.visible=false;return;}
-  if(!handRangeHelper){
-    handRangeHelper=new THREE.Group();
-    const geo=new THREE.WireframeGeometry(new THREE.SphereGeometry(1,16,10));
-    for(const color of [0xffb65c,0x55ffaa]){
-      const mesh=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,transparent:true,opacity:0.16,depthTest:false,depthWrite:false}));
-      mesh.renderOrder=996;handRangeHelper.add(mesh);
-    }scene.add(handRangeHelper);
-  }
-  const d=handRangeDrag?.name===name?handRangeDrag:null,r=d||handAimRange[name];
-  handRangeHelper.visible=true;handRangeHelper.position.copy(d?d.center:bones[LOOKAT_CONFIG[name]?.key].getWorldPosition(new THREE.Vector3()));
-  handRangeHelper.children[0].scale.setScalar(r.min);handRangeHelper.children[1].scale.setScalar(r.max);
+function bindHandRangeUI(...args){
+  return orientationController.bindHandRangeUI(...args);
+}
+function updateHandRangeHelper(...args){
+  return orientationController.updateHandRangeHelper(...args);
 }
 
-function updateLookAtRangeUI(){
-  for(const name of LOOKAT_RANGE_NAMES){
-    const min=document.getElementById('handRangeMin_'+name),max=document.getElementById('handRangeMax_'+name);
-    if(min)min.value=handAimRange[name].min;
-    if(max)max.value=handAimRange[name].max;
-  }
+function updateLookAtRangeUI(...args){
+  return orientationController.updateLookAtRangeUI(...args);
 }
 // Follow the actual wrist bone, not the potentially unreachable arm IK target.
-function updateHeadFollowTarget(){
-  if(!lookAtEnabled.head||headFollowSource==='free')return;
-  const hand=bones[headFollowSource],marker=lookAtTargetMesh.head;
-  if(hand&&marker)hand.getWorldPosition(marker.position);
+function updateHeadFollowTarget(...args){
+  return orientationController.updateHeadFollowTarget(...args);
 }
-function updateHeadFollowUI(){
-  const select=document.getElementById('headFollowSource');if(!select)return;
-  select.value=headFollowSource;
-  for(const name of ['rHand','lHand'])select.querySelector('option[value="'+name+'"]').disabled=!bones[name];
-  const bound=headFollowSource!=='free';
-  for(const prefix of ['handRangeMin_','handRangeMax_','handRangeDefault_']){const el=document.getElementById(prefix+'head');if(el)el.disabled=bound;}
-  document.getElementById('headFollowStatus').textContent=bound?(lookAtEnabled.head?'追蹤實際手腕位置；半徑限制暫停，播放沿用拍點姿勢。':'追蹤已暫停；開啟頭部 LookAt 可繼續。'):'拖曳目標球控制方向。';
-  if(lookAtTargetMesh.head)lookAtTargetMesh.head.visible=lookAtEnabled.head&&!bound;
+function updateHeadFollowUI(...args){
+  return orientationController.updateHeadFollowUI(...args);
 }
-function bindHeadFollowUI(){
-  document.getElementById('headFollowSource').onchange=e=>{
-    if(kfPlaying){updateHeadFollowUI();return;}
-    const next=e.target.value;
-    if(!['free','rHand','lHand'].includes(next)||(next!=='free'&&!bones[next])){updateHeadFollowUI();return;}
-    pushHistory();
-    if(selectedIK?.limb==='lookAt_head')deselectJoint();
-    handRangeDrag=null;headFollowSource=next;
-    if(next!=='free')setLookAtEnabled('head',true);
-    else syncLookAtMarkerToDefault('head');
-    updateHeadFollowTarget();solveLookAt('head');updateHeadFollowUI();pushHistory();scheduleAutoSave();
-  };
+function bindHeadFollowUI(...args){
+  return orientationController.bindHeadFollowUI(...args);
 }
 
-function snapshotTorsoLookAt(){
-  const out={};for(const name of ['head','chest'])out[name]={range:{...handAimRange[name]},enabled:lookAtEnabled[name],target:lookAtTargetMesh[name]?.position.toArray()};
-  out.head.source=headFollowSource;
-  return out;
+function snapshotTorsoLookAt(...args){
+  return orientationController.snapshotTorsoLookAt(...args);
 }
-function restoreTorsoLookAt(data){
-  headFollowSource=["rHand","lHand"].includes(data?.head?.source)&&bones[data.head.source]?data.head.source:"free";
-  handRangeDrag=null;
-  for(const name of ['head','chest']){
-    const v=data?.[name];handAimRange[name]=validHandRange(v?.range?.min,v?.range?.max)?{min:v.range.min,max:v.range.max}:{min:0.08,max:0.4};
-    if(lookAtTargetMesh[name]){
-      setLookAtEnabled(name,v?.enabled===true);
-      if(Array.isArray(v?.target)&&v.target.length===3&&v.target.every(Number.isFinite))lookAtTargetMesh[name].position.fromArray(v.target);
-    }
-  }
-  updateLookAtRangeUI();updateHeadFollowTarget();updateHeadFollowUI();
+function restoreTorsoLookAt(...args){
+  return orientationController.restoreTorsoLookAt(...args);
 }
 
-function updateHandAimUI(){
-  updateHandFollowUI();
-  updateLookAtRangeUI();
-  for(const name of HAND_AIM_NAMES){
-    const state=handAim[name],available=!!handAimAxes[name];
-    const btn=document.getElementById('lookAtBtn_'+name);if(!btn)continue;
-    btn.disabled=!available;btn.classList.toggle('active',lookAtEnabled[name]);
-    document.getElementById('handRangeMin_'+name).value=handAimRange[name].min;
-    document.getElementById('handRangeMax_'+name).value=handAimRange[name].max;
-    document.getElementById('handAimMode_'+name).value=state.mode;
-    document.getElementById('handAimRoll_'+name).value=state.roll;
-    document.getElementById('handAimFlip_'+name).checked=state.flip;
-    document.getElementById('handAimStatus_'+name).textContent=available?'':'缺少手指骨骼，無法校準';
-  }
-  if(laPathRun)updateLAPathUI();
+function updateHandAimUI(...args){
+  return orientationController.updateHandAimUI(...args);
 }
-function bindHandAimUI(){
-  bindLAPath();
-  bindWave();
-  bindTG();
-  bindHandFollowUI();
-  bindHeadFollowUI();
-  bindHandRangeUI();
-  for(const name of HAND_AIM_NAMES){
-    for(const field of ['Mode','Roll','Flip']){
-      document.getElementById('handAim'+field+'_'+name).onchange=e=>{
-        if(kfPlaying){updateHandAimUI();return;}pushHistory();
-        const state=handAim[name];
-        if(field==='Roll'){const v=Number(e.target.value);if(Number.isFinite(v))state.roll=Math.max(-180,Math.min(180,v));}
-        else {if(field==='Mode')state.mode=e.target.value;else state.flip=e.target.checked;
-          if(captureHandAim(name))syncLookAtMarkerToDefault(name);}
-        if(lookAtEnabled[name])solveHandAim(name);
-        updateHandAimUI();pushHistory();scheduleAutoSave();
-      };
-    }
-    document.getElementById('handAimReset_'+name).onclick=()=>{
-      if(kfPlaying)return;pushHistory();if(captureHandAim(name))syncLookAtMarkerToDefault(name);updateHandAimUI();pushHistory();scheduleAutoSave();
-    };
-  }
+function bindHandAimUI(...args){
+  return orientationController.bindHandAimUI(...args);
 }
-function snapshotHandAim(){
-  const out={};for(const name of HAND_AIM_NAMES){const a=handAim[name];
-    out[name]={source:handFollowSource[name],followLast:handFollowLast[name]?{dir:handFollowLast[name].dir.toArray(),near:handFollowLast[name].near}:null,range:{...handAimRange[name]},enabled:lookAtEnabled[name],mode:a.mode,roll:a.roll,flip:a.flip,reference:a.reference.toArray(),target:lookAtTargetMesh[name]?.position.toArray(),effector:effectorOrientEnabled[name==='rHand'?'rArm':'lArm']};}
-  return out;
+function snapshotHandAim(...args){
+  return orientationController.snapshotHandAim(...args);
 }
-function restoreHandAim(data){
-  handRangeDrag=null;
-  for(const name of HAND_AIM_NAMES){
-    const v=data?.[name],a=handAim[name];
-    handFollowSource[name]=v?.source==='other'&&bones[name==='rHand'?'lHand':'rHand']?'other':'free';handFollowLast[name]=null;
-    const last=v?.followLast;
-    if(Array.isArray(last?.dir)&&last.dir.length===3&&last.dir.every(Number.isFinite)){
-      const dir=new THREE.Vector3().fromArray(last.dir);if(dir.lengthSq()>1e-10)handFollowLast[name]={dir:dir.normalize(),near:last.near===true};
-    }
-    handAimRange[name]=validHandRange(v?.range?.min,v?.range?.max)?{min:v.range.min,max:v.range.max}:{min:0.08,max:0.4};
-    a.mode=v?.mode==='finger'?'finger':'palm';a.roll=Number.isFinite(v?.roll)?Math.max(-180,Math.min(180,v.roll)):0;a.flip=v?.flip===true;
-    const arr=(x,n)=>Array.isArray(x)&&x.length===n&&x.every(Number.isFinite);
-    if(bones[name])bones[name].getWorldQuaternion(a.reference);
-    if(arr(v?.reference,4)&&v.reference.reduce((s,x)=>s+x*x,0)>1e-10)a.reference.fromArray(v.reference).normalize();
-    lookAtEnabled[name]=v?.enabled===true&&!!handAimAxes[name];
-    if(lookAtTargetMesh[name]){lookAtTargetMesh[name].visible=lookAtEnabled[name];
-      if(arr(v?.target,3))lookAtTargetMesh[name].position.fromArray(v.target);}
-    if(handAimAxes[name])LOOKAT_CONFIG[name].localForward.copy(handAimAxis(name));
-    const limb=name==='rHand'?'rArm':'lArm';
-    if(v)effectorOrientEnabled[limb]=!lookAtEnabled[name]&&v.effector===true;
-  }
-  rebuildIKDrivenKeys();updateHandAimUI();updateEffectorOrientButtons();
+function restoreHandAim(...args){
+  return orientationController.restoreHandAim(...args);
 }
 
 // ---- 頭/胸口 look-at 目標球（紫色=頭，琥珀色=胸口）----
-function buildLookAtMarkers(){
-  const colors = { head:0xff44cc, chest:0xffcc00, rHand:0x44ffaa, lHand:0x66dd66 };
-  for(const name of HAND_AIM_NAMES)calibrateHandAim(name);
-  for (const name in LOOKAT_CONFIG){
-    const geo = new THREE.SphereGeometry(0.035, 16, 16);
-    const mat = new THREE.MeshBasicMaterial({ color:colors[name], transparent:true, opacity:0.95, depthTest:false });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = 998;
-    mesh.visible = false;
-    mesh.userData.pickType = "lookAtTarget";
-    mesh.userData.lookAtName = name;
-    scene.add(mesh);
-    lookAtTargetMesh[name] = mesh;
-    syncLookAtMarkerToDefault(name);
-  }
-  updateHandAimUI();
+function buildLookAtMarkers(...args){
+  return orientationController.buildLookAtMarkers(...args);
 }
 
 // 把 look-at 目標球對齊「目前姿勢下，骨骼往前方軸延伸一小段」的位置，避免開啟當下瞬間跳動
-function syncLookAtMarkerToDefault(name){
-  const cfg = LOOKAT_CONFIG[name];
-  const bone = bones[cfg.key];
-  const mesh = lookAtTargetMesh[name];
-  if (!bone || !mesh) return;
-  const boneWorldQuat = new THREE.Quaternion(); bone.getWorldQuaternion(boneWorldQuat);
-  const worldForward = cfg.localForward.clone().applyQuaternion(boneWorldQuat).normalize();
-  const bonePos = new THREE.Vector3(); bone.getWorldPosition(bonePos);
-  mesh.position.copy(bonePos.clone().add(worldForward.multiplyScalar(0.4)));
-  if(LOOKAT_RANGE_NAMES.includes(name))alignHandRange(name);
+function syncLookAtMarkerToDefault(...args){
+  return orientationController.syncLookAtMarkerToDefault(...args);
 }
 
 // 開關 look-at：chest 用的骨骼（spine2）也是脊椎CCD鏈的一員，兩者若同時開啟會互搶
 // spine2 的旋轉權，所以互斥——開其中一個會自動關掉另一個，避免打架看起來抖動。
-function setLookAtEnabled(name, on){
-  if(waveRun&&(waveHasBody(waveRun.config)||name==="chest"||waveSides(waveRun.config).some(side=>name===side+"Hand")))stopWave();
-  if(laPathRun?.name===name)stopLAPath();
-  if(HAND_AIM_NAMES.includes(name)){
-    if(on&&!captureHandAim(name))return;
-    if(on){effectorOrientEnabled[name==='rHand'?'rArm':'lArm']=false;updateEffectorOrientButtons();}
-  }
-  lookAtEnabled[name] = on;
-  rebuildIKDrivenKeys(); // 理由同 setSpineIKEnabled：兩者會互相呼叫，整份重算不怕重複
-  if (on) syncLookAtMarkerToDefault(name);
-  lookAtTargetMesh[name].visible = on;
-  if (on && name === "chest" && spineIKEnabled) setSpineIKEnabled(false);
-  if (!on && selectedIK && selectedIK.limb === "lookAt_" + name) deselectJoint();
-  updateLookAtButtons();
+function setLookAtEnabled(...args){
+  return orientationController.setLookAtEnabled(...args);
 }
 
-function updateLookAtButtons(){
-  updateHeadFollowUI();
-  updateHandAimUI();
-  const headBtn = document.getElementById("lookAtBtn_head");
-  if (headBtn) headBtn.classList.toggle("active", lookAtEnabled.head);
-  const chestBtn = document.getElementById("lookAtBtn_chest");
-  if (chestBtn) chestBtn.classList.toggle("active", lookAtEnabled.chest);
+function updateLookAtButtons(...args){
+  return orientationController.updateLookAtButtons(...args);
 }
 
 // ==== 手指 IK：目標球（青色小球，跟手腳IK的橘色/黃綠色區分）====
-function buildFingerIKMarkers(){
-  const geo = new THREE.SphereGeometry(0.016, 12, 12);
-  for (const fingerId of FINGER_IDS){
-    const mat = new THREE.MeshBasicMaterial({ color:0x00e5ff, transparent:true, opacity:0.95, depthTest:false });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = 998;
-    mesh.visible = false;
-    mesh.userData.pickType = "fingerIKTarget";
-    mesh.userData.fingerId = fingerId;
-    scene.add(mesh);
-    fingerIKTargetMeshes[fingerId] = mesh;
-    syncFingerIKMarkerToDefault(fingerId);
-  }
+function buildFingerIKMarkers(...args){
+  return fingerController.buildFingerIKMarkers(...args);
 }
 
 // 把某指的目標球對齊「目前姿勢」指尖(effector)所在的世界座標（開啟當下、或按重置時呼叫，避免瞬間跳動）
-function syncFingerIKMarkerToDefault(fingerId){
-  const effectorBone = fingerEffectorBones[fingerId];
-  const mesh = fingerIKTargetMeshes[fingerId];
-  if (!effectorBone || !mesh) return;
-  const pos = new THREE.Vector3();
-  effectorBone.getWorldPosition(pos);
-  mesh.position.copy(pos);
+function syncFingerIKMarkerToDefault(...args){
+  return fingerController.syncFingerIKMarkerToDefault(...args);
 }
 
 // 開關某指的IK：開啟時鎖住該指3節（隱藏它們的FK關節球，改由CCD求解），
 // 跟手腳/脊椎IK同樣的「開啟時同步target球到目前姿勢位置，避免瞬間跳動」設計。
-function setFingerIKEnabled(fingerId, on){
-  if(waveRun&&(waveHasBody(waveRun.config)||waveSides(waveRun.config).includes(fingerId[0])))stopWave();
-  fingerIKEnabled[fingerId] = on;
-  rebuildIKDrivenKeys(); // 必須在下面的 early return「之前」，否則指名錯誤時集合會漏更新
-  const chain = FINGER_IK_CHAINS[fingerId];
-  if (!chain) return;
-  if (on) syncFingerIKMarkerToDefault(fingerId);
-  if (fingerIKTargetMeshes[fingerId]) fingerIKTargetMeshes[fingerId].visible = on;
-  for (const key of chain.bones){
-    if (markerMeshes[key]) markerIKHidden[key] = on;
-  }
-  if (!on && selectedIK && selectedIK.limb === FINGER_IK_PREFIX + fingerId) deselectJoint();
-  updateFingerIKButtons();
+function setFingerIKEnabled(...args){
+  return fingerController.setFingerIKEnabled(...args);
 }
 
-function updateFingerIKButtons(){
-  for (const fingerId of FINGER_IDS){
-    const btn = document.getElementById("fingerIKBtn_" + fingerId);
-    if (btn) btn.classList.toggle("active", !!fingerIKEnabled[fingerId]);
-  }
+function updateFingerIKButtons(...args){
+  return fingerController.updateFingerIKButtons(...args);
 }
 
 // ---- 手指 FK/IK 面板：一指一列、三節橫排（根/中/末），列尾巴加一顆 IK 切換鈕 ----
 // 左右手分兩張卡片，卡片本身在 HTML 裡已放好（#fingerCard_r / #fingerCard_l），這裡只把
 // 每指一列 append 進去；完整名稱放 title 屬性做 hover 提示，按鈕文字用短標籤保持可掃描性。
-function buildFingerPanel(){
-  const cards = { r: document.getElementById("fingerCard_r"), l: document.getElementById("fingerCard_l") };
-  for (const hs of HAND_SIDES){
-    const card = cards[hs.side];
-    if (!card) continue;
-    for (const fd of FINGER_DEFS){
-      const fingerId = hs.side + fd.id;
-      const row = document.createElement("div");
-      row.className = "fingerRow";
-
-      const label = document.createElement("span");
-      label.className = "fingerRowLabel";
-      label.textContent = fd.label;
-      row.appendChild(label);
-
-      for (let j = 1; j <= 3; j++){
-        const key = hs.side + fd.id + j;
-        const btn = document.createElement("button");
-        btn.className = "fingerJointBtn";
-        btn.textContent = FINGER_JOINT_LABELS[j];
-        btn.title = LABEL_LOOKUP[key] || key;
-        btn.dataset.jointkey = key;
-        btn.onclick = () => selectJoint(key);
-        row.appendChild(btn);
-      }
-
-      const ikBtn = document.createElement("button");
-      ikBtn.className = "fingerIKToggleBtn";
-      ikBtn.id = "fingerIKBtn_" + fingerId;
-      ikBtn.textContent = "IK";
-      ikBtn.title = hs.label + fd.label + " IK 開關：開啟後拖曳指尖目標球，整根手指自動彎曲收斂";
-      ikBtn.onclick = () => setFingerIKEnabled(fingerId, !fingerIKEnabled[fingerId]);
-      row.appendChild(ikBtn);
-
-      card.appendChild(row);
-    }
-  }
-  updateFingerIKButtons();
+function buildFingerPanel(...args){
+  return fingerController.buildFingerPanel(...args);
 }
 
 // ---- 關節限制分頁：依 OVERVIEW_GROUPS 分組建立全部關節的限制編輯 UI（可個別收合）----
@@ -3321,64 +2612,28 @@ function updateJointLimitPanelAngles(force){
 // 迭代次數/阻尼比脊椎（8輪/0.5）略小略快。
 // 每根手指的骨鏈陣列在模型載入完成後就固定不變，第一次用到時快取起來，
 // 避免手指IK全開時每幀對10隻手指各自重新 map+filter 產生新陣列（10×2=20個/幀）。
-const _fingerChainBonesCache = {};
-function solveFingerIKAll(){
-  for (const fingerId of FINGER_IDS){
-    if (!fingerIKEnabled[fingerId]) continue;
-    const chain = FINGER_IK_CHAINS[fingerId];
-    let boneChain = _fingerChainBonesCache[fingerId];
-    if (!boneChain){
-      boneChain = chain.bones.map(k => bones[k]).filter(Boolean);
-      _fingerChainBonesCache[fingerId] = boneChain;
-    }
-    const effectorBone = fingerEffectorBones[fingerId];
-    const targetMesh = fingerIKTargetMeshes[fingerId];
-    if (boneChain.length === 0 || !effectorBone || !targetMesh) continue;
-    solveCCDChain(boneChain, effectorBone, targetMesh.position, 6, 0.6);
-    for (const key of chain.bones) syncTargetFromBone(key);
-  }
+
+function solveFingerIKAll(...args){
+  return fingerController.solveFingerIKAll(...args);
 }
 
 // ==== 軌跡輔助工具 ====
 // 場景中每個肢體各自維護一串紫色控制點球（陣列，順序＝路徑順序）+ 一條路徑預覽線。
 // 只有「軌跡」分頁目前選取中的 trajActiveLimb 那組球/線會顯示，避免四肢的點混在一起難以分辨。
-function buildTrajMarkers(){
-  for (const limb of IK_LIMB_KEYS){
-    const lineMat = new THREE.LineBasicMaterial({ color:0x9944ff, transparent:true, opacity:0.75, depthTest:false });
-    const line = new THREE.Line(new THREE.BufferGeometry(), lineMat);
-    line.renderOrder = 996;
-    line.visible = false;
-    scene.add(line);
-    trajLine[limb] = line;
-  }
+function buildTrajMarkers(...args){
+  return trajectoryEditor.buildTrajMarkers(...args);
 }
 
 // 共用輔助：在指定世界座標建立一顆紫色控制點球並掛進場景/陣列（不含後續的視覺重繪/存檔，
 // 呼叫端在整批新增完後自己統一呼叫 updateTrajVisual/renderTrajPointList/scheduleAutoSave，
 // 避免形狀產生器一次生成 N 個點時重複做 N 次多餘的重繪）。
-function createTrajPointAt(limb, worldPos){
-  const geo = new THREE.SphereGeometry(0.026, 12, 12);
-  const mat = new THREE.MeshBasicMaterial({ color:0x9944ff, transparent:true, opacity:0.9, depthTest:false });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.renderOrder = 998;
-  mesh.position.copy(worldPos);
-  mesh.visible = (limb === trajActiveLimb);
-  mesh.userData.pickType = "trajPoint";
-  mesh.userData.limb = limb;
-  mesh.userData.index = trajPointMeshes[limb].length;
-  scene.add(mesh);
-  trajPointMeshes[limb].push(mesh);
-  return mesh;
+function createTrajPointAt(...args){
+  return trajectoryEditor.createTrajPointAt(...args);
 }
 
 // 新增一顆控制點球，直接對齊該肢體目前IK target球的世界座標（明確需求：不要自動偏移/延伸）
-function addTrajPoint(limb){
-  const targetMesh = ikTargetMeshes[limb];
-  if (!targetMesh) return;
-  createTrajPointAt(limb, targetMesh.position);
-  updateTrajVisual(limb);
-  renderTrajPointList();
-  scheduleAutoSave();
+function addTrajPoint(...args){
+  return trajectoryEditor.addTrajPoint(...args);
 }
 
 // ---- 形狀產生器：圓形／橢圓形／正多邊形／星形 ----
@@ -3391,172 +2646,46 @@ const TRAJ_SHAPE_PLANE_AXES = {
   xy: [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0)],
   yz: [new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)],
 };
-function generateShapeTrajPoints(limb, shapeType, n, radius, plane, opts = {}){
-  const targetMesh = ikTargetMeshes[limb];
-  if (!targetMesh){ alert("找不到「" + limb + "」的 IK 目標球，請先到「手腳 IK」分頁開啟該肢體 IK"); return; }
-  if (trajPointMeshes[limb].length > 0){
-    const ok = confirm("這會清除「" + limb + "」目前已有的 " + trajPointMeshes[limb].length + " 個控制點，改成產生的形狀，確定要繼續嗎？");
-    if (!ok) return;
-  }
-  clearTrajPoints(limb); // 內部已含 updateTrajVisual/renderTrajPointList/scheduleAutoSave，但下面還會再重繪一次沒關係
-
-  const center = targetMesh.position.clone();
-  const [axisA, axisB] = TRAJ_SHAPE_PLANE_AXES[plane] || TRAJ_SHAPE_PLANE_AXES.xz;
-  // 短半徑只對橢圓形有意義；其餘形狀一律 rY = rX = radius，避免呼叫端不小心傳入不相干的 radiusY
-  // （例如殘留的舊欄位值）把圓形/多邊形/星形拉成歪斜的橢圓。
-  const radiusY = (shapeType === "ellipse" && typeof opts.radiusY === "number" && opts.radiusY > 0) ? opts.radiusY : radius;
-  const innerRatio = clampNum(opts.innerRatio ?? 0.5, 0.1, 0.9);
-
-  // 星形：n 是「角數」，實際頂點數是 2n（外角/內凹交替），跟圓形/橢圓形/多邊形統一用
-  // 「單一迴圈依角度算頂點」的寫法，只是星形多了「奇偶頂點半徑不同」這個變化。
-  const vertCount = (shapeType === "star") ? Math.round(clampNum(n, 3, 24)) * 2 : Math.round(clampNum(n, 3, 48));
-
-  for (let i = 0; i < vertCount; i++){
-    // -90度(即 -PI/2)偏移只是讓第一個點落在「正上方/正前方」，視覺上比較直覺，純美觀不影響形狀本身
-    const angle = (i / vertCount) * Math.PI * 2 - Math.PI / 2;
-    let rX = radius, rY = radiusY;
-    if (shapeType === "star" && i % 2 === 1){ rX *= innerRatio; rY *= innerRatio; } // 奇數索引＝內凹頂點
-    const offset = axisA.clone().multiplyScalar(Math.cos(angle) * rX)
-      .add(axisB.clone().multiplyScalar(Math.sin(angle) * rY));
-    createTrajPointAt(limb, center.clone().add(offset));
-  }
-
-  // 一律用折線＋封閉路徑：圓形/橢圓形點數夠多時折線本身就非常接近圓/橢圓，且能保證所有生成點都
-  // 精確落在圓周/橢圓周上；正多邊形、星形的「直邊」更是形狀定義本身。曲線模式（Catmull-Rom）為了
-  // 平滑，實際路徑會些微偏離控制點，反而讓形狀不夠「正」，所以形狀產生器一律不用曲線模式。
-  TRAJ_MODE[limb] = "line";
-  TRAJ_CLOSED[limb] = true;
-
-  const modeSel = document.getElementById("trajModeSelect");
-  if (modeSel && limb === trajActiveLimb) modeSel.value = "line";
-
-  updateTrajVisual(limb);
-  renderTrajPointList();
-  scheduleAutoSave();
-  pushHistory();
+function generateShapeTrajPoints(...args){
+  return trajectoryEditor.generateShapeTrajPoints(...args);
 }
 
 // 刪除單一控制點；刪除後把剩餘點的 userData.index 重新編號，保持跟陣列索引一致
-function removeTrajPoint(limb, idx){
-  const arr = trajPointMeshes[limb];
-  if (!arr[idx]) return;
-  if (selectedIK && selectedIK.limb === limb && selectedIK.role === "trajPoint" && selectedIK.index === idx){
-    deselectJoint();
-  }
-  scene.remove(arr[idx]);
-  arr[idx].geometry.dispose();
-  arr[idx].material.dispose();
-  arr.splice(idx, 1);
-  arr.forEach((m, i) => { m.userData.index = i; });
-  updateTrajVisual(limb);
-  renderTrajPointList();
-  scheduleAutoSave();
+function removeTrajPoint(...args){
+  return trajectoryEditor.removeTrajPoint(...args);
 }
 
-function clearTrajPoints(limb){
-  if (selectedIK && selectedIK.limb === limb && selectedIK.role === "trajPoint") deselectJoint();
-  for (const m of trajPointMeshes[limb]){ scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  trajPointMeshes[limb] = [];
-  updateTrajVisual(limb);
-  renderTrajPointList();
-  scheduleAutoSave();
+function clearTrajPoints(...args){
+  return trajectoryEditor.clearTrajPoints(...args);
 }
 
 // 重繪某肢體的路徑預覽線（依目前控制點世界座標 + 該肢體目前的路徑模式）
-function updateTrajVisual(limb){
-  const line = trajLine[limb];
-  if (!line) return;
-  const pts = trajPointMeshes[limb].map(m => m.position.clone());
-  if (pts.length < 2){
-    line.visible = false;
-  } else {
-    let linePts;
-    const closed = TRAJ_CLOSED[limb] && pts.length >= 3; // 封閉至少需要3點才有意義，2點封閉只是來回抖動
-    if (TRAJ_MODE[limb] === "curve" && pts.length >= 3){
-      const curve = new THREE.CatmullRomCurve3(pts, closed);
-      linePts = curve.getPoints(Math.max(20, pts.length * 10));
-    } else {
-      linePts = closed ? [...pts, pts[0]] : pts; // 折線封閉：預覽線多畫一段回到起點
-    }
-    line.geometry.dispose();
-    line.geometry = new THREE.BufferGeometry().setFromPoints(linePts);
-    line.visible = (limb === trajActiveLimb);
-  }
-  updateTrajActiveVisibility();
+function updateTrajVisual(...args){
+  return trajectoryEditor.updateTrajVisual(...args);
 }
 
 // 只顯示目前編輯中肢體(trajActiveLimb)的控制點球/路徑線，其他肢體的資料仍保留在記憶體裡只是隱藏
-function updateTrajActiveVisibility(){
-  for (const limb of IK_LIMB_KEYS){
-    const on = (limb === trajActiveLimb);
-    for (const m of trajPointMeshes[limb]) m.visible = on;
-    if (trajLine[limb]) trajLine[limb].visible = on && trajPointMeshes[limb].length >= 2;
-  }
+function updateTrajActiveVisibility(...args){
+  return trajectoryEditor.updateTrajActiveVisibility(...args);
 }
 
-function setTrajActiveLimb(limb){
-  trajActiveLimb = limb;
-  updateTrajLimbButtons();
-  updateTrajActiveVisibility();
-  const modeSel = document.getElementById("trajModeSelect");
-  if (modeSel) modeSel.value = TRAJ_MODE[limb];
-  updateTrajClosedChkState();
-  renderTrajPointList();
+function setTrajActiveLimb(...args){
+  return trajectoryEditor.setTrajActiveLimb(...args);
 }
 
 // 封閉路徑checkbox：點數<3時停用（2點封閉只是來回抖動沒意義），並同步目前肢體的勾選狀態。
 // 呼叫時機：切換編輯中肢體、每次新增/刪除控制點（renderTrajPointList尾端）。
-function updateTrajClosedChkState(){
-  const chk = document.getElementById("trajClosedChk");
-  if (!chk) return;
-  const pts = trajPointMeshes[trajActiveLimb];
-  const enoughPoints = !!pts && pts.length >= 3;
-  chk.disabled = !enoughPoints;
-  chk.checked = enoughPoints && TRAJ_CLOSED[trajActiveLimb];
+function updateTrajClosedChkState(...args){
+  return trajectoryEditor.updateTrajClosedChkState(...args);
 }
 
-function updateTrajLimbButtons(){
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("trajLimbBtn_" + limb);
-    if (btn) btn.classList.toggle("active", limb === trajActiveLimb);
-  }
+function updateTrajLimbButtons(...args){
+  return trajectoryEditor.updateTrajLimbButtons(...args);
 }
 
 // 軌跡分頁裡的控制點清單（Pxx晶片，可點選/刪除）
-function renderTrajPointList(){
-  const host = document.getElementById("trajPointList");
-  if (!host) return;
-  host.innerHTML = "";
-  const pts = trajPointMeshes[trajActiveLimb];
-  updateTrajClosedChkState();
-  if (!pts || pts.length === 0){
-    // 動態建立空清單提示文字，不依賴靜態 #trajPointEmpty 節點——
-    // 該節點一旦在非空清單時被 host.innerHTML="" 清掉就永久脫離DOM，
-    // 之後 getElementById 會一直回傳 null，導致清單卡死不再更新（已修正的舊bug）。
-    const empty = document.createElement("span");
-    empty.id = "trajPointEmpty";
-    empty.textContent = "尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」";
-    host.appendChild(empty);
-    return;
-  }
-  pts.forEach((m, i) => {
-    const chip = document.createElement("div");
-    chip.className = "trajChip";
-    if (selectedIK && selectedIK.limb === trajActiveLimb && selectedIK.role === "trajPoint" && selectedIK.index === i){
-      chip.classList.add("active");
-    }
-    const sel = document.createElement("button");
-    sel.className = "sel";
-    sel.textContent = `P${i + 1}`;
-    sel.onclick = () => selectIKMarker(trajActiveLimb, "trajPoint", i);
-    const del = document.createElement("button");
-    del.className = "del";
-    del.textContent = "×";
-    del.onclick = (ev) => { ev.stopPropagation(); removeTrajPoint(trajActiveLimb, i); };
-    chip.appendChild(sel);
-    chip.appendChild(del);
-    host.appendChild(chip);
-  });
+function renderTrajPointList(...args){
+  return trajectoryEditor.renderTrajPointList(...args);
 }
 
 // ---- 純數學取樣函式：不依賴場景中的mesh是否還存在，播放時就是靠這個函式直接算座標 ----
@@ -3564,56 +2693,15 @@ function renderTrajPointList(){
 // closed: 是否首尾相連封閉成迴圈（點數<3時強制視為不封閉，2點封閉只是來回抖動沒有意義）
 
 // sampleTrajectoryFromPoints 的即時預覽包裝：讀場景中 trajPointMeshes 目前的world座標
-function sampleTrajectory(limb, t){
-  const pts = trajPointMeshes[limb].map(m => m.position.clone());
-  return sampleTrajectoryFromPoints(TRAJ_MODE[limb], pts, t, TRAJ_CLOSED[limb]);
+function sampleTrajectory(...args){
+  return trajectoryEditor.sampleTrajectory(...args);
 }
 
 // 沿目前控制點路徑等間隔取樣 trajSampleCount 個點，每點都當成一次「使用者手動擺好IK再按新增拍點」，
 // 依序寫入時間軸；額外把整批共用的軌跡資料（trajId/模式/相對座標/pole/進度t）烘焙進每個拍點的
 // kf.traj[limb]，播放時才能不靠取樣密度、直接連續取樣曲線本身（見 updateKeyframePlayback）。
-function generateKeyframesFromTrajectory(limb){
-  const pts = trajPointMeshes[limb];
-  const chain = IK_CHAINS[limb];
-  if (pts.length < 2){ alert("至少需要 2 個控制點才能生成軌跡拍點"); return; }
-  if (!ikEnabled[limb]){ alert("請先到「手腳 IK」分頁開啟「" + chain.label + "」的 IK，再生成軌跡拍點"); return; }
-  const rootBone = bones[chain.root], midBone = bones[chain.mid], endBone = bones[chain.end];
-  if (!rootBone || !midBone || !endBone) return;
-
-  const n = Math.round(clampNum(trajSampleCount, 2, 20));
-  const trajId = "traj_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-  const mode = TRAJ_MODE[limb];
-  const closed = TRAJ_CLOSED[limb] && pts.length >= 3;
-
-  // 生成當下：以此刻 root 骨骼世界座標為原點，把所有控制點/pole換算成「相對root」的偏移量，
-  // 這個原點只在生成當下取一次（見文件描述），之後每個取樣點都疊加在這個固定原點上。
-  const rootPos = new THREE.Vector3(); rootBone.getWorldPosition(rootPos);
-  const relPoints = pts.map(m => { const v = m.position.clone().sub(rootPos); return { x:v.x, y:v.y, z:v.z }; });
-  const poleAbs = ikPoleMeshes[limb].position.clone();
-  const poleRel = poleAbs.clone().sub(rootPos);
-  const poleRelObj = { x:poleRel.x, y:poleRel.y, z:poleRel.z };
-
-  for (let i = 0; i < n; i++){
-    const t = i / (n - 1);
-    const localOffset = sampleTrajectoryFromPoints(mode, relPoints, t, closed);
-    const worldPos = rootPos.clone().add(localOffset);
-    ikTargetMeshes[limb].position.copy(worldPos);
-
-    solveRootFollowForLimb(limb);
-    if (shoulderAssistEnabled) solveShoulderAssist(limb);
-    solveTwoBoneIK(rootBone, midBone, endBone, ikTargetMeshes[limb].position, ikPoleMeshes[limb].position);
-    syncTargetFromBone(chain.root);
-    syncTargetFromBone(chain.mid);
-    if (limb === "rLeg" || limb === "lLeg") applyFootLock(limb);
-    applyEffectorOrientation(limb);
-
-    addKeyframe();
-    const kf = keyframes[keyframes.length - 1];
-    kf.traj = kf.traj || {};
-    kf.traj[limb] = { id: trajId, mode, points: relPoints, pole: poleRelObj, t, closed };
-  }
-  renderKeyframeChips();
-  scheduleAutoSave();
+function generateKeyframesFromTrajectory(...args){
+  return trajectoryEditor.generateKeyframesFromTrajectory(...args);
 }
 
 // ---- 身體移動 ----
@@ -3663,130 +2751,39 @@ function resetBodyTransform(){
 
 // 開關某肢體的 IK：開啟時鎖住 root/mid 骨骼改由 IK 求解（隱藏它們的關節球），
 // 末端骨骼（手掌/腳掌自己的旋轉）仍保留 FK 可調整。
-function setIKEnabled(limb, on){
-  if(waveRun&&(waveHasBody(waveRun.config)||waveSides(waveRun.config).some(side=>limb===side+"Arm")))stopWave();
-  if (kfPlaying) return;
-  // 手動關掉某隻手的 IK → 通知扶握箱核心釋放扶握，避免殘留錯誤綁定
-  if (!on && grabBoxCore && (limb === "rArm" || limb === "lArm")) grabBoxCore.releaseHand(limb);
-  ikEnabled[limb] = on;
-  rebuildIKDrivenKeys();
-  const chain = IK_CHAINS[limb];
-
-  if (on) syncIKMarkersToDefault(limb);
-
-  ikTargetMeshes[limb].visible = on;
-  ikPoleMeshes[limb].visible = on;
-  ikPoleLines[limb].visible = on;
-
-  if (markerMeshes[chain.root]) markerIKHidden[chain.root] = on;
-  if (markerMeshes[chain.mid]) markerIKHidden[chain.mid] = on;
-  if (chain.shoulder && markerMeshes[chain.shoulder]) markerIKHidden[chain.shoulder] = on;
-
-  // 腳踝旋轉鎖存：開啟腿部IK當下抓取目前腳掌世界旋轉當基準；關閉時清空，
-  // 避免下次重開時殘留舊姿勢的鎖存值造成腳掌瞬間跳動
-  if (limb === "rLeg" || limb === "lLeg"){
-    if (on) captureFootLock(limb);
-    else footLockedWorldQuat[limb] = null;
-  }
-
-  if (!on && selectedIK && selectedIK.limb === limb) deselectJoint();
-  if (FOOT_PLANT_LIMBS.includes(limb)) {
-    if (on && footPlantEnabled) captureFootPlant(limb);
-    else delete footPlantAnchors[limb];
-    footPlantSafe = null;
-    if (!ikEnabled.rLeg && !ikEnabled.lLeg) footPlantEnabled = false;
-    updateFootPlantUI();
-  }
-  updateIKButtons();
+function setIKEnabled(...args){
+  return limbController.setIKEnabled(...args);
 }
 
 // 抓取「目前」腳掌世界旋轉，存成鎖存基準
-function captureFootLock(limb){
-  const chain = IK_CHAINS[limb];
-  const footBone = bones[chain.end];
-  if (!footBone) return;
-  const q = new THREE.Quaternion();
-  footBone.getWorldQuaternion(q);
-  footLockedWorldQuat[limb] = q.clone();
+function captureFootLock(...args){
+  return limbController.captureFootLock(...args);
 }
 
 // 每幀呼叫：把腳掌的本地旋轉，反推成「能讓世界旋轉貼住鎖存值」的值。
 // 必須在該腿的 solveTwoBoneIK 算完 root/mid 新世界旋轉「之後」執行，
 // 這樣才是用本幀最新的父骨骼世界旋轉反推，不會有一幀落差。
-function applyFootLock(limb){
-  const lockedQuat = footLockedWorldQuat[limb];
-  if (!lockedQuat || !ikEnabled[limb]) return;
-  const chain = IK_CHAINS[limb];
-  applyBoneWorldQuatLock(bones[chain.end], lockedQuat);
+function applyFootLock(...args){
+  return limbController.applyFootLock(...args);
 }
 
 // 核心數學：讓某根骨骼的「世界旋轉」貼住指定的鎖存值，作法是用父骨骼目前的世界旋轉反推出
 // 需要的本地旋轉。從 applyFootLock 抽出來，蹲彈律動（applySquatGroove）也需要同一套邏輯，
 // 但套用時機/鎖存來源不同（不是靠 ikEnabled 開關），所以拆成不吃開關判斷的純函式共用。
-function selectIKMarker(limb, role, index){
-  tgCancelPreview();
-  waveTrackActive=false;
-  if(waveRun)stopWave();
-  if(laPathRun&&limb==="lookAt_"+laPathRun.name)return;
-  if(limb==="lookAt_head"&&headFollowSource!=="free")return;
-  if(limb.startsWith("lookAt_")&&handFollowSource[limb.slice(7)]==="other")return;
-  if (isFootPlanted(limb) && role === "target") return;
-  selectedKey = null;
-  transformControls.detach();
-  selectedIK = (role === "trajPoint") ? { limb, role, index } : { limb, role };
-  let mesh;
-  if (limb === "spine") mesh = spineIKTargetMesh;
-  else if (limb.startsWith("lookAt_")) mesh = lookAtTargetMesh[limb.slice(7)];
-  else if (limb.startsWith(FINGER_IK_PREFIX)) mesh = fingerIKTargetMeshes[limb.slice(FINGER_IK_PREFIX.length)];
-  else if (role === "trajPoint") mesh = trajPointMeshes[limb][index];
-  else mesh = role === "target" ? ikTargetMeshes[limb] : ikPoleMeshes[limb];
-  if (!mesh) { selectedIK = null; return; }
-  transformControlsIK.attach(mesh);
-  highlightMarkers();
-  highlightIKMarkers();
-  updateSelectedBar();
-  renderTrajPointList();
+function selectIKMarker(...args){
+  return limbController.selectIKMarker(...args);
 }
 
-function highlightIKMarkers(){
-  for (const limb of IK_LIMB_KEYS){
-    const isTargetSel = !!(selectedIK && selectedIK.limb === limb && selectedIK.role === "target");
-    const isPoleSel = !!(selectedIK && selectedIK.limb === limb && selectedIK.role === "pole");
-    if (ikTargetMeshes[limb]) ikTargetMeshes[limb].scale.setScalar(isTargetSel ? 1.5 : 1.0);
-    if (ikPoleMeshes[limb]) ikPoleMeshes[limb].scale.setScalar(isPoleSel ? 1.5 : 1.0);
-  }
-  if (spineIKTargetMesh){
-    const isSpineSel = !!(selectedIK && selectedIK.limb === "spine");
-    spineIKTargetMesh.scale.setScalar(isSpineSel ? 1.5 : 1.0);
-  }
-  for (const name of Object.keys(LOOKAT_CONFIG)){
-    if (!lookAtTargetMesh[name]) continue;
-    const isSel = !!(selectedIK && selectedIK.limb === "lookAt_" + name);
-    lookAtTargetMesh[name].scale.setScalar(isSel ? 1.5 : 1.0);
-  }
-  for (const limb of IK_LIMB_KEYS){
-    trajPointMeshes[limb].forEach((m, idx) => {
-      const isSel = !!(selectedIK && selectedIK.limb === limb && selectedIK.role === "trajPoint" && selectedIK.index === idx);
-      m.scale.setScalar(isSel ? 1.6 : 1.0);
-    });
-  }
-  for (const fingerId of FINGER_IDS){
-    if (!fingerIKTargetMeshes[fingerId]) continue;
-    const isSel = !!(selectedIK && selectedIK.limb === FINGER_IK_PREFIX + fingerId);
-    fingerIKTargetMeshes[fingerId].scale.setScalar(isSel ? 1.5 : 1.0);
-  }
+function highlightIKMarkers(...args){
+  return limbController.highlightIKMarkers(...args);
 }
 
-function updateSpineIKButton(){
-  const btn = document.getElementById("spineIKBtn");
-  if (btn) btn.classList.toggle("active", spineIKEnabled);
+function updateSpineIKButton(...args){
+  return spineController.updateSpineIKButton(...args);
 }
 
-function updateIKButtons(){
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("ikBtn_" + limb);
-    if (btn) btn.classList.toggle("active", ikEnabled[limb]);
-  }
+function updateIKButtons(...args){
+  return limbController.updateIKButtons(...args);
 }
 
 function bindGrabBoxUI(){
@@ -3794,236 +2791,20 @@ function bindGrabBoxUI(){
   mountGrabBoxUI(document.getElementById("tabGrabBox"), grabBoxCore);
 }
 
-function bindIKUI(){
-  document.getElementById("footPlantCb").onchange = e => {
-    pushHistory();
-    setFootPlantEnabled(e.target.checked);
-    solveFootPlant();
-    pushHistory(); scheduleAutoSave();
-  };
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("ikBtn_" + limb);
-    if (btn) btn.onclick = () => { pushHistory(); setIKEnabled(limb, !ikEnabled[limb]); pushHistory(); scheduleAutoSave(); };
-  }
-  updateIKButtons();
-
-  const spineBtn = document.getElementById("spineIKBtn");
-  if (spineBtn) spineBtn.onclick = () => setSpineIKEnabled(!spineIKEnabled);
-  updateSpineIKButton();
-
-  const spineRootFollowCb = document.getElementById("rootFollow_spine");
-  if (spineRootFollowCb) spineRootFollowCb.onchange = (e) => { spineRootFollowEnabled = e.target.checked; };
-
-  for (const limb of ["rArm", "lArm"]){
-    const cb = document.getElementById("rootFollow_" + limb);
-    if (cb) cb.onchange = (e) => { ikRootFollowEnabled[limb] = e.target.checked; };
-  }
-
-  for (const name of Object.keys(LOOKAT_CONFIG)){
-    const btn = document.getElementById("lookAtBtn_" + name);
-    if (btn) btn.onclick = () => {if(kfPlaying)return;pushHistory();setLookAtEnabled(name, !lookAtEnabled[name]);pushHistory();scheduleAutoSave();};
-  }
-  updateLookAtButtons();
-
-  const dualAnchorCb = document.getElementById("dualAnchorCb");
-  if (dualAnchorCb) dualAnchorCb.onchange = (e) => { dualAnchorEnabled = e.target.checked; };
-  const shoulderAssistCb = document.getElementById("shoulderAssistCb");
-  if (shoulderAssistCb) shoulderAssistCb.onchange = (e) => { shoulderAssistEnabled = e.target.checked; };
-  const handCollisionCb = document.getElementById("handCollisionCb");
-  if (handCollisionCb) handCollisionCb.onchange = (e) => { handCollisionEnabled = e.target.checked; };
-  const handHandCollisionCb = document.getElementById("handHandCollisionCb");
-  if (handHandCollisionCb) handHandCollisionCb.onchange = (e) => { handHandCollisionEnabled = e.target.checked; };
-
-  // ---- 手部-身體碰撞：膠囊/球半徑滑桿（4段軀幹 + 4段腿 + 1顆頭 + 1個手掌球），
-  // 即時寫回 ALL_BODY_CAPSULES（其實就是 TORSO_CAPSULES/LEG_CAPSULES/HEAD_CAPSULES 的物件參照）/ HAND_COLLISION_RADIUS ----
-  function refreshHandCollisionSliderUI(){
-    ALL_BODY_CAPSULES.forEach((cap, i) => {
-      const s = document.getElementById("hcRadiusSlider_" + i);
-      const v = document.getElementById("hcRadiusVal_" + i);
-      if (s) s.value = String(cap.radius);
-      if (v) v.textContent = cap.radius.toFixed(3);
-    });
-    const hs = document.getElementById("hcHandRadiusSlider");
-    const hv = document.getElementById("hcHandRadiusVal");
-    if (hs) hs.value = String(HAND_COLLISION_RADIUS);
-    if (hv) hv.textContent = HAND_COLLISION_RADIUS.toFixed(3);
-  }
-  refreshHandCollisionSliderUI(); // 開頁先把滑桿位置同步成 loadHandCollisionRadii() 還原出來的值
-
-  ALL_BODY_CAPSULES.forEach((cap, i) => {
-    const slider = document.getElementById("hcRadiusSlider_" + i);
-    const val = document.getElementById("hcRadiusVal_" + i);
-    if (!slider) return;
-    slider.oninput = (e) => {
-      cap.radius = parseFloat(e.target.value);
-      if (val) val.textContent = cap.radius.toFixed(3);
-      saveHandCollisionRadii();
-    };
-  });
-  const hcHandRadiusSlider = document.getElementById("hcHandRadiusSlider");
-  const hcHandRadiusVal = document.getElementById("hcHandRadiusVal");
-  if (hcHandRadiusSlider) hcHandRadiusSlider.oninput = (e) => {
-    HAND_COLLISION_RADIUS = parseFloat(e.target.value);
-    if (hcHandRadiusVal) hcHandRadiusVal.textContent = HAND_COLLISION_RADIUS.toFixed(3);
-    saveHandCollisionRadii();
-  };
-  const hcRadiusResetBtn = document.getElementById("hcRadiusResetBtn");
-  if (hcRadiusResetBtn) hcRadiusResetBtn.onclick = () => {
-    ALL_BODY_CAPSULES.forEach((cap, i) => { cap.radius = ALL_BODY_CAPSULE_RADIUS_DEFAULTS[i]; });
-    HAND_COLLISION_RADIUS = HAND_COLLISION_RADIUS_DEFAULT;
-    refreshHandCollisionSliderUI();
-    saveHandCollisionRadii();
-  };
-
-  // ---- 進階/阻尼設定：身體跟隨阻尼、脊椎CCD阻尼 ----
-  const rootFollowDampSlider = document.getElementById("rootFollowDampSlider");
-  const rootFollowDampVal = document.getElementById("rootFollowDampVal");
-  const spineCCDDampSlider = document.getElementById("spineCCDDampSlider");
-  const spineCCDDampVal = document.getElementById("spineCCDDampVal");
-  if (rootFollowDampSlider) rootFollowDampSlider.oninput = (e) => {
-    ROOT_FOLLOW_LERP_T = parseFloat(e.target.value);
-    if (rootFollowDampVal) rootFollowDampVal.textContent = ROOT_FOLLOW_LERP_T.toFixed(2);
-  };
-  if (spineCCDDampSlider) spineCCDDampSlider.oninput = (e) => {
-    spineCCDDamping = parseFloat(e.target.value);
-    if (spineCCDDampVal) spineCCDDampVal.textContent = spineCCDDamping.toFixed(2);
-  };
-  const resetDampingBtn = document.getElementById("resetDampingBtn");
-  if (resetDampingBtn) resetDampingBtn.onclick = () => {
-    ROOT_FOLLOW_LERP_T = ROOT_FOLLOW_LERP_T_DEFAULT;
-    spineCCDDamping = SPINE_CCD_DAMPING_DEFAULT;
-    if (rootFollowDampSlider) rootFollowDampSlider.value = String(ROOT_FOLLOW_LERP_T_DEFAULT);
-    if (spineCCDDampSlider) spineCCDDampSlider.value = String(SPINE_CCD_DAMPING_DEFAULT);
-    if (rootFollowDampVal) rootFollowDampVal.textContent = ROOT_FOLLOW_LERP_T_DEFAULT.toFixed(2);
-    if (spineCCDDampVal) spineCCDDampVal.textContent = SPINE_CCD_DAMPING_DEFAULT.toFixed(2);
-  };
-
-  const selectBodyBtn = document.getElementById("selectBodyBtn");
-  if (selectBodyBtn) selectBodyBtn.onclick = selectBodyMarker;
-
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("orientBtn_" + limb);
-    if (btn) btn.onclick = () => {if(kfPlaying)return;pushHistory();setEffectorOrientEnabled(limb, !effectorOrientEnabled[limb]);pushHistory();scheduleAutoSave();};
-  }
-  updateEffectorOrientButtons();
-
-  const ikModeBtn = document.getElementById("ikModeBtn");
-  if (ikModeBtn) ikModeBtn.onclick = () => {
-    const newMode = transformControlsIK.getMode() === "translate" ? "rotate" : "translate";
-    transformControlsIK.setMode(newMode);
-    updateSelectedBar();
-  };
+function bindIKUI(...args){
+  return limbController.bindIKUI(...args);
 }
 
 // ---- 軌跡分頁 UI 綁定 ----
-function bindTrajUI(){
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("trajLimbBtn_" + limb);
-    if (btn) btn.onclick = () => setTrajActiveLimb(limb);
-  }
-  updateTrajLimbButtons();
-
-  const modeSel = document.getElementById("trajModeSelect");
-  if (modeSel){
-    modeSel.value = TRAJ_MODE[trajActiveLimb];
-    modeSel.onchange = (e) => {
-      TRAJ_MODE[trajActiveLimb] = e.target.value;
-      updateTrajVisual(trajActiveLimb);
-      scheduleAutoSave();
-    };
-  }
-
-  const closedChk = document.getElementById("trajClosedChk");
-  if (closedChk){
-    closedChk.onchange = (e) => {
-      TRAJ_CLOSED[trajActiveLimb] = e.target.checked;
-      updateTrajVisual(trajActiveLimb);
-      scheduleAutoSave();
-    };
-  }
-
-  const addBtn = document.getElementById("trajAddPointBtn");
-  if (addBtn) addBtn.onclick = () => addTrajPoint(trajActiveLimb);
-
-  const clearBtn = document.getElementById("trajClearPointsBtn");
-  if (clearBtn) clearBtn.onclick = () => clearTrajPoints(trajActiveLimb);
-
-  const sampleSlider = document.getElementById("trajSampleSlider");
-  const sampleVal = document.getElementById("trajSampleVal");
-  if (sampleSlider){
-    sampleSlider.value = String(trajSampleCount);
-    sampleSlider.oninput = (e) => {
-      trajSampleCount = parseInt(e.target.value, 10);
-      if (sampleVal) sampleVal.textContent = String(trajSampleCount);
-    };
-  }
-  if (sampleVal) sampleVal.textContent = String(trajSampleCount);
-
-  const genBtn = document.getElementById("trajGenerateBtn");
-  if (genBtn) genBtn.onclick = () => { generateKeyframesFromTrajectory(trajActiveLimb); pushHistory(); };
-
-  bindTrajShapeGenUI();
-  renderTrajPointList();
+function bindTrajUI(...args){
+  return trajectoryEditor.bindTrajUI(...args);
 }
 
 // 形狀產生器（圓形／橢圓形／正多邊形／星形）綁定：跟其他軌跡控制項獨立拆出來，因為切換
 // 「形狀類型」需要連動顯示/隱藏對應欄位（橢圓的短半徑、星形的內凹比例）並調整點數/邊數的預設範圍，
 // 邏輯比其他單純的 onchange 多一點。
-function bindTrajShapeGenUI(){
-  const typeSel = document.getElementById("trajShapeTypeSelect");
-  const sidesInput = document.getElementById("trajShapeSidesInput");
-  const sidesLabel = document.getElementById("trajShapeSidesLabel");
-  const radiusInput = document.getElementById("trajShapeRadiusInput");
-  const radiusLabel = document.getElementById("trajShapeRadiusLabel");
-  const radiusYInput = document.getElementById("trajShapeRadiusYInput");
-  const radiusYLabel = document.getElementById("trajShapeRadiusYLabel");
-  const innerRatioInput = document.getElementById("trajShapeInnerRatioInput");
-  const innerRatioLabel = document.getElementById("trajShapeInnerRatioLabel");
-  const planeSel = document.getElementById("trajShapePlaneSelect");
-  const genShapeBtn = document.getElementById("trajGenShapeBtn");
-  if (!typeSel || !sidesInput || !genShapeBtn) return;
-
-  // 依形狀類型切換：點數/邊數欄位的標籤與合理範圍、半徑欄位的標籤、要顯示哪些額外欄位
-  // （橢圓形要顯示短半徑；星形要顯示內凹比例；圓形/多邊形都不需要，維持隱藏）。
-  function syncFieldsForType(){
-    const type = typeSel.value;
-    radiusYLabel.style.display = (type === "ellipse") ? "" : "none";
-    radiusYInput.style.display = (type === "ellipse") ? "" : "none";
-    innerRatioLabel.style.display = (type === "star") ? "" : "none";
-    innerRatioInput.style.display = (type === "star") ? "" : "none";
-    radiusLabel.textContent = (type === "ellipse") ? "長半徑(公尺)" : "半徑(公尺)";
-
-    if (type === "circle" || type === "ellipse"){
-      sidesLabel.textContent = "點數";
-      sidesInput.min = "8"; sidesInput.max = "48";
-      if (parseInt(sidesInput.value, 10) < 8) sidesInput.value = "20";
-    } else if (type === "star"){
-      sidesLabel.textContent = "角數";
-      sidesInput.min = "3"; sidesInput.max = "12";
-      if (parseInt(sidesInput.value, 10) > 12) sidesInput.value = "5";
-    } else { // polygon
-      sidesLabel.textContent = "邊數";
-      sidesInput.min = "3"; sidesInput.max = "12";
-      if (parseInt(sidesInput.value, 10) > 12) sidesInput.value = "5";
-    }
-  }
-  typeSel.onchange = syncFieldsForType;
-  syncFieldsForType();
-
-  genShapeBtn.onclick = () => {
-    const shapeType = typeSel.value;
-    const n = parseInt(sidesInput.value, 10) || (shapeType === "star" ? 5 : (shapeType === "polygon" ? 5 : 20));
-    const radius = parseFloat(radiusInput.value) || 0.15;
-    const plane = planeSel.value;
-    // 短半徑（radiusY）只有橢圓形才有意義；圓形/多邊形/星形一律不傳，讓 rX/rY 都等於 radius，
-    // 避免隱藏欄位裡殘留的舊數值（例如上次用橢圓形留下的 0.08）污染到其他形狀，
-    // 造成「明明選圓形/星形，卻被拉成橢圓、放大後越來越狹長」的問題。
-    const opts = {
-      radiusY: (shapeType === "ellipse") ? (parseFloat(radiusYInput.value) || radius) : radius,
-      innerRatio: parseFloat(innerRatioInput.value) || 0.5,
-    };
-    generateShapeTrajPoints(trajActiveLimb, shapeType, n, radius, plane, opts);
-  };
+function bindTrajShapeGenUI(...args){
+  return trajectoryEditor.bindTrajShapeGenUI(...args);
 }
 
 // 所有目前「可被點擊」的球（關節球 + 可見的 IK 目標球／極向球），自己過濾 visible，
@@ -6378,22 +5159,10 @@ function updateBeatGridMusicPreviewPlayhead(){
 // 讓上面的一般角度slerp迴圈跳過它們（改由 applyTrajOverridesDuringPlayback 接管）。
 // 大多數拍點沒有軌跡資料，是最常見的情況：共用一組唯讀的空陣列/空 Set 給這個情況用，
 // 呼叫端只會對它們做 .has()／.length 讀取，不會修改，所以能安全跨幀共用同一個實例。
-const _EMPTY_OVERRIDE_LIMBS = [];
-const _EMPTY_OVERRIDE_KEYS = new Set();
-function collectTrajOverrideKeys(frameA, frameB){
-  if (!frameA.traj || !frameB.traj) return { overrideLimbs: _EMPTY_OVERRIDE_LIMBS, overrideKeys: _EMPTY_OVERRIDE_KEYS };
-  const overrideLimbs = [];
-  const overrideKeys = new Set();
-  for (const limb of IK_LIMB_KEYS){
-    const a = frameA.traj[limb], b = frameB.traj[limb];
-    if (a && b && a.id === b.id){
-      overrideLimbs.push(limb);
-      const chain = IK_CHAINS[limb];
-      overrideKeys.add(chain.root);
-      overrideKeys.add(chain.mid);
-    }
-  }
-  return { overrideLimbs, overrideKeys };
+
+
+function collectTrajOverrideKeys(...args){
+  return trajectoryEditor.collectTrajOverrideKeys(...args);
 }
 
 // 對每個觸發軌跡覆蓋的 limb：在 frameA.traj[limb].t 與 frameB.traj[limb].t 之間用 et 內插出
@@ -6401,34 +5170,13 @@ function collectTrajOverrideKeys(frameA, frameB){
 // 疊加上「本幀最新」的 root 骨骼世界座標，重新呼叫一次 solveTwoBoneIK。
 // 末端骨骼（手掌/腳掌）本身的旋轉維持上面迴圈已經slerp好的結果，這裡不動它
 // （呼應「IK只驅動root+mid，末端保留FK」的既有設計哲學）。
-const _tpRootPos = new THREE.Vector3();
-const _tpTargetPos = new THREE.Vector3();
-const _tpPoleA = new THREE.Vector3();
-const _tpPoleB = new THREE.Vector3();
-const _tpPolePos = new THREE.Vector3();
-function applyTrajOverridesDuringPlayback(limbs, frameA, frameB, et){
-  const eClamped = clampNum(et, 0, 1); // 取樣進度用clamp過的et，避免overshoot easing把curT甩出[0,1]產生怪座標
-  for (const limb of limbs){
-    const chain = IK_CHAINS[limb];
-    const rootBone = bones[chain.root], midBone = bones[chain.mid], endBone = bones[chain.end];
-    if (!rootBone || !midBone || !endBone) continue;
-    const trajA = frameA.traj[limb], trajB = frameB.traj[limb];
-    const curT = trajA.t + (trajB.t - trajA.t) * eClamped;
-    const mode = trajA.mode;
 
-    // 關鍵：這裡讀到的必須是「本幀剛套用完軀幹FK/身體位置之後」的最新世界座標，
-    // 呼叫端已在此之前手動跑過 model.updateMatrixWorld(true)，見 updateKeyframePlayback。
-    const rootPos = _tpRootPos; rootBone.getWorldPosition(rootPos);
-    const localOffset = sampleTrajectoryFromPoints(mode, trajA.points, curT, !!trajA.closed); // 內部自行配置，屬低頻呼叫（每肢體每幀一次）不特別處理；舊資料沒有closed欄位時預設false
-    const targetPos = _tpTargetPos.copy(rootPos).add(localOffset);
 
-    const poleA = _tpPoleA.set(trajA.pole.x, trajA.pole.y, trajA.pole.z);
-    const poleB = _tpPoleB.set(trajB.pole.x, trajB.pole.y, trajB.pole.z);
-    const poleLocal = poleA.lerp(poleB, eClamped);
-    const polePos = _tpPolePos.copy(rootPos).add(poleLocal);
 
-    solveTwoBoneIK(rootBone, midBone, endBone, targetPos, polePos);
-  }
+
+
+function applyTrajOverridesDuringPlayback(...args){
+  return trajectoryEditor.applyTrajOverridesDuringPlayback(...args);
 }
 
 // 拍點播放時最熱的路徑：每幀都要跑過全部關節key（body+finger共約50個），逐key slerp。
@@ -8608,38 +7356,14 @@ function updateBpm(event){
 // 讓肩膀貼近到「剛好可及」的距離，再交給原本的 solveTwoBoneIK 做手肘彎曲微調。
 // 只動 model.position（角色剛體平移），完全不碰骨骼旋轉，跟現有 IK 求解互不衝突。
 // 例：手掌固定在單槓上，身體搆不到時會整個人靠過去，而不是手臂硬拉長。
-const _rflRootPos = new THREE.Vector3();
-const _rflMidPos = new THREE.Vector3();
-const _rflEndPos = new THREE.Vector3();
-const _rflDir = new THREE.Vector3();
-const _rflDesired = new THREE.Vector3();
-const _rflDelta = new THREE.Vector3();
-function solveRootFollowForLimb(limb){
-  if (!ikRootFollowEnabled[limb]) return;
-  const chain = IK_CHAINS[limb];
-  const rootBone = bones[chain.root], midBone = bones[chain.mid], endBone = bones[chain.end];
-  if (!rootBone || !midBone || !endBone) return;
 
-  const rootPos = _rflRootPos; rootBone.getWorldPosition(rootPos);
-  const midPos = _rflMidPos; midBone.getWorldPosition(midPos);
-  const endPos = _rflEndPos; endBone.getWorldPosition(endPos);
-  const upperLen = rootPos.distanceTo(midPos);
-  const lowerLen = midPos.distanceTo(endPos);
-  const maxReach = upperLen + lowerLen;
-  if (maxReach < 1e-6) return;
 
-  const targetPos = ikTargetMeshes[limb].position; // 場景物件的 position，下面一律用 .copy() 讀取，不直接修改它
-  const dist = rootPos.distanceTo(targetPos);
-  const comfortReach = maxReach * 0.92; // 留一點餘裕，避免手臂完全打直看起來卡住
 
-  if (dist > comfortReach){
-    const dirRootToTarget = _rflDir.copy(targetPos).sub(rootPos).normalize();
-    // 肩膀應該移動到的世界座標：從 target 往回退 comfortReach 距離
-    const desiredRootPos = _rflDesired.copy(targetPos).sub(dirRootToTarget.multiplyScalar(comfortReach));
-    const delta = _rflDelta.copy(desiredRootPos).sub(rootPos);
-    model.position.add(delta.multiplyScalar(ROOT_FOLLOW_LERP_T)); // 只前進一部分，跨幀累積平滑過渡
-    model.updateWorldMatrix(true, true); // 讓後續量測（含腿部 IK）立刻拿到新座標
-  }
+
+
+
+function solveRootFollowForLimb(...args){
+  return limbController.solveRootFollowForLimb(...args);
 }
 
 // 從骨骼目前四元數反推「相對 rest pose」的角度，寫回 target/current（不含 UI 更新，逐幀呼叫用）
@@ -8649,54 +7373,13 @@ function syncTargetFromBone(key){
   poseController.syncFromBone(key);
 }
 
-function updateIKPoleLines(){
-  const v = new THREE.Vector3();
-  for (const limb of IK_LIMB_KEYS){
-    if (!ikEnabled[limb]) continue;
-    const chain = IK_CHAINS[limb];
-    const midBone = bones[chain.mid];
-    if (!midBone) continue;
-    midBone.getWorldPosition(v);
-    const posAttr = ikPoleLines[limb].geometry.attributes.position;
-    posAttr.setXYZ(0, v.x, v.y, v.z);
-    const pp = ikPoleMeshes[limb].position;
-    posAttr.setXYZ(1, pp.x, pp.y, pp.z);
-    posAttr.needsUpdate = true;
-  }
+function updateIKPoleLines(...args){
+  return limbController.updateIKPoleLines(...args);
 }
 
 // 每幀呼叫：對每個開啟 IK 的肢體求解，並把結果同步回 target/current（給拍點/JSON 用）
-function solveIKAll(){
-  let any = false;
-  const dualActive = dualAnchorEnabled && ikEnabled.rArm && ikEnabled.lArm;
-  // 雙手同時固定：優先處理，取代兩隻手臂各自獨立的 root-follow（避免兩套平移邏輯互搶）
-  if (dualActive) solveDualHandAnchor();
-
-  for (const limb of IK_LIMB_KEYS){
-    if (!ikEnabled[limb]) continue;
-    const chain = IK_CHAINS[limb];
-
-    // 手臂類肢體：雙手固定模式已經處理過身體對齊，這裡只在「非雙手固定模式」時
-    // 才跑單手各自的 root-follow，避免跟 solveDualHandAnchor 打架
-    if ((limb === "rArm" || limb === "lArm") && !dualActive) solveRootFollowForLimb(limb);
-    // 肩胛骨限幅輔助：在兩節IK求解前，讓Shoulder先偏一點點（僅手臂有shoulder欄位）
-    // 受 shoulderAssistEnabled 開關控制，關掉就完全跳過，肩膀保持不動
-    if ((limb === "rArm" || limb === "lArm") && shoulderAssistEnabled) solveShoulderAssist(limb);
-
-    const rootBone = bones[chain.root], midBone = bones[chain.mid], endBone = bones[chain.end];
-    if (!rootBone || !midBone || !endBone) continue;
-    solveTwoBoneIK(rootBone, midBone, endBone, ikTargetMeshes[limb].position, ikPoleMeshes[limb].position);
-    syncTargetFromBone(chain.root);
-    syncTargetFromBone(chain.mid);
-    // 腿部：root/mid的世界旋轉已經是本幀最新值，這時反推腳掌本地旋轉貼住鎖存值最準確
-    if (limb === "rLeg" || limb === "lLeg") applyFootLock(limb);
-    // Effector朝向控制：位置IK解完後，再套用目標球旋轉決定手掌/腳掌面向
-    // （若開啟了腳踝鎖存，這裡會覆蓋掉鎖存值——兩者互斥概念上都是「控制末端朝向」，
-    // 開啟朝向控制的那隻腳，鎖存的貼地朝向會被使用者手動指定的朝向取代）
-    applyEffectorOrientation(limb);
-    any = true;
-  }
-  if (any) updateIKPoleLines();
+function solveIKAll(...args){
+  return limbController.solveIKAll(...args);
 }
 
 // ==== 手部-軀幹碰撞回彈（防穿模）====
@@ -8771,63 +7454,22 @@ loadHandCollisionRadii(); // 開頁就還原使用者上次調過的半徑（若
 const _hcHandPos = new THREE.Vector3();
 const _hcA = new THREE.Vector3();
 const _hcB = new THREE.Vector3();
-const _hcAB = new THREE.Vector3();
-const _hcAP = new THREE.Vector3();
-const _hcClosest = new THREE.Vector3();
+
+
+
 const _hcPushDir = new THREE.Vector3();
-const _hcTargetPos = new THREE.Vector3();
+
 
 // 點 p 到線段 (a,b) 的最近點，寫進 outPoint，回傳 outPoint 方便串接使用
-function closestPointOnSegment(p, a, b, outPoint){
-  _hcAB.copy(b).sub(a);
-  const lenSq = _hcAB.lengthSq();
-  if (lenSq < 1e-10) return outPoint.copy(a); // a、b幾乎重合，線段退化成一點
-  _hcAP.copy(p).sub(a);
-  const t = clampNum(_hcAP.dot(_hcAB) / lenSq, 0, 1);
-  return outPoint.copy(a).addScaledVector(_hcAB, t);
+function closestPointOnSegment(...args){
+  return handCollisionController.closestPointOnSegment(...args);
 }
 
 // 每幀呼叫：對每隻「沒開IK、沒被拖曳」的手臂做一次身體（軀幹+腿+頭）碰撞檢查＋回彈。
 // 軀幹/腿/頭在這裡一律視為「固定障礙物」——只有手會被推開，不會反過來影響腿/頭的姿勢，
 // 這樣才不會跟腿部IK/蹲彈律動/脊椎IK等其他系統互相打架。
-function solveHandBodyCollision(){
-  if (!handCollisionEnabled || waveRun || isBakedWavePlaying()) return;
-  for (const limb of HAND_COLLISION_LIMBS){
-    if (ikEnabled[limb]) continue; // 該手已由IK目標球明確指定位置，不跟它搶
-    const chain = IK_CHAINS[limb];
-    const rootBone = bones[chain.root], midBone = bones[chain.mid], handBone = bones[chain.end];
-    if (!rootBone || !midBone || !handBone) continue;
-    if (draggingKey === chain.root || draggingKey === chain.mid || draggingKey === chain.end || draggingKey === chain.shoulder) continue;
-
-    handBone.getWorldPosition(_hcHandPos);
-
-    // 找出穿模最深的那一段障礙物（軀幹膠囊／腿部膠囊／頭部退化膠囊，同一套清單一起比較）
-    let deepestPenetration = 0;
-    let found = false;
-    for (const cap of ALL_BODY_CAPSULES){
-      const boneA = bones[cap.boneA], boneB = bones[cap.boneB];
-      if (!boneA || !boneB) continue;
-      boneA.getWorldPosition(_hcA);
-      boneB.getWorldPosition(_hcB);
-      closestPointOnSegment(_hcHandPos, _hcA, _hcB, _hcClosest);
-      const dist = _hcHandPos.distanceTo(_hcClosest);
-      const penetration = (cap.radius + HAND_COLLISION_RADIUS) - dist;
-      if (penetration > deepestPenetration){
-        deepestPenetration = penetration;
-        found = true;
-        _hcPushDir.copy(_hcHandPos).sub(_hcClosest);
-        if (_hcPushDir.lengthSq() < 1e-8) _hcPushDir.set(1, 0, 0); // 剛好在中心線上，隨便挑個方向避免除零
-        _hcPushDir.normalize();
-        _hcTargetPos.copy(_hcClosest).addScaledVector(_hcPushDir, cap.radius + HAND_COLLISION_RADIUS);
-      }
-    }
-    if (!found) continue;
-
-    // 輕量 CCD：只帶上臂＋前臂兩節，damping調低讓效果像「頂住」而不是「瞬間彈開」
-    solveCCDChain([rootBone, midBone], handBone, _hcTargetPos, 3, 0.35);
-    syncTargetFromBone(chain.root);
-    syncTargetFromBone(chain.mid);
-  }
+function solveHandBodyCollision(...args){
+  return handCollisionController.solveHandBodyCollision(...args);
 }
 
 // ==== 雙手互碰（防穿模）====
@@ -8837,64 +7479,19 @@ function solveHandBodyCollision(){
 //   2) 兩隻手都可動時，穿模量各退一半，感覺像兩顆球互相推擠；
 //      只有一隻可動時，把可動的那隻整個推到「剛好貼齊另一隻手表面」的位置。
 //   3) 兩隻手都被鎖定時完全不處理——代表使用者自己刻意把兩隻手疊在一起，尊重使用者的選擇。
-const _hhPosR = new THREE.Vector3();
-const _hhPosL = new THREE.Vector3();
-const _hhPushDir = new THREE.Vector3();
-const _hhTargetR = new THREE.Vector3();
-const _hhTargetL = new THREE.Vector3();
 
-function isLimbHandMovable(limb){
-  if (ikEnabled[limb]) return false;
-  const chain = IK_CHAINS[limb];
-  return draggingKey !== chain.root && draggingKey !== chain.mid && draggingKey !== chain.end && draggingKey !== chain.shoulder;
+
+
+
+
+
+function isLimbHandMovable(...args){
+  return handCollisionController.isLimbHandMovable(...args);
 }
 
 // 每幀呼叫：偵測右手掌球與左手掌球是否互相穿模，穿模時各自（或單邊）用輕量CCD推開。
-function solveHandHandCollision(){
-  if (!handHandCollisionEnabled || waveRun || isBakedWavePlaying()) return;
-  const rChain = IK_CHAINS.rArm, lChain = IK_CHAINS.lArm;
-  const rHandBone = bones[rChain.end], lHandBone = bones[lChain.end];
-  const rRoot = bones[rChain.root], rMid = bones[rChain.mid];
-  const lRoot = bones[lChain.root], lMid = bones[lChain.mid];
-  if (!rHandBone || !lHandBone || !rRoot || !rMid || !lRoot || !lMid) return;
-
-  const rMovable = isLimbHandMovable("rArm");
-  const lMovable = isLimbHandMovable("lArm");
-  if (!rMovable && !lMovable) return; // 兩手都鎖定，不介入
-
-  rHandBone.getWorldPosition(_hhPosR);
-  lHandBone.getWorldPosition(_hhPosL);
-  const minDist = HAND_COLLISION_RADIUS * 2;
-  const dist = _hhPosR.distanceTo(_hhPosL);
-  if (dist >= minDist) return; // 沒有穿模
-
-  _hhPushDir.copy(_hhPosR).sub(_hhPosL);
-  if (_hhPushDir.lengthSq() < 1e-8) _hhPushDir.set(1, 0, 0); // 兩手剛好重合，隨便挑個方向避免除零
-  _hhPushDir.normalize();
-  const penetration = minDist - dist;
-
-  if (rMovable && lMovable){
-    // 兩手都可動：各退穿模量的一半，像兩顆球互相推開
-    _hhTargetR.copy(_hhPosR).addScaledVector(_hhPushDir, penetration * 0.5);
-    _hhTargetL.copy(_hhPosL).addScaledVector(_hhPushDir, -penetration * 0.5);
-  } else if (rMovable){
-    // 只有右手可動：把右手整個推到「貼齊左手（固定）表面」的位置
-    _hhTargetR.copy(_hhPosL).addScaledVector(_hhPushDir, minDist);
-  } else {
-    // 只有左手可動
-    _hhTargetL.copy(_hhPosR).addScaledVector(_hhPushDir, -minDist);
-  }
-
-  if (rMovable){
-    solveCCDChain([rRoot, rMid], rHandBone, _hhTargetR, 3, 0.35);
-    syncTargetFromBone(rChain.root);
-    syncTargetFromBone(rChain.mid);
-  }
-  if (lMovable){
-    solveCCDChain([lRoot, lMid], lHandBone, _hhTargetL, 3, 0.35);
-    syncTargetFromBone(lChain.root);
-    syncTargetFromBone(lChain.mid);
-  }
+function solveHandHandCollision(...args){
+  return handCollisionController.solveHandHandCollision(...args);
 }
 
 // ==== 手部-軀幹碰撞：膠囊體／手掌球 可視化（除錯用）====
@@ -8906,136 +7503,34 @@ const handCollisionVizCapsuleMeshes = []; // 跟 ALL_BODY_CAPSULES（軀幹+腿+
 const handCollisionVizHandMeshes = {}; // { rArm: mesh, lArm: mesh }
 const HAND_COLLISION_VIZ_EPS = 0.001; // 半徑/長度變化小於這個值就不重建geometry，省掉沒必要的重新配置
 
-function buildHandCollisionVizMeshes(){
-  handCollisionVizGroup = new THREE.Group();
-  handCollisionVizGroup.visible = false;
-  handCollisionVizGroup.renderOrder = 997;
-
-  const capsuleMat = new THREE.MeshBasicMaterial({
-    color: 0x00e5ff, transparent: true, opacity: 0.28,
-    depthWrite: false, side: THREE.DoubleSide, wireframe: false
-  });
-  ALL_BODY_CAPSULES.forEach((cap) => {
-    // 先給一個佔位geometry（真正尺寸在 updateHandCollisionVizMeshes() 第一次呼叫時就會依實際骨骼距離重建）
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.01, 0.01, 4, 8), capsuleMat);
-    mesh.userData.builtRadius = 0.01;
-    mesh.userData.builtLength = 0.01;
-    handCollisionVizCapsuleMeshes.push(mesh);
-    handCollisionVizGroup.add(mesh);
-  });
-
-  const handMat = new THREE.MeshBasicMaterial({
-    color: 0xff9500, transparent: true, opacity: 0.35,
-    depthWrite: false, side: THREE.DoubleSide
-  });
-  for (const limb of HAND_COLLISION_LIMBS){
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), handMat); // 半徑1的單位球，靠 scale 表示實際半徑（球體均勻縮放不會變形，不用重建geometry）
-    handCollisionVizHandMeshes[limb] = mesh;
-    handCollisionVizGroup.add(mesh);
-  }
-
-  scene.add(handCollisionVizGroup);
+function buildHandCollisionVizMeshes(...args){
+  return collisionView.buildHandCollisionVizMeshes(...args);
 }
 
 // 每幀呼叫：只在 handCollisionVizEnabled 開啟時才更新位置/朝向/尺寸，關閉時直接跳過省效能。
-function updateHandCollisionVizMeshes(){
-  if (!handCollisionVizGroup) return;
-  handCollisionVizGroup.visible = handCollisionVizEnabled;
-  if (!handCollisionVizEnabled) return;
-
-  ALL_BODY_CAPSULES.forEach((cap, i) => {
-    const mesh = handCollisionVizCapsuleMeshes[i];
-    const boneA = bones[cap.boneA], boneB = bones[cap.boneB];
-    if (!boneA || !boneB){ mesh.visible = false; return; }
-    mesh.visible = true;
-    boneA.getWorldPosition(_hcA);
-    boneB.getWorldPosition(_hcB);
-    const length = _hcA.distanceTo(_hcB);
-
-    // 半徑或長度變化夠大才重建geometry（CapsuleGeometry沒辦法像球體一樣單純靠scale表示半徑變化，
-    // 非等向縮放會把兩端的半球型端蓋拉成橢圓，形狀會跑掉，所以改成必要時才重新配置頂點）
-    if (Math.abs(mesh.userData.builtRadius - cap.radius) > HAND_COLLISION_VIZ_EPS ||
-        Math.abs(mesh.userData.builtLength - length) > HAND_COLLISION_VIZ_EPS){
-      mesh.geometry.dispose();
-      mesh.geometry = new THREE.CapsuleGeometry(cap.radius, Math.max(length, 0.001), 4, 8);
-      mesh.userData.builtRadius = cap.radius;
-      mesh.userData.builtLength = length;
-    }
-
-    // CapsuleGeometry預設沿本地Y軸、置中在原點，這裡把它擺到 A、B 中點，並把Y軸轉向 A→B 方向
-    mesh.position.copy(_hcA).add(_hcB).multiplyScalar(0.5);
-    _hcPushDir.copy(_hcB).sub(_hcA).normalize(); // 借用既有的暫存向量，跟碰撞計算不會同時用到
-    if (_hcPushDir.lengthSq() > 1e-8){
-      mesh.quaternion.setFromUnitVectors(_stRefY, _hcPushDir);
-    }
-  });
-
-  for (const limb of HAND_COLLISION_LIMBS){
-    const mesh = handCollisionVizHandMeshes[limb];
-    const chain = IK_CHAINS[limb];
-    const handBone = bones[chain.end];
-    if (!handBone){ mesh.visible = false; continue; }
-    mesh.visible = true;
-    handBone.getWorldPosition(_hcHandPos);
-    mesh.position.copy(_hcHandPos);
-    mesh.scale.setScalar(HAND_COLLISION_RADIUS); // 單位球均勻縮放＝半徑，形狀不會失真
-  }
+function updateHandCollisionVizMeshes(...args){
+  return collisionView.updateHandCollisionVizMeshes(...args);
 }
 
 // 它的子孫（Spine1以下），不會改變 Spine 自己相對 Hips 的位置。也就是說
 // 「Hips→Spine」這段其實不可彎曲，若把它也算進可及範圍會高估伸展能力，
 // 導致平移完之後目標仍在 CCD 真正搆得到的範圍外、無法收斂。
-const _srfP1 = new THREE.Vector3();
-const _srfP2 = new THREE.Vector3();
-const _srfPivotPos = new THREE.Vector3();
-const _srfDir = new THREE.Vector3();
-const _srfDesired = new THREE.Vector3();
-const _srfDelta = new THREE.Vector3();
-function solveSpineRootFollow(){
-  if (!spineRootFollowEnabled || !spineIKEnabled) return;
-  const pivotBone = bones[SPINE_IK_CHAIN.bones[0]]; // spine：CCD鏈第一個真正可旋轉的關節
-  if (!pivotBone || !spineIKTargetMesh) return;
 
-  // 只加總「可彎曲」的部分：spine→spine1→spine2→neck→head
-  const chainKeys = [...SPINE_IK_CHAIN.bones, SPINE_IK_CHAIN.effector];
-  let maxReach = 0;
-  const p1 = _srfP1, p2 = _srfP2;
-  for (let i = 0; i < chainKeys.length - 1; i++){
-    const b1 = bones[chainKeys[i]], b2 = bones[chainKeys[i+1]];
-    if (!b1 || !b2) continue;
-    b1.getWorldPosition(p1); b2.getWorldPosition(p2);
-    maxReach += p1.distanceTo(p2);
-  }
-  if (maxReach < 1e-6) return;
 
-  const pivotPos = _srfPivotPos; pivotBone.getWorldPosition(pivotPos);
-  const targetPos = spineIKTargetMesh.position; // 場景物件 position，只讀不改
-  const dist = pivotPos.distanceTo(targetPos);
-  const comfortReach = maxReach * 0.92; // 留一點餘裕，避免整條脊椎打直看起來卡住
 
-  if (dist > comfortReach){
-    const dirToTarget = _srfDir.copy(targetPos).sub(pivotPos).normalize();
-    const desiredPivotPos = _srfDesired.copy(targetPos).sub(dirToTarget.multiplyScalar(comfortReach));
-    const delta = _srfDelta.copy(desiredPivotPos).sub(pivotPos);
-    model.position.add(delta.multiplyScalar(ROOT_FOLLOW_LERP_T)); // 只前進一部分，跨幀累積平滑過渡
-    model.updateWorldMatrix(true, true); // 讓後續量測（含腿部 IK、脊椎 CCD）立刻拿到新座標
-  }
+
+
+
+function solveSpineRootFollow(...args){
+  return spineController.solveSpineRootFollow(...args);
 }
 
 // 每幀呼叫：脊椎鏈開啟時求解一次，並把結果同步回 target/current（給拍點/JSON 用）
 // 骨鏈陣列（SPINE_IK_CHAIN.bones 對應的 Bone 物件）在模型載入完成後就固定不變，
 // 不需要每幀重新 map+filter 產生新陣列，第一次用到時快取起來即可。
-let _spineChainBonesCache = null;
-function solveSpineIK(){
-  if (!spineIKEnabled) return;
-  if (!_spineChainBonesCache) _spineChainBonesCache = SPINE_IK_CHAIN.bones.map(key => bones[key]).filter(Boolean);
-  const chainBones = _spineChainBonesCache;
-  const effectorBone = bones[SPINE_IK_CHAIN.effector];
-  if (chainBones.length === 0 || !effectorBone || !spineIKTargetMesh) return;
 
-  solveCCDChain(chainBones, effectorBone, spineIKTargetMesh.position, 8, spineCCDDamping);
-
-  for (const key of SPINE_IK_CHAIN.bones) syncTargetFromBone(key);
+function solveSpineIK(...args){
+  return spineController.solveSpineIK(...args);
 }
 
 // ---- 頭/胸口 look-at 求解 ----
@@ -9043,43 +7538,14 @@ function solveSpineIK(){
 // 不影響其他骨骼位置。單步精確解（不是迭代逼近），因為單一骨骼只有「朝向」這一個
 // 自由度要滿足，一次outer product轉軸就能算出精確解，且是冪等的
 // （已對準時再呼叫一次，delta angle會是0，不會產生漂移）。
-const _laBoneWorldQuat = new THREE.Quaternion();
-const _laWorldForward = new THREE.Vector3();
-const _laBonePos = new THREE.Vector3();
-const _laTargetDir = new THREE.Vector3();
-const _laAxis = new THREE.Vector3();
-const _laDeltaQuat = new THREE.Quaternion();
-function solveLookAt(name){
-  if(solveLAPath(name))return;
-  if (!lookAtEnabled[name]) return;
-  if(name==="head")updateHeadFollowTarget();
-  const cfg = LOOKAT_CONFIG[name];
-  const bone = bones[cfg.key];
-  const mesh = lookAtTargetMesh[name];
-  if (!bone || !mesh) return;
 
-  bone.getWorldQuaternion(_laBoneWorldQuat);
-  // cfg.localForward 是設定檔常數向量，不可被 applyQuaternion 就地修改到，一律先 .copy() 出來再操作
-  const worldForward = _laWorldForward.copy(cfg.localForward).applyQuaternion(_laBoneWorldQuat).normalize();
 
-  bone.getWorldPosition(_laBonePos);
-  const targetDir = _laTargetDir.copy(mesh.position).sub(_laBonePos); // mesh.position 同理，只讀不改
-  if (targetDir.lengthSq() < 1e-8) return;
-  targetDir.normalize();
 
-  const dot = clampNum(worldForward.dot(targetDir), -1, 1);
-  const angle = Math.acos(dot);
-  if (angle < 1e-5) return;
-  const axis = _laAxis.crossVectors(worldForward, targetDir);
-  if (axis.lengthSq() < 1e-12){
-    if(dot>0)return;
-    axis.crossVectors(worldForward,Math.abs(worldForward.x)<0.8?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0));
-  }
-  axis.normalize();
 
-  applyWorldDeltaQuat(bone, _laDeltaQuat.setFromAxisAngle(axis, angle));
-  bone.updateWorldMatrix(true, true);
-  syncTargetFromBone(cfg.key);
+
+
+function solveLookAt(...args){
+  return orientationController.solveLookAt(...args);
 }
 
 // ---- 肩胛骨限幅輔助旋轉（路線B）----
@@ -9089,43 +7555,20 @@ function solveLookAt(name){
 // ---- Effector 朝向控制 ----
 // 開關：開啟時，先把目標球的旋轉同步成「目前手掌/腳掌實際世界朝向」，
 // 避免目標球預設的單位旋轉(0,0,0,1)一啟用就把手掌轉飛。
-function setEffectorOrientEnabled(limb, on){
-  if (isFootPlanted(limb)) return;
-  if(on&&(limb==='rArm'||limb==='lArm'))setLookAtEnabled(limb==='rArm'?'rHand':'lHand',false);
-  effectorOrientEnabled[limb] = on;
-  if (on){
-    const chain = IK_CHAINS[limb];
-    const endBone = bones[chain.end];
-    if (endBone){
-      const q = new THREE.Quaternion();
-      endBone.getWorldQuaternion(q);
-      ikTargetMeshes[limb].quaternion.copy(q);
-    }
-  }
-  updateEffectorOrientButtons();
+function setEffectorOrientEnabled(...args){
+  return limbController.setEffectorOrientEnabled(...args);
 }
 
-function updateEffectorOrientButtons(){
-  for (const limb of IK_LIMB_KEYS){
-    const btn = document.getElementById("orientBtn_" + limb);
-    if (btn) btn.classList.toggle("active", effectorOrientEnabled[limb]);
-  }
+function updateEffectorOrientButtons(...args){
+  return limbController.updateEffectorOrientButtons(...args);
 }
 
 // 每幀呼叫（在該肢體兩節IK求解「之後」執行）：把目標球目前的世界旋轉，
 // 反推成末端骨骼（手掌/腳掌）該有的本地旋轉，讓它的朝向跟著目標球的旋轉環走。
 // 目標球是scene的直接子物件（無父階層旋轉），所以它的quaternion本身就是世界旋轉。
-const _aeoParentQuat = new THREE.Quaternion();
-function applyEffectorOrientation(limb){
-  if (!effectorOrientEnabled[limb]) return;
-  const chain = IK_CHAINS[limb];
-  const endBone = bones[chain.end];
-  const targetMesh = ikTargetMeshes[limb];
-  if (!endBone || !endBone.parent || !targetMesh) return;
-  endBone.parent.getWorldQuaternion(_aeoParentQuat);
-  endBone.quaternion.copy(_aeoParentQuat.invert().multiply(targetMesh.quaternion));
-  endBone.updateWorldMatrix(true, true);
-  syncTargetFromBone(chain.end);
+
+function applyEffectorOrientation(...args){
+  return limbController.applyEffectorOrientation(...args);
 }
 
 
@@ -9133,40 +7576,14 @@ function applyEffectorOrientation(limb){
 // 不納入兩節封閉解本身，而是在兩節IK求解「前」，讓Shoulder往target方向偏一點點，
 // 但強制夾在 SHOULDER_ASSIST_MAX_ANGLE 內——真人鎖骨可動範圍本來就小（聳肩/前伸），
 // 夾住角度上限比做完整CCD更貼近真實動作，也不需要額外的關節角度限制系統。
-const _saShoulderPos = new THREE.Vector3();
-const _saArmPos = new THREE.Vector3();
-const _saRestDir = new THREE.Vector3();
-const _saDesiredDir = new THREE.Vector3();
-const _saAxis = new THREE.Vector3();
-const _saDeltaQuat = new THREE.Quaternion();
-function solveShoulderAssist(limb){
-  const chain = IK_CHAINS[limb];
-  if (!chain.shoulder) return; // 腿沒有shoulder欄位，直接跳過
-  const shoulderBone = bones[chain.shoulder];
-  const armBone = bones[chain.root];
-  if (!shoulderBone || !armBone) return;
 
-  const shoulderPos = _saShoulderPos; shoulderBone.getWorldPosition(shoulderPos);
-  const armPos = _saArmPos; armBone.getWorldPosition(armPos);
-  const targetPos = ikTargetMeshes[limb].position; // 場景物件 position，只讀不改
 
-  const restDir = _saRestDir.copy(armPos).sub(shoulderPos);
-  const desiredDir = _saDesiredDir.copy(targetPos).sub(shoulderPos);
-  if (restDir.lengthSq() < 1e-8 || desiredDir.lengthSq() < 1e-8) return;
-  restDir.normalize(); desiredDir.normalize();
 
-  const dot = clampNum(restDir.dot(desiredDir), -1, 1);
-  let angle = Math.acos(dot);
-  if (angle < 1e-5) return;
-  angle = Math.min(angle, SHOULDER_ASSIST_MAX_ANGLE); // 關鍵限幅
 
-  const axis = _saAxis.crossVectors(restDir, desiredDir);
-  if (axis.lengthSq() < 1e-8) return;
-  axis.normalize();
 
-  applyWorldDeltaQuat(shoulderBone, _saDeltaQuat.setFromAxisAngle(axis, angle));
-  shoulderBone.updateWorldMatrix(true, true);
-  syncTargetFromBone(chain.shoulder);
+
+function solveShoulderAssist(...args){
+  return limbController.solveShoulderAssist(...args);
 }
 
 // ---- 雙手同時固定（需 rArm/lArm 的 IK 都開啟 + dualAnchorEnabled）----
@@ -9177,56 +7594,18 @@ function solveShoulderAssist(limb){
 // 2) 轉完後重新量測肩膀中點，平移讓它對齊兩目標中點
 // 3) 之後各手臂仍各自跑一次原本的兩節IK做手肘彎曲細部微調
 // 已用Node.js模擬驗證：非對稱的雙目標（不同高度/左右不對稱）也能精確收斂（誤差0.0000）。
-const _dhaRShoulderPos = new THREE.Vector3();
-const _dhaLShoulderPos = new THREE.Vector3();
-const _dhaCurSpan = new THREE.Vector3();
-const _dhaTargetSpan = new THREE.Vector3();
-const _dhaCurDir = new THREE.Vector3();
-const _dhaTargetDir = new THREE.Vector3();
-const _dhaAxis = new THREE.Vector3();
-const _dhaBodyCenter = new THREE.Vector3();
-const _dhaDeltaQuat = new THREE.Quaternion();
-const _dhaTargetCenter = new THREE.Vector3();
-function solveDualHandAnchor(){
-  if (!dualAnchorEnabled || !ikEnabled.rArm || !ikEnabled.lArm) return;
-  const rArmBone = bones[IK_CHAINS.rArm.root], lArmBone = bones[IK_CHAINS.lArm.root];
-  if (!rArmBone || !lArmBone) return;
 
-  const rShoulderPos = _dhaRShoulderPos; rArmBone.getWorldPosition(rShoulderPos);
-  const lShoulderPos = _dhaLShoulderPos; lArmBone.getWorldPosition(lShoulderPos);
-  const rTargetPos = ikTargetMeshes.rArm.position; // 場景物件 position，只讀不改
-  const lTargetPos = ikTargetMeshes.lArm.position;
 
-  const curSpan = _dhaCurSpan.copy(lShoulderPos).sub(rShoulderPos);
-  const targetSpan = _dhaTargetSpan.copy(lTargetPos).sub(rTargetPos);
-  if (curSpan.lengthSq() > 1e-8 && targetSpan.lengthSq() > 1e-8){
-    const curDir = _dhaCurDir.copy(curSpan).normalize();
-    const targetDir = _dhaTargetDir.copy(targetSpan).normalize();
-    const dot = clampNum(curDir.dot(targetDir), -1, 1);
-    let angle = Math.acos(dot);
-    if (angle > 1e-4){
-      const axis = _dhaAxis.crossVectors(curDir, targetDir);
-      if (axis.lengthSq() > 1e-8){
-        axis.normalize();
-        angle *= ROOT_FOLLOW_LERP_T; // 只轉一部分，跨幀累積平滑過渡
-        const bodyCenter = _dhaBodyCenter.copy(rShoulderPos).add(lShoulderPos).multiplyScalar(0.5);
-        const deltaQuat = _dhaDeltaQuat.setFromAxisAngle(axis, angle);
-        model.position.sub(bodyCenter);
-        model.position.applyQuaternion(deltaQuat);
-        model.position.add(bodyCenter);
-        model.quaternion.premultiply(deltaQuat);
-        model.updateWorldMatrix(true, true);
-      }
-    }
-  }
 
-  // rShoulderPos/lShoulderPos 到這裡已經是舊值（轉動前），重新取一次最新世界座標（沿用同一組暫存物件）
-  rArmBone.getWorldPosition(rShoulderPos);
-  lArmBone.getWorldPosition(lShoulderPos);
-  const bodyCenter2 = _dhaBodyCenter.copy(rShoulderPos).add(lShoulderPos).multiplyScalar(0.5);
-  const targetCenter = _dhaTargetCenter.copy(rTargetPos).add(lTargetPos).multiplyScalar(0.5);
-  model.position.add(targetCenter.sub(bodyCenter2).multiplyScalar(ROOT_FOLLOW_LERP_T)); // 平移也只前進一部分
-  model.updateWorldMatrix(true, true);
+
+
+
+
+
+
+
+function solveDualHandAnchor(...args){
+  return limbController.solveDualHandAnchor(...args);
 }
 
 // ---- 「目前被 IK 接管的關節」集合 ----
@@ -9260,34 +7639,15 @@ const grooveBlockedKeys = new Set();
 
 // 從四個開關狀態「整份重算」（不是增量更新），所以不管呼叫順序如何都不會累積錯誤。
 // 呼叫時機：四個 setXxxEnabled() 內、賦值那一行的正下方（理由見各處註解）。
-function rebuildIKDrivenKeys(){
-  ikDrivenKeys.clear();
-  for (const limb of IK_LIMB_KEYS){
-    if (!ikEnabled[limb]) continue;
-    const chain = IK_CHAINS[limb];
-    ikDrivenKeys.add(chain.root);
-    ikDrivenKeys.add(chain.mid);
-    if (chain.shoulder) ikDrivenKeys.add(chain.shoulder); // 僅手臂有鎖骨輔助
-  }
-  if (spineIKEnabled) for (const k of SPINE_IK_CHAIN.bones) ikDrivenKeys.add(k);
-  for(const name of Object.keys(LOOKAT_CONFIG))if(lookAtEnabled[name])ikDrivenKeys.add(LOOKAT_CONFIG[name].key);
-  for (const fingerId of FINGER_IDS){
-    if (!fingerIKEnabled[fingerId]) continue;
-    for (const k of FINGER_IK_CHAINS[fingerId].bones) ikDrivenKeys.add(k);
-  }
-
-  // 律動避讓集合跟著一起重算（同一個進入點，不會有其中一份忘了更新的可能）。
-  grooveBlockedKeys.clear();
-  for (const k of ikDrivenKeys) grooveBlockedKeys.add(k);
-  for (const fingerId of FINGER_IDS){
-    if (!fingerIKEnabled[fingerId]) continue;
-    grooveBlockedKeys.add(fingerId.charAt(0) === "r" ? "rHand" : "lHand"); // finger-id 慣例："r"/"l" + 指名
-  }
+function rebuildIKDrivenKeys(...args){
+  return jointOwnership.rebuildIKDrivenKeys(...args);
 }
 
 // 判斷某個關節 key 目前是否被「開啟中的 IK」接管（root/mid 骨骼），是的話 FK 迴圈要跳過它。
 // 保留這個函式名當薄包裝，之後若有其他呼叫端不必跟著改寫。
-function isIKDrivenKey(key){ return ikDrivenKeys.has(key); }
+function isIKDrivenKey(...args){
+  return jointOwnership.isIKDrivenKey(...args);
+}
 
 // 一般狀態下（未播放拍點）：非拖曳中、且未被 IK 接管的關節用彈簧式 lerp 平滑趨近目標角度
 // 非播放狀態下每幀都會對全部（非IK接管的）關節跑一次，是最頻繁的路徑之一，
@@ -10170,6 +8530,318 @@ const rangeEditor = createRangeEditor({
   beatGridPoseTotalBeats,
   updateKfMultiSelectBar,
   deepCloneTimelineItem,
+});
+
+const limbController = createLimbController({
+  get ikRootFollowEnabled(){ return ikRootFollowEnabled; },
+  get bones(){ return bones; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get model(){ return model; },
+  get ROOT_FOLLOW_LERP_T(){ return ROOT_FOLLOW_LERP_T; },
+  set ROOT_FOLLOW_LERP_T(value){ ROOT_FOLLOW_LERP_T = value; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get dualAnchorEnabled(){ return dualAnchorEnabled; },
+  set dualAnchorEnabled(value){ dualAnchorEnabled = value; },
+  get ikEnabled(){ return ikEnabled; },
+  get shoulderAssistEnabled(){ return shoulderAssistEnabled; },
+  set shoulderAssistEnabled(value){ shoulderAssistEnabled = value; },
+  get ikPoleMeshes(){ return ikPoleMeshes; },
+  get ikPoleLines(){ return ikPoleLines; },
+  get footLockedWorldQuat(){ return footLockedWorldQuat; },
+  get effectorOrientEnabled(){ return effectorOrientEnabled; },
+  get isFootPlanted(){ return isFootPlanted; },
+  get setLookAtEnabled(){ return setLookAtEnabled; },
+  get waveRun(){ return waveRun; },
+  get waveHasBody(){ return waveHasBody; },
+  get waveSides(){ return waveSides; },
+  get stopWave(){ return stopWave; },
+  get kfPlaying(){ return kfPlaying; },
+  get grabBoxCore(){ return grabBoxCore; },
+  get rebuildIKDrivenKeys(){ return rebuildIKDrivenKeys; },
+  get markerMeshes(){ return markerMeshes; },
+  get markerIKHidden(){ return markerIKHidden; },
+  get selectedIK(){ return selectedIK; },
+  set selectedIK(value){ selectedIK = value; },
+  get deselectJoint(){ return deselectJoint; },
+  get FOOT_PLANT_LIMBS(){ return FOOT_PLANT_LIMBS; },
+  get footPlantEnabled(){ return footPlantEnabled; },
+  set footPlantEnabled(value){ footPlantEnabled = value; },
+  get captureFootPlant(){ return captureFootPlant; },
+  get footPlantAnchors(){ return footPlantAnchors; },
+  get footPlantSafe(){ return footPlantSafe; },
+  set footPlantSafe(value){ footPlantSafe = value; },
+  get updateFootPlantUI(){ return updateFootPlantUI; },
+  get poleRadius(){ return poleRadius; },
+  get scene(){ return scene; },
+  get tgCancelPreview(){ return tgCancelPreview; },
+  get waveTrackActive(){ return waveTrackActive; },
+  set waveTrackActive(value){ waveTrackActive = value; },
+  get laPathRun(){ return laPathRun; },
+  get headFollowSource(){ return headFollowSource; },
+  get handFollowSource(){ return handFollowSource; },
+  get selectedKey(){ return selectedKey; },
+  set selectedKey(value){ selectedKey = value; },
+  get transformControls(){ return transformControls; },
+  get spineIKTargetMesh(){ return spineIKTargetMesh; },
+  get lookAtTargetMesh(){ return lookAtTargetMesh; },
+  get fingerIKTargetMeshes(){ return fingerIKTargetMeshes; },
+  get trajPointMeshes(){ return trajPointMeshes; },
+  get transformControlsIK(){ return transformControlsIK; },
+  get highlightMarkers(){ return highlightMarkers; },
+  get updateSelectedBar(){ return updateSelectedBar; },
+  get renderTrajPointList(){ return renderTrajPointList; },
+  get pushHistory(){ return pushHistory; },
+  get setFootPlantEnabled(){ return setFootPlantEnabled; },
+  get solveFootPlant(){ return solveFootPlant; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get setSpineIKEnabled(){ return setSpineIKEnabled; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  get updateSpineIKButton(){ return updateSpineIKButton; },
+  get spineRootFollowEnabled(){ return spineRootFollowEnabled; },
+  set spineRootFollowEnabled(value){ spineRootFollowEnabled = value; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get updateLookAtButtons(){ return updateLookAtButtons; },
+  get handCollisionEnabled(){ return handCollisionEnabled; },
+  set handCollisionEnabled(value){ handCollisionEnabled = value; },
+  get handHandCollisionEnabled(){ return handHandCollisionEnabled; },
+  set handHandCollisionEnabled(value){ handHandCollisionEnabled = value; },
+  get ALL_BODY_CAPSULES(){ return ALL_BODY_CAPSULES; },
+  get HAND_COLLISION_RADIUS(){ return HAND_COLLISION_RADIUS; },
+  set HAND_COLLISION_RADIUS(value){ HAND_COLLISION_RADIUS = value; },
+  get saveHandCollisionRadii(){ return saveHandCollisionRadii; },
+  get ALL_BODY_CAPSULE_RADIUS_DEFAULTS(){ return ALL_BODY_CAPSULE_RADIUS_DEFAULTS; },
+  get HAND_COLLISION_RADIUS_DEFAULT(){ return HAND_COLLISION_RADIUS_DEFAULT; },
+  get spineCCDDamping(){ return spineCCDDamping; },
+  set spineCCDDamping(value){ spineCCDDamping = value; },
+  get selectBodyMarker(){ return selectBodyMarker; },
+});
+
+const spineController = createSpineController({
+  get spineRootFollowEnabled(){ return spineRootFollowEnabled; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  set spineIKEnabled(value){ spineIKEnabled = value; },
+  get bones(){ return bones; },
+  get spineIKTargetMesh(){ return spineIKTargetMesh; },
+  set spineIKTargetMesh(value){ spineIKTargetMesh = value; },
+  get model(){ return model; },
+  get ROOT_FOLLOW_LERP_T(){ return ROOT_FOLLOW_LERP_T; },
+  get spineCCDDamping(){ return spineCCDDamping; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get scene(){ return scene; },
+  get waveRun(){ return waveRun; },
+  get stopWave(){ return stopWave; },
+  get rebuildIKDrivenKeys(){ return rebuildIKDrivenKeys; },
+  get markerMeshes(){ return markerMeshes; },
+  get markerIKHidden(){ return markerIKHidden; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get setLookAtEnabled(){ return setLookAtEnabled; },
+  get selectedIK(){ return selectedIK; },
+  get deselectJoint(){ return deselectJoint; },
+});
+
+const fingerController = createFingerController({
+  get fingerIKEnabled(){ return fingerIKEnabled; },
+  get bones(){ return bones; },
+  get fingerEffectorBones(){ return fingerEffectorBones; },
+  get fingerIKTargetMeshes(){ return fingerIKTargetMeshes; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get scene(){ return scene; },
+  get waveRun(){ return waveRun; },
+  get waveHasBody(){ return waveHasBody; },
+  get waveSides(){ return waveSides; },
+  get stopWave(){ return stopWave; },
+  get rebuildIKDrivenKeys(){ return rebuildIKDrivenKeys; },
+  get markerMeshes(){ return markerMeshes; },
+  get markerIKHidden(){ return markerIKHidden; },
+  get selectedIK(){ return selectedIK; },
+  get deselectJoint(){ return deselectJoint; },
+  get selectJoint(){ return selectJoint; },
+});
+
+const footPlantController = createFootPlant({
+  get footPlantEnabled(){ return footPlantEnabled; },
+  set footPlantEnabled(value){ footPlantEnabled = value; },
+  get ikEnabled(){ return ikEnabled; },
+  get footPlantAnchors(){ return footPlantAnchors; },
+  set footPlantAnchors(value){ footPlantAnchors = value; },
+  get model(){ return model; },
+  get FOOT_PLANT_LIMBS(){ return FOOT_PLANT_LIMBS; },
+  get bones(){ return bones; },
+  get footPlantCalibration(){ return footPlantCalibration; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get footLockedWorldQuat(){ return footLockedWorldQuat; },
+  get waveRun(){ return waveRun; },
+  get waveHasBody(){ return waveHasBody; },
+  get stopWave(){ return stopWave; },
+  get kfPlaying(){ return kfPlaying; },
+  get captureFootLock(){ return captureFootLock; },
+  get footPlantSafe(){ return footPlantSafe; },
+  set footPlantSafe(value){ footPlantSafe = value; },
+  get footPlantLimited(){ return footPlantLimited; },
+  set footPlantLimited(value){ footPlantLimited = value; },
+  get footPlantNotice(){ return footPlantNotice; },
+  set footPlantNotice(value){ footPlantNotice = value; },
+  get deselectJoint(){ return deselectJoint; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get ikPoleMeshes(){ return ikPoleMeshes; },
+  get selectedIK(){ return selectedIK; },
+  get bodyGizmoProxy(){ return bodyGizmoProxy; },
+  get bodyProxyLastPos(){ return bodyProxyLastPos; },
+  get updateIKPoleLines(){ return updateIKPoleLines; },
+  get snapshotBodyTransform(){ return snapshotBodyTransform; },
+  get effectorOrientEnabled(){ return effectorOrientEnabled; },
+  get applyBodyTransform(){ return applyBodyTransform; },
+  get setIKEnabled(){ return setIKEnabled; },
+  get updateEffectorOrientButtons(){ return updateEffectorOrientButtons; },
+});
+
+const poleEditorController = createPoleEditor({
+  get bones(){ return bones; },
+  get poleRadiusCustom(){ return poleRadiusCustom; },
+  set poleRadiusCustom(value){ poleRadiusCustom = value; },
+  get ikEnabled(){ return ikEnabled; },
+  get ikPoleMeshes(){ return ikPoleMeshes; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get poleDrag(){ return poleDrag; },
+  set poleDrag(value){ poleDrag = value; },
+  get setIKEnabled(){ return setIKEnabled; },
+  get selectedIK(){ return selectedIK; },
+  get kfPlaying(){ return kfPlaying; },
+  get pushHistory(){ return pushHistory; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get poleRangeHelper(){ return poleRangeHelper; },
+  set poleRangeHelper(value){ poleRangeHelper = value; },
+  get scene(){ return scene; },
+});
+
+const orientationController = createOrientationController({
+  get bones(){ return bones; },
+  get handAimAxes(){ return handAimAxes; },
+  get handAim(){ return handAim; },
+  get handFollowLast(){ return handFollowLast; },
+  get lookAtTargetMesh(){ return lookAtTargetMesh; },
+  get HAND_AIM_NAMES(){ return HAND_AIM_NAMES; },
+  get handFollowSource(){ return handFollowSource; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get kfPlaying(){ return kfPlaying; },
+  get pushHistory(){ return pushHistory; },
+  get selectedIK(){ return selectedIK; },
+  set selectedIK(value){ selectedIK = value; },
+  get deselectJoint(){ return deselectJoint; },
+  get handRangeDrag(){ return handRangeDrag; },
+  set handRangeDrag(value){ handRangeDrag = value; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get laPathConfig(){ return laPathConfig; },
+  set laPathConfig(value){ laPathConfig = value; },
+  get laPathRun(){ return laPathRun; },
+  set laPathRun(value){ laPathRun = value; },
+  get laCustomMeshes(){ return laCustomMeshes; },
+  set laCustomMeshes(value){ laCustomMeshes = value; },
+  get transformControls(){ return transformControls; },
+  get selectedKey(){ return selectedKey; },
+  set selectedKey(value){ selectedKey = value; },
+  get transformControlsIK(){ return transformControlsIK; },
+  get updateSelectedBar(){ return updateSelectedBar; },
+  get laCustomDrag(){ return laCustomDrag; },
+  set laCustomDrag(value){ laCustomDrag = value; },
+  get scene(){ return scene; },
+  get laPathLine(){ return laPathLine; },
+  set laPathLine(value){ laPathLine = value; },
+  get handAimRange(){ return handAimRange; },
+  get LOOKAT_RANGE_NAMES(){ return LOOKAT_RANGE_NAMES; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get waveRun(){ return waveRun; },
+  get stopWave(){ return stopWave; },
+  get headFollowSource(){ return headFollowSource; },
+  set headFollowSource(value){ headFollowSource = value; },
+  get bpm(){ return bpm; },
+  get handRangeHelper(){ return handRangeHelper; },
+  set handRangeHelper(value){ handRangeHelper = value; },
+  get bindWave(){ return bindWave; },
+  get bindTG(){ return bindTG; },
+  get effectorOrientEnabled(){ return effectorOrientEnabled; },
+  get rebuildIKDrivenKeys(){ return rebuildIKDrivenKeys; },
+  get updateEffectorOrientButtons(){ return updateEffectorOrientButtons; },
+  get waveHasBody(){ return waveHasBody; },
+  get waveSides(){ return waveSides; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  get setSpineIKEnabled(){ return setSpineIKEnabled; },
+});
+
+const trajectoryEditor = createTrajectoryEditor({
+  get scene(){ return scene; },
+  get trajLine(){ return trajLine; },
+  get trajActiveLimb(){ return trajActiveLimb; },
+  set trajActiveLimb(value){ trajActiveLimb = value; },
+  get trajPointMeshes(){ return trajPointMeshes; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get TRAJ_SHAPE_PLANE_AXES(){ return TRAJ_SHAPE_PLANE_AXES; },
+  get TRAJ_MODE(){ return TRAJ_MODE; },
+  get TRAJ_CLOSED(){ return TRAJ_CLOSED; },
+  get pushHistory(){ return pushHistory; },
+  get selectedIK(){ return selectedIK; },
+  get deselectJoint(){ return deselectJoint; },
+  get selectIKMarker(){ return selectIKMarker; },
+  get ikEnabled(){ return ikEnabled; },
+  get bones(){ return bones; },
+  get trajSampleCount(){ return trajSampleCount; },
+  set trajSampleCount(value){ trajSampleCount = value; },
+  get ikPoleMeshes(){ return ikPoleMeshes; },
+  get solveRootFollowForLimb(){ return solveRootFollowForLimb; },
+  get shoulderAssistEnabled(){ return shoulderAssistEnabled; },
+  get solveShoulderAssist(){ return solveShoulderAssist; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get applyFootLock(){ return applyFootLock; },
+  get applyEffectorOrientation(){ return applyEffectorOrientation; },
+  get addKeyframe(){ return addKeyframe; },
+  get keyframes(){ return keyframes; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+});
+
+const handCollisionController = createHandCollision({
+  get handCollisionEnabled(){ return handCollisionEnabled; },
+  get waveRun(){ return waveRun; },
+  get isBakedWavePlaying(){ return isBakedWavePlaying; },
+  get HAND_COLLISION_LIMBS(){ return HAND_COLLISION_LIMBS; },
+  get ikEnabled(){ return ikEnabled; },
+  get bones(){ return bones; },
+  get draggingKey(){ return draggingKey; },
+  get _hcHandPos(){ return _hcHandPos; },
+  get ALL_BODY_CAPSULES(){ return ALL_BODY_CAPSULES; },
+  get _hcA(){ return _hcA; },
+  get _hcB(){ return _hcB; },
+  get HAND_COLLISION_RADIUS(){ return HAND_COLLISION_RADIUS; },
+  get _hcPushDir(){ return _hcPushDir; },
+  get syncTargetFromBone(){ return syncTargetFromBone; },
+  get handHandCollisionEnabled(){ return handHandCollisionEnabled; },
+});
+
+const collisionView = createCollisionView({
+  get handCollisionVizGroup(){ return handCollisionVizGroup; },
+  set handCollisionVizGroup(value){ handCollisionVizGroup = value; },
+  get ALL_BODY_CAPSULES(){ return ALL_BODY_CAPSULES; },
+  get handCollisionVizCapsuleMeshes(){ return handCollisionVizCapsuleMeshes; },
+  get HAND_COLLISION_LIMBS(){ return HAND_COLLISION_LIMBS; },
+  get handCollisionVizHandMeshes(){ return handCollisionVizHandMeshes; },
+  get scene(){ return scene; },
+  get handCollisionVizEnabled(){ return handCollisionVizEnabled; },
+  get bones(){ return bones; },
+  get _hcA(){ return _hcA; },
+  get _hcB(){ return _hcB; },
+  get HAND_COLLISION_VIZ_EPS(){ return HAND_COLLISION_VIZ_EPS; },
+  get _hcPushDir(){ return _hcPushDir; },
+  get _hcHandPos(){ return _hcHandPos; },
+  get HAND_COLLISION_RADIUS(){ return HAND_COLLISION_RADIUS; },
+});
+
+const jointOwnership = createJointOwnership({
+  get ikDrivenKeys(){ return ikDrivenKeys; },
+  get ikEnabled(){ return ikEnabled; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get fingerIKEnabled(){ return fingerIKEnabled; },
+  get grooveBlockedKeys(){ return grooveBlockedKeys; },
 });
 
 init();

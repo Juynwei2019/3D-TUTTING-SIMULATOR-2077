@@ -135,3 +135,22 @@
 兩個 controller 的 adapter getter／setter 讀寫目前共享的拍點、選取與 Range 狀態，因此 Undo／匯入替換陣列或選取集合後仍使用最新值。場景姿勢套用、重繪、歷史及存檔透過回呼協作。各 controller 包含既有工具列／HUD 更新，Ruler 拖曳事件與通用排序／縮放手勢仍在主程式，後續再拆分。
 
 新增單元測試驗證混合 POSE／GROOVE 複製、資料隔離、id 重建、取消／播放防護、邊界相交、範圍重複與刪除，以及循環互斥；瀏覽器實際執行多選貼上、區段重複與 Undo，再與重構前版本比對。
+
+## IK、朝向、軌跡與碰撞 controller
+
+| 模組 | 責任 |
+| --- | --- |
+| `ik/limb-controller.js` | 四肢 IK、Root Follow、肩胛輔助、雙手錨定、末端朝向、腳踝鎖定及四肢操作綁定 |
+| `ik/spine-controller.js` | 脊椎 CCD、身體跟隨、目標與開關 |
+| `ik/finger-controller.js` | 手指 CCD、目標、開關及手指面板 |
+| `ik/foot-plant.js` | 地面校正、足底錨點、固定求解與快照還原 |
+| `ik/pole-editor.js` | 極向球半徑、拖曳限制與可視化 |
+| `ik/orientation-controller.js` | LookAt、手掌朝向／跟隨／範圍、LookAt 路徑與相關介面 |
+| `ik/joint-ownership.js` | FK 排除與律動避讓關節集合 |
+| `motion/trajectory-editor.js` | 控制點、形狀生成、軌跡取樣／轉拍點、播放覆寫及編輯介面 |
+| `collision/hand-collision.js` | 膠囊投影、手對身體與雙手碰撞、鎖定手判斷 |
+| `collision/collision-view.js` | 碰撞膠囊與手掌球顯示 |
+
+controller 透過 host getter／setter 讀取共用角色、目標與模式狀態；可獨立擁有的暫存向量、四元數與骨鏈快取已移入 factory。骨架物件仍由主程式載入與建立，各功能仍由同一 animate() 調度，保留 IK、朝向、腳部、碰撞與再次求解的順序。主程式的同名函式為整合委派入口；這一階段沒有將所有跨功能狀態改成私有 store。
+
+四肢設定面板仍包含原有共用開關，以後拆分介面時可再細分；朝向與軌跡的運算、狀態操作及相關事件已從主程式移出。
