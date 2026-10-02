@@ -7,7 +7,7 @@ import { chromium } from 'playwright-core';
 const root=resolve('.');
 const model=await readFile(resolve('.cache/Xbot.glb'));
 assert.equal(createHash('sha256').update(model).digest('hex'),'002f8d269de68e5dce3d25195caf390d1aa359bbfaae3fcf4c8dc78ec36c3ba5');
-const probe = '\nwindow.__touchSmoke = {selectJoint,pushHistory,undo,redo,snapshotTimelineData,restoreTimelineData,get selected(){return selectedKey;},get frames(){return keyframes;},get pose(){return poseController.snapshotTarget();},get range(){return [beatGridRangeStart,beatGridRangeEnd];},get scrub(){return kfScrubDragging;},get grooves(){return grooveSequence;},get waves(){return waveClips;},get cameraPosition(){return camera.position.toArray();}};';
+const probe = '\nwindow.__touchSmoke = {selectJoint,pushHistory,undo,redo,snapshotTimelineData,restoreTimelineData,get selected(){return selectedKey;},get frames(){return keyframes;},get pose(){return poseController.snapshotTarget();},get range(){return [beatGridRangeStart,beatGridRangeEnd];},get scrub(){return kfScrubDragging;},get grooves(){return grooveSequence;},get waves(){return waveClips;},get cameraPosition(){return camera.position.toArray();},get canSelect(){return !suppressClick&&!transformControls.dragging&&!transformControlsIK.dragging;}};';
 const server=createServer(async(req,res)=>{
   try{
     const path=resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
@@ -73,6 +73,8 @@ try{
         await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point(3,x2)]});
         await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
         assert.equal(await page.evaluate(()=>window.__touchSmoke.selected),'rForeArm');
+        // Interrupted gizmos intentionally suppress click picking for 80ms.
+        await page.waitForFunction(()=>window.__touchSmoke.canSelect);
         await page.locator('#canvasHolder canvas').tap({position:{x:canvasBox.width-4,y:canvasBox.height-4}});
         assert.equal(await page.evaluate(()=>window.__touchSmoke.selected),null);
         // Buttons provide deterministic touch reorder with history and selection preserved.
