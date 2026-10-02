@@ -1,3 +1,5 @@
+import { createWaveform } from "./timeline/waveform.js";
+import { createWaveformView } from "./ui/waveform-view.js";
 import { createTimelineAudio } from "./timeline/audio-controller.js";
 import { createTimelineEditor } from "./ui/timeline-editor.js";
 import { createTimelinePlayback } from "./timeline/playback.js";
@@ -5913,10 +5915,10 @@ function beatGridPoseTotalBeats(){
 }
 
 function beatGridAudioTotalBeats(){
-  if (!(kfAudioDuration > 0)) return 0;
+  if (!(waveform.duration > 0)) return 0;
   const offsetEl = document.getElementById("kfMusicOffset");
   const offset = offsetEl ? (parseFloat(offsetEl.value) || 0) : 0;
-  const remainSec = Math.max(0, kfAudioDuration - offset);
+  const remainSec = Math.max(0, waveform.duration - offset);
   return remainSec * bpm / 60;
 }
 
@@ -6280,9 +6282,9 @@ function seekRunningPlaybackToBeat(beat, now = performance.now()){
   resetGrooveXfadeState();
   resetSquatXfadeState();
   const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && audioEl.src && kfAudioDuration > 0){
+  if (audioEl && audioEl.src && waveform.duration > 0){
     try {
-      audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, kfAudioDuration);
+      audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, waveform.duration);
       if (audioEl.paused) audioEl.play().catch(() => {});
     } catch (_) {}
   }
@@ -6575,8 +6577,8 @@ function navigateBeatGridToBeat(beat){
   beatGridLastPreviewBeat = target;
   applyTimelinePreviewAtElapsed(target * 60000 / bpm);
   const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && audioEl.src && kfAudioDuration > 0){
-    try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, kfAudioDuration); } catch (_) {}
+  if (audioEl && audioEl.src && waveform.duration > 0){
+    try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, waveform.duration); } catch (_) {}
   }
   showBeatGridScrubPlayhead(target);
   scrollBeatGridBeatToCenter(target);
@@ -6717,7 +6719,7 @@ function toggleKeyframePlayback(){
   if (playStartBeat > 0){
     const audioEl = document.getElementById("kfAudioEl");
     if (audioEl && audioEl.src){
-      try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(playStartBeat), 0, kfAudioDuration || Number.MAX_SAFE_INTEGER); } catch (_) {}
+      try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(playStartBeat), 0, waveform.duration || Number.MAX_SAFE_INTEGER); } catch (_) {}
       audioEl.play().catch((e) => console.warn("音樂播放失敗（可能需要先跟頁面互動一次）：", e));
     }
   } else {
@@ -6773,10 +6775,7 @@ function importKfMusic(file){
 
 function removeKfMusic(){
   timelineAudio.remove();
-  kfAudioDuration = 0;
-  kfWaveformChannelData = null;
-  _kfPeaksCacheKey = null;
-  _kfPeaksCache = null;
+  waveform.clear();
   resetKfWaveformZoomUI();
   document.getElementById("kfMusicName").textContent = "尚未匯入音樂";
   document.getElementById("kfMusicRemoveBtn").style.display = "none";
@@ -6820,12 +6819,7 @@ function syncKfMusicPreviewBtn(){
 // ---- BG-4.1：Waveform 與 Beat Grid 共用時間座標／scroll／Playhead ----
 // Beat 0 對應音樂 kfMusicOffset 秒；每一拍的秒數固定為 60 / bpm。
 // Waveform 不再維護自己的 zoom / viewStart / scroll，所有 x 都直接使用 Beat Grid 的 pixelsPerBeat。
-let kfAudioDuration = 0;
-let kfWaveformChannelData = null;
-let kfWaveformSampleRate = 44100;
 let kfScrubDragging = false;
-let _kfPeaksCacheKey = null;
-let _kfPeaksCache = null;
 
 function resetKfWaveformZoomUI(){ /* BG-4.1：保留空殼供舊呼叫相容；獨立 Waveform zoom 已移除。 */ }
 
@@ -6843,114 +6837,30 @@ function audioTimeToTimelineBeat(sec){
 }
 
 async function decodeKfWaveform(file){
-  kfAudioDuration = 0;
-  kfWaveformChannelData = null;
-  _kfPeaksCacheKey = null;
-  _kfPeaksCache = null;
+  const pending = waveform.decode(file);
   const track = document.getElementById("beatGridWaveformTrack");
   if (track){ track.classList.add("waveformLoading"); track.classList.remove("waveformError"); }
   drawKfWaveform();
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    kfAudioDuration = audioBuffer.duration;
-    kfWaveformSampleRate = audioBuffer.sampleRate;
-    kfWaveformChannelData = audioBuffer.getChannelData(0);
-    ctx.close();
+  const result = await pending;
+  if (result.status === "stale") return;
+  if (result.status === "ready"){
     if (track) track.classList.remove("waveformLoading", "waveformError");
-  } catch (e){
-    console.warn("波形解碼失敗（音樂仍可正常播放）：", e);
+  } else {
+    console.warn("波形解碼失敗（音樂仍可正常播放）：", result.error);
     if (track){ track.classList.remove("waveformLoading"); track.classList.add("waveformError"); }
   }
   updateBeatGridGeometry();
   drawKfWaveform();
 }
 
-function computeWaveformPeaksForRange(channelData, startSample, endSample, buckets){
-  const span = Math.max(1, endSample - startSample);
-  const blockSize = Math.max(1, Math.floor(span / Math.max(1, buckets)));
-  const peaks = new Array(buckets);
-  for (let i = 0; i < buckets; i++){
-    const start = startSample + i * blockSize;
-    if (start >= endSample){ peaks[i] = { min:0, max:0 }; continue; }
-    const stop = Math.min(endSample, start + blockSize);
-    let min = 0, max = 0;
-    for (let j = start; j < stop; j++){
-      const v = channelData[j];
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-    peaks[i] = { min, max };
-  }
-  return peaks;
-}
 
-function computeBeatGridWaveformPeaks(audioStartSec, audioEndSec, buckets){
-  if (!kfWaveformChannelData || !(kfAudioDuration > 0)) return null;
-  const a = clampNum(audioStartSec, 0, kfAudioDuration);
-  const b = clampNum(audioEndSec, a, kfAudioDuration);
-  const key = `${a.toFixed(4)}_${b.toFixed(4)}_${buckets}`;
-  if (_kfPeaksCacheKey === key && _kfPeaksCache) return _kfPeaksCache;
-  const startSample = clampNum(Math.floor(a * kfWaveformSampleRate), 0, kfWaveformChannelData.length);
-  const endSample = clampNum(Math.ceil(b * kfWaveformSampleRate), startSample + 1, kfWaveformChannelData.length);
-  _kfPeaksCache = computeWaveformPeaksForRange(kfWaveformChannelData, startSample, endSample, buckets);
-  _kfPeaksCacheKey = key;
-  return _kfPeaksCache;
-}
+
+
 
 // 只繪製目前 Beat Grid 可視範圍附近的波形到 canvas backing store，再用 CSS 把 canvas 對齊整條 timeline。
 // 為避免超長歌曲建立數萬像素 canvas，backing store 上限 16384px；CSS 寬度仍等於完整 timeline 寬。
 function drawKfWaveform(){
-  const canvas = document.getElementById("kfWaveformCanvas");
-  const track = document.getElementById("beatGridWaveformTrack");
-  if (!canvas || !track || canvas.offsetParent === null) return;
-
-  const timelinePx = Math.max(1, Math.round(beatGridTimelineBeats() * BEAT_GRID_PX_PER_BEAT));
-  canvas.style.width = `${timelinePx}px`;
-  const backingW = Math.max(64, Math.min(16384, timelinePx));
-  const h = canvas.height || 64;
-  if (canvas.width !== backingW) canvas.width = backingW;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, backingW, h);
-  ctx.fillStyle = "#111124";
-  ctx.fillRect(0, 0, backingW, h);
-  const mid = h / 2;
-
-  if (!(kfAudioDuration > 0) || !kfWaveformChannelData) return;
-  const timelineBeats = beatGridTimelineBeats();
-  const audioBeats = beatGridAudioTotalBeats();
-  const audioStart = getKfMusicOffsetSec();
-  const audioEnd = Math.min(kfAudioDuration, timelineBeatToAudioTime(audioBeats));
-  // 若編舞比音樂長，波形只佔「音樂實際還有內容」的那一段，右側保持空白；不能把短音樂硬拉伸到整條 timeline。
-  const audioBackingW = Math.max(1, Math.min(backingW, Math.round(backingW * (audioBeats / Math.max(0.0001, timelineBeats)))));
-  const peaks = computeBeatGridWaveformPeaks(audioStart, audioEnd, audioBackingW);
-  if (!peaks) return;
-
-  ctx.strokeStyle = "#6a6aff";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < audioBackingW; i++){
-    const p = peaks[i];
-    if (!p) continue;
-    ctx.beginPath();
-    ctx.moveTo(i + 0.5, mid + p.min * mid * 0.90);
-    ctx.lineTo(i + 0.5, mid + p.max * mid * 0.90);
-    ctx.stroke();
-  }
-
-  // Keyframe 參考線仍保留，但現在 x 直接由 Beat 決定，所以一定與 POSE Track 垂直對齊。
-  ctx.strokeStyle = "#ffaa33";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < keyframes.length; i++){
-    const beat = keyframeStartBeat(i);
-    const xCss = beat * BEAT_GRID_PX_PER_BEAT;
-    const x = xCss / timelinePx * backingW;
-    ctx.beginPath();
-    ctx.moveTo(x + 0.5, 0);
-    ctx.lineTo(x + 0.5, h);
-    ctx.stroke();
-  }
+  waveformView.draw();
 }
 
 function applyTimelinePreviewAtElapsed(elapsedMs){
@@ -6999,10 +6909,10 @@ function showBeatGridScrubPlayhead(beat){
 
 function seekKfTimelineFromClientX(clientX){
   const track = document.getElementById("beatGridWaveformTrack");
-  if (!track || !(kfAudioDuration > 0)) return;
+  if (!track || !(waveform.duration > 0)) return;
   const rect = track.getBoundingClientRect();
   const beat = clampNum((clientX - rect.left) / BEAT_GRID_PX_PER_BEAT, 0, beatGridTimelineBeats());
-  const newTime = clampNum(timelineBeatToAudioTime(beat), 0, kfAudioDuration);
+  const newTime = clampNum(timelineBeatToAudioTime(beat), 0, waveform.duration);
   const audioEl = document.getElementById("kfAudioEl");
   if (audioEl) audioEl.currentTime = newTime;
   applyTimelinePreviewAtElapsed(beat * 60000 / bpm);
@@ -7013,7 +6923,7 @@ function bindKfWaveformScrubbing(){
   const canvas = document.getElementById("kfWaveformCanvas");
   if (!canvas) return;
   canvas.addEventListener("pointerdown", (e) => {
-    if (!(kfAudioDuration > 0)) return;
+    if (!(waveform.duration > 0)) return;
     if (kfPlaying) stopKeyframePlayback();
     kfScrubDragging = true;
     canvas.setPointerCapture(e.pointerId);
@@ -8692,7 +8602,7 @@ function bindTopUI(){
     document.getElementById("kfAudioEl").volume = parseFloat(e.target.value);
   };
   document.getElementById("kfMusicOffset").oninput = () => {
-    _kfPeaksCacheKey = null; _kfPeaksCache = null;
+    waveform.invalidate();
     updateBeatGridGeometry();
     drawKfWaveform();
   };
@@ -9267,7 +9177,7 @@ function updateBpm(event){
   updateBeatMsHint();
   updateKfTotalDurationLabel(); // BPM改變總時長跟著變，這裡順便重算清單標題旁的顯示
   scheduleAutoSave();
-  _kfPeaksCacheKey = null; _kfPeaksCache = null;
+  waveform.invalidate();
   updateBeatGridGeometry(); // 音樂秒數換算成 beats 的長度也會跟 BPM 改變
   drawKfWaveform();
 }
@@ -10718,6 +10628,17 @@ const timelineEditor = createTimelineEditor({
   IK_CHAINS,
   beginPoseResize,
   scrollKfChipIntoView,
+});
+
+const waveform = createWaveform();
+const waveformView = createWaveformView(waveform, {
+  beatGridTimelineBeats,
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  beatGridAudioTotalBeats,
+  getKfMusicOffsetSec,
+  timelineBeatToAudioTime,
+  get keyframes(){ return keyframes; },
+  keyframeStartBeat,
 });
 
 init();

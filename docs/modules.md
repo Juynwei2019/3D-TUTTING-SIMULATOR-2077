@@ -23,6 +23,8 @@
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
 | `src/interaction/grab-shapes.js` | 扶握形狀、幾何建構與表面投影 |
 | `src/interaction/grab-core.js` | 扶握狀態與控制環；以 `deps` 注入模型、手部骨骼和 IK 操作 |
+| `src/timeline/waveform.js` | 私有解碼音訊樣本、峰值取樣／快取、過期解碼取消與 AudioContext 釋放；不依賴 DOM |
+| `src/ui/waveform-view.js` | Canvas 波形與拍點參考線；讀取即時 Beat Grid 比例與音訊範圍 |
 | `src/timeline/audio-controller.js` | 音訊 object URL 所有權、匯入／移除、試聽／暫停與 beat／秒換算；注入 media element 與即時 BPM／offset |
 | `src/ui/timeline-editor.js` | POSE 拍點 DOM、拖曳／縮放／複製／選取事件及播放高亮；資料操作由 host 回呼執行 |
 | `src/ui/grab-panel.js` | 只透過核心方法／訂閱更新扶握面板，不 import Three.js |
@@ -76,8 +78,18 @@
 
 ## 音訊與拍點介面
 
-`createTimelineAudio()` 不查詢 DOM。主程式注入 media element、當前 BPM／offset；控制器擁有自己建立的 object URL，替換或移除時釋放，保留試聽獨立於拍點播放的行為。媒體事件仍驅動按鈕文字及 playhead。音訊檔不寫入 JSON、Undo 或 localStorage。波形解碼、快取、繪圖與尋位同步仍留在主程式，後續可單獨抽出。
+`createTimelineAudio()` 不查詢 DOM。主程式注入 media element、當前 BPM／offset；控制器擁有自己建立的 object URL，替換或移除時釋放，保留試聽獨立於拍點播放的行為。媒體事件仍驅動按鈕文字及 playhead。音訊檔不寫入 JSON、Undo 或 localStorage。波形解碼、快取與繪圖已交由波形模組處理；尋位與媒體／時間軸同步仍由主程式協調。
 
 `createTimelineEditor(adapter).render()` 產生既有 POSE 拍點介面；`updateHighlight()` 僅更新既有節點的播放 class，不逐幀重建 DOM。Adapter getter 讀取即時拍點、選取、播放、縮放狀態；事件回呼將修改委派給 host。原有 DOM ID、樣式 class、End Marker、備註、Easing、軌跡標籤及多選手勢保持一致。此模組涵蓋 POSE 拍點清單，GROOVE／WAVING 編輯與工具列仍在主程式。
 
 瀏覽器回歸新增實際 WAV 匯入、Web Audio 波形解碼、試聽／暫停、拍點播放後音訊暫停、移除，以及拍點複製與刪除。音訊單元測試另外驗證 URL 釋放、即時 BPM／offset 換算與播放拒絕處理。
+
+## 波形解碼與繪圖
+
+`createWaveform()` 私有保存解碼樣本、sample rate、duration 與峰值快取。`decode(file)` 回傳 `ready`／`error`／`stale`，主程式依結果更新載入／錯誤樣式；`clear()` 清除資料並使尚未完成的解碼失效；`invalidate()` 只清除快取，供 BPM 或 offset 變更使用。`peaksForRange(startSec, endSec, buckets)` 保留原有取樣與快取鍵語意。
+
+每次匯入都有獨立的解碼世代：快速換歌或移除音樂時，舊解碼不覆寫最新資料，也不回頭更新載入樣式。AudioContext 在成功、失敗及過期時皆於 finally 關閉；清理期間發生替換也會回傳 stale。波形解碼失敗仍不阻止獨立的媒體播放。
+
+`createWaveformView(waveform, adapter).draw()` 依同一套 Beat Grid 座標繪製：短音樂只佔有音訊的區段，拍點參考線與 POSE Track 對齊，Canvas backing width 上限維持 16384px，隱藏時不重畫。視圖不保存 BPM、拍點或縮放副本；每次 draw 透過 getter／回呼讀取當前資料。主程式保留 loading／error 樣式、媒體事件、拖曳尋位及重繪時機。
+
+波形單元測試涵蓋正負峰值、補零、快取失效、失敗清理、解碼競態、短音訊比例、拍點對齊與 Canvas 尺寸上限；瀏覽器回歸繼續使用真實 WAV 驗證 Web Audio 解碼及播放。
