@@ -1,3 +1,4 @@
+import { bindTouchTimelineUI } from "./ui/touch-timeline.js";
 import { initMobileLayout } from "./ui/mobile-layout.js";
 import { createCameraController } from "./scene/camera-controller.js";
 import { createSplitView } from "./scene/split-view.js";
@@ -3373,6 +3374,7 @@ function bindTopUI(){
   };
 
   bindTimelineUI();
+  bindTouchTimelineUI((kind, direction) => timelineReorderController.stepTimelineSelection(kind, direction));
 
   initUITabs();
   initEasingGallery();
@@ -5415,6 +5417,7 @@ const transformGizmoController = createTransformGizmos({
   get bodyProxyLastPos(){ return bodyProxyLastPos; },
   get model(){ return model; },
   get updateTrajVisual(){ return updateTrajVisual; },
+  get kfPlaying(){ return kfPlaying; },
 });
 
 const floatingPanelsController = createFloatingPanels({

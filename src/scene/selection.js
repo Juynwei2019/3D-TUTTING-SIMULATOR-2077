@@ -1,3 +1,4 @@
+import { createPointerTap } from "../interaction/pointer-tap.js";
 import { LABEL_LOOKUP, IK_CHAINS, IK_LIMB_KEYS, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import * as THREE from "three";
 
@@ -26,16 +27,23 @@ export function createSceneSelection(context){
   function setupPickRaycaster(){
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    let downX = 0, downY = 0;
+    const tap = createPointerTap();
+    const touches = new Set();
 
     const dom = context.renderer.domElement;
-    dom.addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; });
+    dom.addEventListener("pointerdown", tap.down);
+    window.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "touch"){ touches.add(e.pointerId); if (touches.size > 1) tap.invalidate(); }
+    }, true);
+    window.addEventListener("pointermove", tap.move);
+    window.addEventListener("pointerup", e => { tap.up(e); touches.delete(e.pointerId); });
+    window.addEventListener("pointercancel", e => { tap.cancel(e); touches.delete(e.pointerId); });
+    window.addEventListener("blur", () => { tap.reset(); touches.clear(); });
 
     dom.addEventListener("pointerup", (e) => {
       // suppressClick 會在剛拖完控制環之後短暫為 true，避免放開拖曳的那次 click 被誤判成「點空白處」
-      if (context.suppressClick || context.transformControls.dragging || context.transformControlsIK.dragging || context.kfPlaying) return;
-      const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (dist > 6) return;
+      const isTap = tap.up(e);
+      if (!isTap || context.suppressClick || context.transformControls.dragging || context.transformControlsIK.dragging || context.kfPlaying) return;
 
       const rect = dom.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;

@@ -340,6 +340,15 @@
             </div>
           </div>
         </details>
+        <div id="touchTimelineToolbar">
+          <label for="touchTimelineTrack">移動軌道</label>
+          <select id="touchTimelineTrack"><option value="pose">POSE</option><option value="groove">GROOVE</option></select>
+          <button id="touchTimelineEarlier" type="button">← 前移</button>
+          <button id="touchTimelineLater" type="button">後移 →</button>
+          <button id="touchTimelineEdit" type="button" aria-pressed="false">拖曳編輯：關</button>
+          <span>關閉時可滑動捲軸；開啟後可拖曳拍尺、波形與片段邊緣。</span>
+          <span id="touchTimelineStatus" role="status" aria-live="polite"></span>
+        </div>
         <div id="beatGridPoseInspector">
           <span id="kfInspectorMode">新增預設</span>
           <button id="kfUpdateBtn" type="button" data-tooltip="用目前 3D 姿勢覆寫選取的 POSE">↻ 更新姿勢</button>

@@ -691,3 +691,17 @@
   #selectedStatusBox, #perfPanel { right:calc(42vw + 8px); max-width:28vw; }
   #splitViewPanes { right:calc(42vw + 8px); }
 }
+
+#touchTimelineToolbar { display:none; }
+@media (pointer:coarse) {
+  #touchTimelineToolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px; border-bottom:1px solid #26264a; font-size:11px; }
+  #touchTimelineToolbar > span { flex:1 1 100%; color:#9a9ac2; white-space:normal; }
+  #touchTimelineToolbar button, #touchTimelineToolbar select { min-width:44px; min-height:44px; }
+  #touchTimelineEdit[aria-pressed=true] { color:#ffe28a; border-color:#9b7d2b; }
+  #beatGridScroll { touch-action:pan-x pan-y; }
+  #beatGridRuler, #kfWaveformCanvas, .waveClip { touch-action:pan-x pan-y; }
+  .timelineResizeHandle, .waveResize { pointer-events:none; }
+  .touchTimelineEditing #beatGridRuler, .touchTimelineEditing #kfWaveformCanvas, .touchTimelineEditing .waveClip { touch-action:none; }
+  .touchTimelineEditing .timelineResizeHandle, .touchTimelineEditing .waveResize { pointer-events:auto; width:24px; touch-action:none; }
+  .customTooltip { display:none; }
+}

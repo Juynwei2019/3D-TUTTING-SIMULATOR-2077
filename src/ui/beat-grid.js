@@ -1,3 +1,4 @@
+import { touchTimelineEditing } from "./touch-timeline.js";
 import { clampNum } from "../math/angles.js";
 
 // Live host getters preserve shared rig and playback coordination.
@@ -128,12 +129,13 @@ export function createBeatGrid(context){
   function bindBeatGridRangeSelection(){
     const ruler = document.getElementById("beatGridRuler");
     if (!ruler) return;
+    ruler.addEventListener("click", e => { if (e.pointerType === 'touch' && !touchTimelineEditing(e)) navigateBeatGridToBeat(beatGridClientXToBeat(e.clientX)); });
     ruler.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || !touchTimelineEditing(e) || context.beatGridRangeDrag) return;
       if (context.kfPlaying) context.stopKeyframePlayback();
       const raw = beatGridClientXToBeat(e.clientX);
       const [start] = context.normalizeBeatGridRange(raw, raw);
-      context.beatGridRangeDrag = { anchor:start, pointerId:e.pointerId };
+      context.beatGridRangeDrag = { anchor:start, pointerId:e.pointerId, previous:[context.beatGridRangeStart,context.beatGridRangeEnd,context.beatGridRangeLoop] };
       context.beatGridRangeStart = start;
       context.beatGridRangeEnd = start;
       context.setBeatGridRangeLoop(false);
@@ -143,7 +145,7 @@ export function createBeatGrid(context){
       e.preventDefault();
     });
     ruler.addEventListener("pointermove", (e) => {
-      if (!context.beatGridRangeDrag) return;
+      if (!context.beatGridRangeDrag || e.pointerId !== context.beatGridRangeDrag.pointerId) return;
       const raw = beatGridClientXToBeat(e.clientX);
       const [a,b] = context.normalizeBeatGridRange(context.beatGridRangeDrag.anchor, raw);
       context.beatGridRangeStart = a;
@@ -151,7 +153,7 @@ export function createBeatGrid(context){
       context.updateBeatGridRangeUI();
     });
     const finish = (e) => {
-      if (!context.beatGridRangeDrag) return;
+      if (!context.beatGridRangeDrag || e.pointerId !== context.beatGridRangeDrag.pointerId) return;
       const raw = beatGridClientXToBeat(e.clientX);
       let [a,b] = context.normalizeBeatGridRange(context.beatGridRangeDrag.anchor, raw);
       const minSpan = Number(context.BEAT_GRID_SNAP) > 0 ? Number(context.BEAT_GRID_SNAP) : 0.01;
@@ -171,12 +173,16 @@ export function createBeatGrid(context){
       context.updateBeatGridRangeUI();
     };
     ruler.addEventListener("pointerup", finish);
-    ruler.addEventListener("pointercancel", (e) => {
+    const cancel = (e) => {
+      if (!context.beatGridRangeDrag || e.pointerId !== context.beatGridRangeDrag.pointerId) return;
+      [context.beatGridRangeStart,context.beatGridRangeEnd,context.beatGridRangeLoop] = context.beatGridRangeDrag.previous;
       context.beatGridRangeDrag = null;
       ruler.classList.remove("rangeDragging");
       try { if (ruler.hasPointerCapture(e.pointerId)) ruler.releasePointerCapture(e.pointerId); } catch (_) {}
       context.updateBeatGridRangeUI();
-    });
+    };
+    ruler.addEventListener("pointercancel", cancel);
+    ruler.addEventListener("lostpointercapture", cancel);
   }
 
   function renderGrooveLoopGhosts(){

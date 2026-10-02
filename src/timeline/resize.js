@@ -1,5 +1,7 @@
+import { touchTimelineEditing } from "../ui/touch-timeline.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createTimelineResize(context){
+  let resizePointer = null;
   function normalizeTimelineBeats(beats, minBeats = 0.01, maxBeats = 64){
     const raw = Number(beats);
     const safe = Number.isFinite(raw) ? raw : 1;
@@ -118,7 +120,8 @@ export function createTimelineResize(context){
   }
 
   function beginTimelineResize(e, config){
-    if (context.kfPlaying || !config || !config.chip || !config.handle) return;
+    if (e.button !== 0 || !touchTimelineEditing(e) || resizePointer !== null || context.kfPlaying || !config || !config.chip || !config.handle) return;
+    resizePointer = e.pointerId;
     e.preventDefault();
     e.stopPropagation();
     if (config.select) config.select();
@@ -147,6 +150,7 @@ export function createTimelineResize(context){
     showHud(e, startBeats);
 
     const onMove = (ev) => {
+      if (ev.pointerId !== resizePointer) return;
       const deltaBeats = (ev.clientX - startX) / context.BEAT_GRID_PX_PER_BEAT;
       const next = snapTimelineBeats(startBeats + deltaBeats);
       if (Math.abs(lastBeats - next) > 1e-9){
@@ -158,9 +162,11 @@ export function createTimelineResize(context){
       showHud(ev, next);
     };
     const finish = (cancelled = false) => {
+      resizePointer = null;
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onUp);
       handle.removeEventListener("pointercancel", onCancel);
+      handle.removeEventListener("lostpointercapture", onCancel);
       try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
       chip.classList.remove("resizing");
       handle.classList.remove("resizing");
@@ -177,11 +183,12 @@ export function createTimelineResize(context){
         context.pushHistory();
       }
     };
-    const onUp = () => finish(false);
-    const onCancel = () => finish(true);
+    const onUp = ev => { if (ev.pointerId === resizePointer) finish(false); };
+    const onCancel = ev => { if (ev.pointerId === resizePointer) finish(true); };
     handle.addEventListener("pointermove", onMove);
     handle.addEventListener("pointerup", onUp);
     handle.addEventListener("pointercancel", onCancel);
+    handle.addEventListener("lostpointercapture", onCancel);
   }
 
   function beginPoseResize(e, i, chip, handle){

@@ -124,8 +124,25 @@ export function createTimelineReorder(context){
     clearTimelineReorderVisuals(); context.timelineReorderDrag=null;
   }
 
+  function stepTimelineSelection(kind, direction){
+    if (context.kfPlaying || !['pose','groove'].includes(kind) || ![-1,1].includes(direction)) return false;
+    const items = timelineReorderItems(kind);
+    if (context.kfMultiSelectMode){
+      const indices = [...timelineSelectedSet(kind)].filter(i => items[i]).sort((a,b) => a-b);
+      if (!indices.length || (direction < 0 && indices[0] === 0) || (direction > 0 && indices.at(-1) === items.length-1)) return false;
+      if (!moveTimelineGroup(kind, indices, indices[0]+direction)) return false;
+    } else {
+      const from = kind === 'pose' ? context.kfEditingIndex : context.grooveSeqSelectedIndex;
+      const to = from+direction;
+      if (!Number.isInteger(from) || from < 0 || from >= items.length || to < 0 || to >= items.length) return false;
+      if (kind === 'pose') context.reorderKeyframe(from,to); else context.reorderGrooveSeqEntry(from,to);
+    }
+    context.pushHistory();
+    return true;
+  }
+
   function bindTimelineReorderHost(kind,host){
     if(!host)return; host.ondragover=(ev)=>updateTimelineReorderDrag(kind,ev,host); host.ondrop=(ev)=>dropTimelineReorder(kind,ev,host);
   }
-  return { timelineReorderItems, timelineReorderChips, timelineReorderLabel, timelineSelectedSet, ensureTimelineDropIndicator, clearTimelineReorderVisuals, beginTimelineReorderDrag, calcTimelineReorderTarget, isGroupMoveNoop, updateTimelineReorderDrag, moveTimelineGroup, dropTimelineReorder, endTimelineReorderDrag, bindTimelineReorderHost };
+  return { stepTimelineSelection, timelineReorderItems, timelineReorderChips, timelineReorderLabel, timelineSelectedSet, ensureTimelineDropIndicator, clearTimelineReorderVisuals, beginTimelineReorderDrag, calcTimelineReorderTarget, isGroupMoveNoop, updateTimelineReorderDrag, moveTimelineGroup, dropTimelineReorder, endTimelineReorderDrag, bindTimelineReorderHost };
 }

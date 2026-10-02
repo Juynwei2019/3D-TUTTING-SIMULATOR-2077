@@ -223,3 +223,9 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 `ui/mobile-layout.js` 管理手機面板展開／收合、aria-expanded 與可用 3D 區域，透過回呼更新 renderer 尺寸及首次取景。布局切換使用 CSS media query，窄螢幕為底部抽屜，觸控低高度橫向為右側面板；CSS 覆寫手機上的浮動尺寸，保留桌面偏好。`scene/split-view.js` 的 `onResize()` 依 `canvasHolder` 實際尺寸更新主 renderer／相機，桌面容器仍覆蓋全畫面。
 
 `test:mobile` 使用三種手機尺寸與兩個入口，驗證 viewport、頁面溢出、3D 區域、所有分頁、44px 分頁按鈕、拍點新增、面板狀態与方向切換；沿用 checksum 驗證的模型 fixture。多指選取、觸控排序與手機效能是後續工作。
+
+## 觸控手勢與時間軸編輯
+
+`interaction/pointer-tap.js` 是不依賴 DOM 的點選手勢狀態機；`scene/selection.js` 結合 window 的 pointer 結束／取消與失焦事件，避免多指及拖曳後誤選。`interaction/gizmo-touch.js` 處理控制環取消及雙指操作的停用／恢復，不使用 Three.js 私有 API。
+
+`ui/touch-timeline.js` 綁定觸控工具列與拖曳編輯模式；`timeline/reorder.js` 的 `stepTimelineSelection()` 使用既有排序及 history callback。resize／Range／scrub／Wave 編輯均限制 pointer ID，並處理取消。觸控裝置預設保留捲動，開啟編輯模式才使用專用拖曳區域；桌面滑鼠路徑不需此開關。

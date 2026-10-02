@@ -1,3 +1,4 @@
+import { touchTimelineEditing } from "../ui/touch-timeline.js";
 import { ALL_JOINT_KEYS } from "../rig/definitions.js";
 import { eulerToQuat } from "../math/quaternions.js";
 import { EASINGS } from "../math/easings.js";
@@ -154,14 +155,19 @@ export function createWaveTrack(context){
       const handle=document.createElement('span');handle.className='waveResize';handle.title='拖曳調整長度';el.append(handle);
       el.ondblclick=()=>{selectWaveClip(c.id);loadWaveClipSettings();};
       el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectWaveClip(c.id);}};
+      el.onclick=e=>{if(e.pointerType==='touch'&&!touchTimelineEditing(e))selectWaveClip(c.id);};
+      let pointer = null;
       el.onpointerdown=e=>{
+        if(!touchTimelineEditing(e)||pointer!==null)return;
         if(context.kfPlaying||e.button!==0)return;e.preventDefault();e.stopPropagation();
+        pointer=e.pointerId;
         const resize=e.target===handle,startX=e.clientX,scroll=document.getElementById('beatGridScroll'),startScroll=scroll.scrollLeft,originalStart=c.start,originalBeats=c.beats;
         el.setPointerCapture(e.pointerId);let candidate=resize?originalBeats:originalStart;
-        el.onpointermove=ev=>{const delta=(ev.clientX-startX+scroll.scrollLeft-startScroll)/context.BEAT_GRID_PX_PER_BEAT;candidate=resize?Math.max(.25,waveSnap(originalBeats+delta)):waveSnap(originalStart+delta);el.style[resize?'width':'left']=candidate*context.BEAT_GRID_PX_PER_BEAT+'px';};
-        el.onpointerup=()=>{el.onpointermove=null;el.onpointerup=null;context.waveClipSelected=c.id;context.kfEditingIndex=-1;context.grooveSeqSelectedIndex=-1;
+        el.onpointermove=ev=>{if(ev.pointerId!==pointer)return;const delta=(ev.clientX-startX+scroll.scrollLeft-startScroll)/context.BEAT_GRID_PX_PER_BEAT;candidate=resize?Math.max(.25,waveSnap(originalBeats+delta)):waveSnap(originalStart+delta);el.style[resize?'width':'left']=candidate*context.BEAT_GRID_PX_PER_BEAT+'px';};
+        el.onpointerup=ev=>{if(ev.pointerId!==pointer)return;pointer=null;el.onpointermove=null;el.onpointerup=null;context.waveClipSelected=c.id;context.kfEditingIndex=-1;context.grooveSeqSelectedIndex=-1;
           if(candidate!==(resize?originalBeats:originalStart))editWaveClip(c.id,resize?{beats:candidate}:{start:candidate});else selectWaveClip(c.id);};
-        el.onpointercancel=()=>{el.onpointermove=null;renderWaveTrack();};
+        el.onlostpointercapture=ev=>{if(ev.pointerId!==pointer)return;pointer=null;renderWaveTrack();};
+        el.onpointercancel=ev=>{if(ev.pointerId!==pointer)return;pointer=null;el.onpointerup=null;el.onpointermove=null;renderWaveTrack();};
       };
       host.append(el);
     }

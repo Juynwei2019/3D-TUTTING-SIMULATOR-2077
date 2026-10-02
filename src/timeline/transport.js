@@ -1,3 +1,4 @@
+import { touchTimelineEditing } from "../ui/touch-timeline.js";
 import { clampNum } from "../math/angles.js";
 import { ALL_JOINT_KEYS } from "../rig/definitions.js";
 import { EASINGS } from "../math/easings.js";
@@ -138,10 +139,18 @@ export function createTimelineTransport(context){
   }
 
   function bindKfWaveformScrubbing(){
+    let scrubPointer = null;
     const canvas = document.getElementById("kfWaveformCanvas");
     if (!canvas) return;
+    canvas.addEventListener("click", e => {
+      if (e.pointerType !== 'touch' || touchTimelineEditing(e) || !(context.waveform.duration > 0)) return;
+      if (context.kfPlaying) stopKeyframePlayback();
+      seekKfTimelineFromClientX(e.clientX);
+    });
     canvas.addEventListener("pointerdown", (e) => {
-      if (!(context.waveform.duration > 0)) return;
+      if (e.button !== 0 || !touchTimelineEditing(e) || scrubPointer !== null) return;
+      scrubPointer = e.pointerId;
+      if (!(context.waveform.duration > 0)){ scrubPointer = null; return; }
       if (context.kfPlaying) stopKeyframePlayback();
       context.kfScrubDragging = true;
       canvas.setPointerCapture(e.pointerId);
@@ -149,16 +158,18 @@ export function createTimelineTransport(context){
       e.preventDefault();
     });
     canvas.addEventListener("pointermove", (e) => {
-      if (!context.kfScrubDragging) return;
+      if (!context.kfScrubDragging || e.pointerId !== scrubPointer) return;
       seekKfTimelineFromClientX(e.clientX);
     });
     const endDrag = (e) => {
-      if (!context.kfScrubDragging) return;
+      if (!context.kfScrubDragging || e.pointerId !== scrubPointer) return;
       context.kfScrubDragging = false;
+      scrubPointer = null;
       try { if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId); } catch (_) {}
     };
     canvas.addEventListener("pointerup", endDrag);
     canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("lostpointercapture", endDrag);
   }
 
   function updateBeatGridMusicPreviewPlayhead(){

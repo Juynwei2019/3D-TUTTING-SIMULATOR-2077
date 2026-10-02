@@ -1,3 +1,4 @@
+import { bindGizmoTouch } from "../interaction/gizmo-touch.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { D } from "../math/angles.js";
 import { IK_CHAINS } from "../rig/definitions.js";
@@ -81,6 +82,7 @@ export function createTransformGizmos(context){
 
     context.bodyGizmoProxy = new THREE.Object3D();
     context.scene.add(context.bodyGizmoProxy);
+    bindGizmoTouch({ element:context.renderer.domElement, gizmos:[context.transformControls, context.transformControlsIK], isPlaying:() => context.kfPlaying });
 
   }
   return { initTransformGizmos };
