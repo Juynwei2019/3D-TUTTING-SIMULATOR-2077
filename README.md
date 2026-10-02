@@ -31,13 +31,13 @@ npm run build
 CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
 ```
 
-`npm test` 驗證骨架定義、角度限制、四元數、IK、轨跡、緩動曲線與候選生成器。
+`npm test` 驗證骨架定義、角度限制、四元數、IK、軌跡、緩動曲線、候選生成器與姿勢控制器。姿勢測試涵蓋副本隔離、部分套用、限制、精確還原、骨骼同步及 FK／IK／拖曳的分工。
 
 瀏覽器測試使用 Playwright Core，需要可用的 Chromium；以 `CHROMIUM_PATH` 指定執行檔。未指定時會使用 Playwright 預設的瀏覽器安裝位置。測試會自行啟動並關閉本機 HTTP 伺服器。
 
 瀏覽器測試將 Three.js 網路請求對應到已安裝的同版本套件，將模型請求對應到官方 Three.js `r160` Xbot 模型。模型首次透過 Python 的 HTTPS 客戶端下載至 `.cache/Xbot.glb`，並驗證 SHA-256。可用 `XBOT_FIXTURE` 指定已有的同一份模型。此測試驗證程式功能，不代表正式 CDN 的連線已通過。
 
-測試涵蓋模組版及單檔輸出的模型載入、分頁、手臂 IK、扶握、Undo／Redo、時間軸播放、JSON 匯出／匯入、分割視窗與自動存檔重載。若有重構前的原版 HTML，可指定 `BASELINE_HTML`，一併比對初始姿勢、關鍵影格與固定時間點的骨骼旋轉。
+測試涵蓋模組版及單檔輸出的模型載入、分頁、手臂 IK、扶握、JSON 姿勢套用、鏡像／對稱、Tutting 預覽／提交、Wave 還原、Undo／Redo、時間軸播放、JSON 匯出／匯入、分割視窗與自動存檔重載。若有重構前的原版 HTML，可指定 `BASELINE_HTML`，一併比對初始姿勢、姿勢操作結果、關鍵影格與固定時間點的骨骼旋轉。
 
 模組責任與後續拆分順序見 [docs/modules.md](docs/modules.md)。
 

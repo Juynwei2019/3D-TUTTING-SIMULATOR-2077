@@ -30,9 +30,11 @@ window.__smoke = {
   pushHistory, undo, redo, applyTimelinePreviewAtElapsed,
   setIKEnabled, solveIKAll, updateBones,
   get bones() { return bones; }, get model() { return model; },
-  get target() { return target; }, get current() { return current; },
+  get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
+  get current() { return typeof poseController === "undefined" ? current : poseController.snapshotState().current; },
   get keyframes() { return keyframes; }, get grab() { return grabBoxCore; },
   get playing() { return kfPlaying; },
+  get waveRunning() { return !!waveRun; },
 };`;
 const root = resolve('.');
 const filename = 'index.html';
@@ -123,6 +125,35 @@ try {
       assert.equal(await page.locator('#grabHandCb_rArm').isChecked(), false);
       await page.locator('.tabBtn[data-tab="ik"]').evaluate(el => el.click());
       await page.locator('#ikBtn_rArm').click();
+      // Exercise the pose adapters shared by JSON, mirror, generation and Wave.
+      await page.locator('.tabBtn[data-tab="json"]').evaluate(el => el.click());
+      await page.locator('#jsonArea').fill(JSON.stringify({ rForeArm: [10, 20, 30], rThumb1: [5, 10, 15] }));
+      await page.locator('#applyJsonBtn').click();
+      assert.deepEqual(await page.evaluate(() => window.__smoke.target.rForeArm), [10, 20, 30]);
+      assert.deepEqual(await page.evaluate(() => window.__smoke.target.rThumb1), [5, 10, 15]);
+      await page.locator('#mirrorBtn').click();
+      const mirrored = await page.evaluate(() => structuredClone(window.__smoke.target));
+      await page.locator('#symmetrizeBtn').click();
+      const symmetric = await page.evaluate(() => structuredClone(window.__smoke.target));
+      await page.locator('#resetBtn').click();
+      await page.locator('.tabBtn[data-tab="tuttingGen"]').evaluate(el => el.click());
+      const beforePreview = await page.evaluate(() => structuredClone(window.__smoke.target));
+      await page.locator('#tgCapture').click();
+      await page.locator('#tgGenerate').click();
+      await page.locator('#tgPreviewBtn').click();
+      assert.deepEqual(await page.evaluate(() => window.__smoke.target), beforePreview);
+      await page.locator('#tgApply').click();
+      const generated = await page.evaluate(() => structuredClone(window.__smoke.target));
+      assert.notDeepEqual(generated, beforePreview);
+      await page.locator('#resetBtn').click();
+      await page.locator('.tabBtn[data-tab="waving"]').evaluate(el => el.click());
+      const beforeWave = await page.evaluate(() => structuredClone(window.__smoke.target));
+      await page.locator('#wavePlay').click();
+      assert.equal(await page.evaluate(() => window.__smoke.waveRunning), true);
+      await page.locator('#wavePause').click();
+      await page.locator('#waveStop').click();
+      assert.equal(await page.evaluate(() => window.__smoke.waveRunning), false);
+      assert.deepEqual(await page.evaluate(() => window.__smoke.target), beforeWave);
       await page.evaluate(() => {
         const app = window.__smoke;
         app.resetPose(); app.pushHistory();
@@ -175,9 +206,9 @@ try {
       assert.equal(await page.locator('#kfList .kfChip').count(), 2);
       assert.deepEqual(errors, [], `${entry} JavaScript errors`);
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
-      results.push({ initial, keyframes: exported.keyframes, interpolation });
+      results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
-      console.log(`PASS ${entry}: model, all tabs, IK, grab, history, timeline playback, JSON roundtrip, split view, autosave reload`);
+      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, timeline playback, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
       const directory = resolve('test-results', entry.replace(/^\//, '').replace(/[^a-zA-Z0-9_.-]/g, '_'));
       await mkdir(directory, { recursive: true });

@@ -1,6 +1,6 @@
-# 模組拆分：第一階段
+# 模組拆分：第一階段與姿勢管理
 
-此階段將展示介面與可獨立驗證的運算／功能移出原始單檔。尚未搬出的時間軸、UI 綁定、持久化與跨功能調度仍在 `src/main.js`，不宣稱已完成整個程式的模組化。
+目前已將展示介面、可獨立驗證的運算／功能，以及姿勢角度狀態移出原始單檔。尚未搬出的時間軸、UI 綁定、持久化與跨功能調度仍在 `src/main.js`。
 
 ## 已建立的邊界
 
@@ -15,6 +15,7 @@
 | `src/math/easings.js` | 32 種緩動函式與選單分組，不依賴 DOM |
 | `src/ik/two-bone.js`、`ccd.js` | 骨骼求解核心；只處理傳入的骨鏈／目標，不讀 UI 或播放開關 |
 | `src/pose/joint-limits.js` | 每個 limiter 實例管理自己的暫存物件，透過 getter 取得當前限制 |
+| `src/pose/pose-controller.js` | 私有的 `target`／`current`、姿勢設定／還原、FK 更新、骨骼角度同步；不依賴 DOM、播放或存檔 |
 | `src/motion/trajectory.js` | 開放／封閉折線與 Catmull-Rom 路徑取樣 |
 | `src/motion/groove-wave.js` | 律動波形計算、合法波形檢查與標籤 |
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
@@ -35,9 +36,28 @@
 
 ## 下一階段
 
-1. 建立姿勢服務，管理 `target`／`current` 及變更命令；將姿勢生成的 DOM 讀取留在 UI。
-2. 分別封裝四肢／手指 IK、LookAt、碰撞與律動的執行狀態，繼續由同一個動畫循環調度。
-3. 拆分時間軸資料操作、播放和音訊，透過明確方法協作，避免彼此修改模組的內部變數。
-4. 明確定義 Undo 快照、專案存檔與 UI 偏好的不同欄位，再抽出持久化。每一階段都重跑瀏覽器回歸。
+1. 分別封裝四肢／手指 IK、LookAt、碰撞與律動的執行狀態，繼續由同一個動畫循環調度。
+2. 拆分時間軸資料操作、播放和音訊，透過明確方法協作，避免彼此修改模組的內部變數。
+3. 明確定義 Undo 快照、專案存檔與 UI 偏好的不同欄位，再抽出持久化。每一階段都重跑瀏覽器回歸。
+
+## 姿勢控制器的使用契約
+
+`createPoseController()` 注入關節清單、骨骼／rest pose 的 getter，以及限制函式。非同步模型載入後，getter 會取得當前骨架；控制器不保存載入前的空骨架參照。
+
+| 方法 | 語意 |
+| --- | --- |
+| `setTarget(key, angles)`／`applyPose(pose)` | 套用關節限制，更新 target 與 current；部分姿勢保留未提供的關節 |
+| `reset(preset)` | 全部角度歸零後套用部分預設姿勢；保留原程式的限制行為 |
+| `getTarget(key)`／`getCurrent(key)` | 回傳角度副本，呼叫端不能修改內部狀態 |
+| `snapshotTarget()`／`snapshotState()` | 產生獨立的角度快照；不包含身體位移、時間軸或 UI 狀態 |
+| `restoreTarget(pose)` | 完整還原目標姿勢，缺少關節歸零，預設套用當前限制；候選提交可指定 `clamp: false` |
+| `setJointState(key, target, current)`／`restoreState(state)` | 精確還原已求解或暫存的角度，不套用限制，保留 target/current 差異 |
+| `syncFromBone(key, options)` | 相對 rest pose 反算角度；拖曳提交使用 `clamp: true`，IK 保留十分之一度，Wave 使用 `round: false` |
+| `applyTargetsToBones()` | 在鏡像／對稱運算前，讓骨骼反映目標姿勢，不改動 current |
+| `updateBones({ draggingKey, drivenKeys })` | 保留原 FK 插值與收斂判斷，跳過拖曳或 IK 接管的關節 |
+
+停止預覽、角色整體位移／旋轉、UI 更新、歷史紀錄與存檔仍由主程式調度。控制器不自動取消 Wave 或 Tutting，也不啟動自己的動畫循環。
+
+重構前後回歸另外比對 JSON 姿勢套用、鏡像／對稱、Tutting 預覽與提交、Wave 停止還原，以及既有播放／存檔流程。
 
 單檔發行版由 `scripts/build.mjs` 產生，不維護第二份手寫應用程式。

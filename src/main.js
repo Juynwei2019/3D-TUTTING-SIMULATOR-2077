@@ -7,6 +7,7 @@ import { placeModelOnGround } from "./rig/model-utils.js";
 import { findBone } from "./rig/find-bone.js";
 import { solveTwoBoneIK } from "./ik/two-bone.js";
 import { solveCCDChain } from "./ik/ccd.js";
+import { createPoseController } from "./pose/pose-controller.js";
 import { createJointLimiter } from "./pose/joint-limits.js";
 import { sampleTrajectoryFromPoints } from "./motion/trajectory.js";
 import { GROOVE_WAVE_EASE_PREFIX, GROOVE_WAVE_EASE_BI_PREFIX, isValidGrooveWave, grooveWaveValue, grooveWaveLabel } from "./motion/groove-wave.js";
@@ -213,7 +214,7 @@ function generateRandomPose(){
 
   for (const key of finalKeys){
     const lim = JOINT_LIMITS[key];
-    const cur = target[key] || [0,0,0];
+    const cur = poseController.getTarget(key) || [0,0,0];
     const rawSamples = [
       sampleAxisAngle(key, "x", lim.x, gridStep, edgeProb),
       sampleAxisAngle(key, "y", lim.y, gridStep, edgeProb),
@@ -654,7 +655,13 @@ let ROOT_FOLLOW_LERP_T = ROOT_FOLLOW_LERP_T_DEFAULT;
 let spineCCDDamping = SPINE_CCD_DAMPING_DEFAULT;
 
 let scene, camera, renderer, controls, transformControls, transformControlsIK;
-let bones = {}, restQuat = {}, current = {}, target = {};
+let bones = {}, restQuat = {};
+const poseController = createPoseController({
+  jointKeys: ALL_JOINT_KEYS,
+  getBones: () => bones,
+  getRestQuats: () => restQuat,
+  clampAngles: clampJointAngles,
+});
 let markerMeshes = {};
 let overviewRowEls = {}; // key -> { row, rot:[x,y,z spans], pos:[x,y,z spans] }，面板總覽用，切分頁/篩選時重建
 let overviewGroupCollapsed = {}; // groupId -> bool，記住使用者展開/收合狀態
@@ -1154,12 +1161,12 @@ function tgConflict(){
 }
 function tgSay(s){const el=document.getElementById('tgStatus');if(el)el.textContent=s;}
 function tgDrawPose(p,body){if(!model)return;for(const k of ALL_JOINT_KEYS)if(bones[k]&&restQuat[k]&&p[k])bones[k].quaternion.copy(restQuat[k]).multiply(eulerToQuat(p[k]));if(body)applyBodyTransform(body);model.updateMatrixWorld(true);}
-function tgCancelPreview(){if(!tgPreview)return;const old=tgPreview;tgPreview=null;tgDrawPose(target,old.body);tgUI();}
+function tgCancelPreview(){if(!tgPreview)return;const old=tgPreview;tgPreview=null;tgDrawPose(poseController.snapshotTarget(),old.body);tgUI();}
 function tgClear(){tgCancelPreview();tgCandidates=[];tgIndex=-1;tgSignature='';tgUI();}
 function tgRuleSignature(){return JSON.stringify({config:tgConfig,limits:JOINT_LIMITS,base:tgBase});}
 function tgCapture(){
   const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
-  tgCancelPreview();pushHistory();tgBase={angles:tgCopy(target),body:snapshotBodyTransform()};tgClear();pushHistory();scheduleAutoSave();tgUI();tgSay('已擷取基礎姿勢。未勾選部位保留局部角度，仍可能隨上游骨骼移動。');
+  tgCancelPreview();pushHistory();tgBase={angles:poseController.snapshotTarget(),body:snapshotBodyTransform()};tgClear();pushHistory();scheduleAutoSave();tgUI();tgSay('已擷取基礎姿勢。未勾選部位保留局部角度，仍可能隨上游骨骼移動。');
 }
 function tgGenerate(){
   const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
@@ -1183,7 +1190,7 @@ function tgTick(){if(!tgPreview)return;const conflict=tgConflict();if(conflict||
 function tgCommit(toTimeline=false){
   const conflict=tgConflict();if(conflict){tgSay(conflict);return false;}if(!tgValidCandidate())return false;
   const p=tgCandidates[tgIndex];tgCancelPreview();pushHistory();
-  for(const k of ALL_JOINT_KEYS){target[k]=p.angles[k].slice();current[k]=target[k].slice();}
+  poseController.restoreTarget(p.angles, { clamp: false });
   tgDrawPose(p.angles,tgBase.body);setActiveBtn(-1);updateSelectedBar();
   if(toTimeline)addKeyframe();pushHistory();scheduleAutoSave();tgUI();tgSay(toTimeline?'已加入一個 POSE 拍點，可用 Undo 復原。':'已套用候選姿勢，可用 Undo 復原。');return true;
 }
@@ -1248,9 +1255,7 @@ let waveClips = [], waveClipSelected = null;
 let waveTrackActive = false;
 const waveClone = value => JSON.parse(JSON.stringify(value));
 function syncWaveTrackTarget(k){
-  if(!bones[k]||!restQuat[k])return;
-  const e=new THREE.Euler().setFromQuaternion(restQuat[k].clone().invert().multiply(bones[k].quaternion),'XYZ');
-  target[k]=[R(e.x),R(e.y),R(e.z)];current[k]=target[k].slice();
+  poseController.syncFromBone(k, { round: false });
 }
 function waveTrackEnd(){return waveClips.reduce((n,c)=>Math.max(n,c.start+c.beats),0);}
 function wavePlaybackEnd(){return Math.max(beatGridPoseTotalBeats(),waveTrackEnd());}
@@ -1604,7 +1609,7 @@ function solveWaveFeet(r,onFailure=message=>stopWave(message)){
 function stopWave(message='已停止，回到基礎姿勢'){
   const r=waveRun;waveRun=null;
   if(r?.ground)model.position.copy(r.ground.position);
-  if(r){for(const [k,v]of Object.entries(r.base)){if(!bones[k])continue;bones[k].quaternion.copy(v.q);target[k]=v.target.slice();current[k]=v.current.slice();}model?.updateMatrixWorld(true);}
+  if(r){for(const [k,v]of Object.entries(r.base)){if(!bones[k])continue;bones[k].quaternion.copy(v.q);poseController.setJointState(k, v.target, v.current);}model?.updateMatrixWorld(true);}
   if(document.getElementById('wavePlay')){document.getElementById('waveProgress').value=0;document.getElementById('waveSeek').value=0;document.getElementById('waveSeekValue').textContent='0%';waveUI(message);}
 }
 function startWave(){
@@ -1647,9 +1652,9 @@ function startWave(){
       entries.push({k,index:waveLocalIndex(waveConfig,side,0),gain:.35,axis,group:'fingerGain'});
     }
   }
-  for(const {k}of entries)base[k]={parentInModel:model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bones[k].parent.getWorldQuaternion(new THREE.Quaternion())),q:bones[k].quaternion.clone(),target:(target[k]||[0,0,0]).slice(),current:(current[k]||[0,0,0]).slice()};
+  for(const {k}of entries)base[k]={parentInModel:model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bones[k].parent.getWorldQuaternion(new THREE.Quaternion())),q:bones[k].quaternion.clone(),target:(poseController.getTarget(k)||[0,0,0]).slice(),current:(poseController.getCurrent(k)||[0,0,0]).slice()};
   if(waveIsRelay(waveConfig))for(const {k}of entries)if(k[0]==='l'||k[0]==='r')base[k].parentInChest=bones.spine2.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bones[k].parent.getWorldQuaternion(new THREE.Quaternion()));
-  if(ground)for(const f of ground.feet)for(const k of f.keys)base[k]={q:bones[k].quaternion.clone(),target:(target[k]||[0,0,0]).slice(),current:(current[k]||[0,0,0]).slice()};
+  if(ground)for(const f of ground.feet)for(const k of f.keys)base[k]={q:bones[k].quaternion.clone(),target:(poseController.getTarget(k)||[0,0,0]).slice(),current:(poseController.getCurrent(k)||[0,0,0]).slice()};
   waveRun={base,entries,ground,config:{...waveConfig},phase:0,last:performance.now(),playing:true};waveUI('播放中 · 波峰沿所選路線傳遞');
 }
 function tickWave(now){
@@ -1698,7 +1703,7 @@ function captureWaveTimelinePose(){
     if(bones[k]&&restQuat[k]){
       const e=new THREE.Euler().setFromQuaternion(restQuat[k].clone().invert().multiply(bones[k].quaternion),'XYZ');
       angles[k]=[R(e.x),R(e.y),R(e.z)];
-    }else angles[k]=(target[k]||[0,0,0]).slice();
+    }else angles[k]=(poseController.getTarget(k)||[0,0,0]).slice();
   }
   return {angles,body:snapshotBodyTransform()};
 }
@@ -1731,7 +1736,7 @@ function bakeWaveToTimeline(updateSelected=false){
   const startBeat=replacing?replacing.start:(selected?keyframeStartBeat(index):Math.max(beatGridPoseTotalBeats(),waveTrackEnd()));
   if(waveClipOverlap(startBeat,plan.totalBeats,replacing?.id)){say('此位置已有 WAVING 區塊，請移動原區塊或選擇尾端加入');return;}
   const oldFrame=index>=0?JSON.parse(JSON.stringify(keyframes[index])):null;
-  const saved={body:snapshotBodyTransform(),bones:{},target:JSON.parse(JSON.stringify(target)),current:JSON.parse(JSON.stringify(current))};
+  const saved={body:snapshotBodyTransform(),bones:{},...poseController.snapshotState()};
   for(const k of ALL_JOINT_KEYS)if(bones[k])saved.bones[k]=bones[k].quaternion.clone();
   const frames=[];let error=null,clipKeys=[],clipFeet=null;
   const savedKfIndex=kfIndex;
@@ -1757,7 +1762,7 @@ function bakeWaveToTimeline(updateSelected=false){
   finally{
     stopWave();applyBodyTransform(saved.body);
     for(const [k,q]of Object.entries(saved.bones))bones[k].quaternion.copy(q);
-    for(const k of ALL_JOINT_KEYS){target[k]=(saved.target[k]||[0,0,0]).slice();current[k]=(saved.current[k]||[0,0,0]).slice();}
+    poseController.restoreState(saved);
     model.updateMatrixWorld(true);kfIndex=savedKfIndex;
   }
   if(error){say('未加入：'+error.message);return;}
@@ -2273,7 +2278,7 @@ function buildOverviewPanel(){
 
     for (const key of keys){
       if (onlyNonZero){
-        const a = target[key] || [0,0,0];
+        const a = poseController.getTarget(key) || [0,0,0];
         if (Math.abs(a[0]) < 0.05 && Math.abs(a[1]) < 0.05 && Math.abs(a[2]) < 0.05) continue;
       }
       const row = document.createElement("div");
@@ -2330,7 +2335,7 @@ function updateOverviewPanel(force){
     const bone = bones[key];
     if (!bone) continue;
     const els = overviewRowEls[key];
-    const a = target[key] || [0,0,0];
+    const a = poseController.getTarget(key) || [0,0,0];
     els.rot[0].textContent = a[0].toFixed(1);
     els.rot[1].textContent = a[1].toFixed(1);
     els.rot[2].textContent = a[2].toFixed(1);
@@ -3172,7 +3177,7 @@ function buildJointLimitPanel(){
           axisLim.max = parseFloat(maxInput.value) || 0;
           rangeWrap.style.display = axisLim.enabled ? "inline-flex" : "none";
           saveJointLimits();
-          if (bones[key] && target[key]) setTarget(key, target[key]);
+          if (bones[key] && poseController.getTarget(key)) setTarget(key, poseController.getTarget(key));
           updateSelectedBar();
         }
         chk.onchange = onChange;
@@ -3301,7 +3306,7 @@ function updateJointLimitPanelAngles(force){
   if (!panel || (!force && !panel.classList.contains("active"))) return;
   for (const key of JOINT_LIMIT_KEYS){
     const el = jointLimitCurAngleEls[key];
-    const a = target[key];
+    const a = poseController.getTarget(key);
     if (!el || !a) continue;
     el.textContent = `X${a[0].toFixed(0)}° Y${a[1].toFixed(0)}° Z${a[2].toFixed(0)}°`;
   }
@@ -4188,7 +4193,7 @@ function updateSelectedBar(){
     return;
   }
   label.textContent = LABEL_LOOKUP[selectedKey] || selectedKey;
-  const a = target[selectedKey] || [0,0,0];
+  const a = poseController.getTarget(selectedKey) || [0,0,0];
   angles.textContent = `X ${a[0].toFixed(1)}°  Y ${a[1].toFixed(1)}°  Z ${a[2].toFixed(1)}°`;
 }
 
@@ -4197,18 +4202,8 @@ function updateSelectedBar(){
 // 寫回 bone.quaternion——否則拖曳關節球時骨骼視覺上已經轉超過上限，放開滑鼠才彈回去，
 // 手感會很奇怪；直接在拖曳過程中把骨骼「頂」在限制邊界，才是使用者預期的卡住感。
 function commitFromBone(key){
-  const bone = bones[key];
-  if (!bone || !restQuat[key]) return;
-  const deltaQuat = restQuat[key].clone().invert().multiply(bone.quaternion);
-  const e = new THREE.Euler().setFromQuaternion(deltaQuat, "XYZ");
-  let deg = [R(e.x), R(e.y), R(e.z)].map(v => Math.round(v*10)/10);
-  const clamped = clampJointAngles(key, deg);
-  if (clamped[0] !== deg[0] || clamped[1] !== deg[1] || clamped[2] !== deg[2]){
-    deg = clamped;
-    bone.quaternion.copy(restQuat[key]).multiply(eulerToQuat(deg));
-  }
-  target[key] = deg;
-  current[key] = deg.slice();
+  if (!bones[key] || !restQuat[key]) return;
+  poseController.syncFromBone(key, { clamp: true });
   setActiveBtn(-1);
   updateSelectedBar();
 }
@@ -4218,23 +4213,20 @@ function commitFromBone(key){
 // 會先依 JOINT_LIMITS 夾緊角度，確保不管從哪個管道寫入都不會超出限制。
 function setTarget(name, xyz){
   tgCancelPreview();
-  const c = clampJointAngles(name, xyz);
-  target[name] = c.slice();
-  current[name] = c.slice();
+  poseController.setTarget(name, xyz);
 }
 
 function applyPose(p){
   waveTrackActive=false;
   if(waveRun)stopWave();
-  for (const k of ALL_JOINT_KEYS){
-    if (p[k]) setTarget(k, p[k]);
-  }
+  if (ALL_JOINT_KEYS.some(key => p[key])) tgCancelPreview();
+  poseController.applyPose(p);
   updateSelectedBar();
 }
 
 function resetPose(){
   if(waveRun)stopWave();
-  for (const k of ALL_JOINT_KEYS){ current[k] = [0,0,0]; target[k] = [0,0,0]; }
+  poseController.reset();
   applyPose(IDLE_POSE);
   resetBodyTransform();
   poseIndex = 0;
@@ -4251,7 +4243,7 @@ function setActiveBtn(i){
 // ---- JSON 匯出/匯入（單一姿勢） ----
 function refreshJsonArea(){
   const out = {};
-  for (const k of ALL_JOINT_KEYS) out[k] = target[k].map(v => Math.round(v*10)/10);
+  for (const k of ALL_JOINT_KEYS) out[k] = poseController.getTarget(k).map(v => Math.round(v*10)/10);
   document.getElementById("jsonArea").value = JSON.stringify(out, null, 2);
   updateJsonRefTable(); // 文字框內容變了（重新整理/切分頁進來），對照表也要跟著同步
 }
@@ -4678,7 +4670,7 @@ function createLibraryController(opts){
 // -- 動作姿勢庫：只讀寫身體關節（BODY_LIB_JOINT_KEYS），完全不碰手指 --
 function captureCurrentBodyPose(){
   const data = {};
-  for (const k of BODY_LIB_JOINT_KEYS) data[k] = (target[k] || [0,0,0]).map(v => Math.round(v*10)/10);
+  for (const k of BODY_LIB_JOINT_KEYS) data[k] = (poseController.getTarget(k) || [0,0,0]).map(v => Math.round(v*10)/10);
   return data;
 }
 function applyBodyPoseData(data){
@@ -4692,7 +4684,7 @@ function applyBodyPoseData(data){
 // -- 掌指手勢庫：只讀寫30個手指指節（FINGER_JOINT_KEYS），完全不碰身體 --
 function captureCurrentGesture(){
   const data = {};
-  for (const k of FINGER_JOINT_KEYS) data[k] = (target[k] || [0,0,0]).map(v => Math.round(v*10)/10);
+  for (const k of FINGER_JOINT_KEYS) data[k] = (poseController.getTarget(k) || [0,0,0]).map(v => Math.round(v*10)/10);
   return data;
 }
 function applyGestureData(data){
@@ -5040,11 +5032,7 @@ function mirrorPose(){
 
   // Step A：先把所有骨骼的本地旋轉設成「目前 target[] 對應的姿勢」（不是還在lerp中的current，
   // 也不是IK即時解算的殘留值），確保鏡像的是使用者當下設定的目標角度。
-  for (const k of ALL_JOINT_KEYS){
-    const bone = bones[k];
-    if (!bone || !restQuat[k] || !target[k]) continue;
-    bone.quaternion.copy(restQuat[k]).multiply(eulerToQuat(target[k]));
-  }
+  poseController.applyTargetsToBones();
   model.updateMatrixWorld(true);
 
   // Step B：讀出每根骨骼目前的世界旋轉
@@ -5095,11 +5083,7 @@ function mirrorPose(){
 function symmetrizePose(){
   if (!model) return;
 
-  for (const k of ALL_JOINT_KEYS){
-    const bone = bones[k];
-    if (!bone || !restQuat[k] || !target[k]) continue;
-    bone.quaternion.copy(restQuat[k]).multiply(eulerToQuat(target[k]));
-  }
+  poseController.applyTargetsToBones();
   model.updateMatrixWorld(true);
 
   const worldQuats = {};
@@ -5142,8 +5126,7 @@ function symmetrizePose(){
 // 律動庫項目本身（勾關節/振幅波形等）跟其他素材庫一樣，刪除時走 confirm() 對話框而不進這裡，
 // 兩者是不同層級的保護：素材庫刪除用「確認」防呆，時間軸上的排序操作用「復原」防呆。
 function snapshotAngleState(){
-  const targetClone = {};
-  for (const k of ALL_JOINT_KEYS) targetClone[k] = target[k] ? target[k].slice() : [0,0,0];
+  const targetClone = poseController.snapshotTarget();
   return {
     tuttingGenerator: snapshotTG(),
     generationRules: snapshotGenerationRules(),
@@ -5180,11 +5163,7 @@ function restoreSnapshot(snap){
   restoreWave(snap.waving);
   restoreLAPath(snap.lookAtPath);
   restoringHistory = true;
-  for (const k of ALL_JOINT_KEYS){
-    const v = clampJointAngles(k, snap.target[k] || [0,0,0]);
-    target[k] = v.slice();
-    current[k] = v.slice();
-  }
+  poseController.restoreTarget(snap.target);
   restoreFootPlant(snap.footPlant);
   restorePoleEditor(snap.poleEditor);
   restoreHandAim(snap.handAim);
@@ -5495,9 +5474,7 @@ function importTimelineFromFile(file){
 
 // ---- Keyframe 拍點時間軸 ----
 function snapshotCurrentAngles(){
-  const snap = {};
-  for (const k of ALL_JOINT_KEYS) snap[k] = target[k] ? target[k].slice() : [0,0,0];
-  return snap;
+  return poseController.snapshotTarget();
 }
 
 // 身體位置/朝向獨立於骨骼角度另外快照（model.position是平移、model.quaternion是絕對旋轉，
@@ -9559,16 +9536,8 @@ function solveRootFollowForLimb(limb){
 // 從骨骼目前四元數反推「相對 rest pose」的角度，寫回 target/current（不含 UI 更新，逐幀呼叫用）
 // 讓 IK 求解的結果可以跟一般 FK 一樣被「新增拍點」記錄下來、被 JSON 匯出。
 // IK 接管的每個骨骼、每一幀都會呼叫一次（四肢×2、脊椎×4、手指×3×10……），改用共用暫存物件。
-const _stfQuat = new THREE.Quaternion();
-const _stfEuler = new THREE.Euler();
 function syncTargetFromBone(key){
-  const bone = bones[key];
-  if (!bone || !restQuat[key]) return;
-  _stfQuat.copy(restQuat[key]).invert().multiply(bone.quaternion);
-  _stfEuler.setFromQuaternion(_stfQuat, "XYZ");
-  const deg = [R(_stfEuler.x), R(_stfEuler.y), R(_stfEuler.z)].map(v => Math.round(v*10)/10);
-  target[key] = deg;
-  current[key] = deg.slice();
+  poseController.syncFromBone(key);
 }
 
 function updateIKPoleLines(){
@@ -10235,32 +10204,9 @@ function isIKDrivenKey(key){ return ikDrivenKeys.has(key); }
 // 非播放狀態下每幀都會對全部（非IK接管的）關節跑一次，是最頻繁的路徑之一，
 // 改用共用暫存 Quaternion（eulerToQuat 的 outQuat 參數）+ 原地更新 current[] 陣列的三個數字，
 // 不再逐 key 配置新的 Euler/Quaternion/陣列。
-const _ubQuat = new THREE.Quaternion();
-// 收斂閾值（單位：度）：current 用指數衰減逼近 target，數學上永遠不會「精確等於」，
-// 只會差距越來越小，所以閒置偵測（見 animate() 附近的 isSceneActive()）不能判斷「是否相等」，
-// 只能判斷「差距是否已經小到可以視為靜止」。
-const UPDATE_BONES_CONVERGE_EPS_DEG = 0.01;
 function updateBones(){
   if (!model) return false;
-  const t = 0.28;
-  let stillMoving = false;
-  for (const key of ALL_JOINT_KEYS){
-    if (key === draggingKey) continue;
-    if (ikDrivenKeys.has(key)) continue; // O(1)：集合在 IK 開關變動時重建，見 rebuildIKDrivenKeys()
-    const bone = bones[key];
-    const tg = target[key];
-    if (!bone || !tg) continue;
-    const c = current[key];
-    const dx = tg[0]-c[0], dy = tg[1]-c[1], dz = tg[2]-c[2];
-    if (Math.abs(dx) > UPDATE_BONES_CONVERGE_EPS_DEG ||
-        Math.abs(dy) > UPDATE_BONES_CONVERGE_EPS_DEG ||
-        Math.abs(dz) > UPDATE_BONES_CONVERGE_EPS_DEG) stillMoving = true;
-    c[0] += dx*t;
-    c[1] += dy*t;
-    c[2] += dz*t;
-    bone.quaternion.copy(restQuat[key]).multiply(eulerToQuat(c, _ubQuat));
-  }
-  return stillMoving;
+  return poseController.updateBones({ draggingKey, drivenKeys: ikDrivenKeys });
 }
 
 // ---- 幾何鏡頭：預設視角快照 ----
