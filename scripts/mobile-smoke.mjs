@@ -162,6 +162,8 @@ try{
         assert.deepEqual(errors,[]);
         console.log(`PASS mobile ${entry} ${viewport.width}x${viewport.height}: layout, pinch/cancel/tap, reorder/undo, scroll, edit mode, orientation`);
       }catch(error){
+        const diagnostic=`${entry} ${viewport.width}x${viewport.height}: ${error.stack || String(error)}`;
+        console.error('::error title=Mobile touch regression::'+diagnostic.replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A'));
         await mkdir('test-results',{recursive:true});const name=`mobile-${entry.includes('dist')?'dist':'source'}-${viewport.width}`;
         await page.screenshot({path:`test-results/${name}.png`,timeout:10000});await writeFile(`test-results/${name}.json`,JSON.stringify({errors,message:String(error)},null,2));throw error;
       }finally{await context.close();}
