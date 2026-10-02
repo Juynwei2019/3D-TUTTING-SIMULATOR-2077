@@ -16,6 +16,8 @@
 | `src/ik/two-bone.js`、`ccd.js` | 骨骼求解核心；只處理傳入的骨鏈／目標，不讀 UI 或播放開關 |
 | `src/pose/joint-limits.js` | 每個 limiter 實例管理自己的暫存物件，透過 getter 取得當前限制 |
 | `src/pose/pose-controller.js` | 私有的 `target`／`current`、姿勢設定／還原、FK 更新、骨骼角度同步；不依賴 DOM、播放或存檔 |
+| `src/timeline/selection-clipboard.js` | POSE／GROOVE 多選、一般剪貼簿、複製／剪下／貼上／刪除與多選工具列 |
+| `src/timeline/range-editor.js` | 範圍吸附、完整項目相交、獨立區段剪貼簿、重複／刪除／貼上與範圍循環設定 |
 | `src/timeline/data.js` | 拍點插入、深拷貝複製、重排與選取索引調整、拍數及段落定位；不依賴 DOM |
 | `src/timeline/playback.js` | 播放跨段、循環、範圍循環與 Wave 分流；透過 adapter 取得即時狀態及呼叫姿勢／律動／音訊同步 |
 | `src/motion/trajectory.js` | 開放／封閉折線與 Catmull-Rom 路徑取樣 |
@@ -123,3 +125,13 @@
 `createLibraryController(opts, dependencies)` 保留各庫獨立的 items／filter；由 opts 注入姿勢、手勢、招式或律動的 capture／apply 函式。共用控制器處理搜尋、命名、套用後記錄歷史、刪除確認、單筆匯入及整批合併／取代。`renderLibraryList()` 建立原有 `.libChip` 介面及空狀態，保留 DOM ID 和按鈕行為。各庫的領域捕捉／套用、工具列綁定與儲存用量提示仍在主程式。
 
 測試新增偏好合併、舊庫讀取、版本化儲存、容量／備份與控制器操作；瀏覽器新增實際姿勢／手勢儲存、姿勢套用、欄位隔離與重載。
+
+## 多選、剪貼簿與範圍編輯
+
+`createTimelineSelection(adapter)` 保留一般選取與多選的優先規則、索引排序及深拷貝。POSE／GROOVE 共用複製操作，貼上的 GROOVE 重新產生 id，libId 保留；多選貼上後選中新增項目，剪下只記錄一次歷史，播放期間不允許剪下／貼上。剪貼簿只存在本次頁面，不使用系統 clipboard。
+
+`createRangeEditor(adapter)` 保留另一份獨立區段剪貼簿。Range 以相交的完整 transition／clip 操作，不切割半段；複製 POSE transition 時包含最後 target frame，貼上位於相交項目之後，刪除保留最後 target frame。重複區段只記錄一次歷史；Range Loop 限制在可播放範圍內，並關閉整段 Loop。
+
+兩個 controller 的 adapter getter／setter 讀寫目前共享的拍點、選取與 Range 狀態，因此 Undo／匯入替換陣列或選取集合後仍使用最新值。場景姿勢套用、重繪、歷史及存檔透過回呼協作。各 controller 包含既有工具列／HUD 更新，Ruler 拖曳事件與通用排序／縮放手勢仍在主程式，後續再拆分。
+
+新增單元測試驗證混合 POSE／GROOVE 複製、資料隔離、id 重建、取消／播放防護、邊界相交、範圍重複與刪除，以及循環互斥；瀏覽器實際執行多選貼上、區段重複與 Undo，再與重構前版本比對。

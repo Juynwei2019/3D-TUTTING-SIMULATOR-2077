@@ -29,6 +29,9 @@ window.__smoke = {
   snapshotTimelineData, restoreTimelineData, setTarget, resetPose, mirrorPose,
   pushHistory, undo, redo, applyTimelinePreviewAtElapsed,
   setIKEnabled, solveIKAll, updateBones, deleteKeyframe,
+  setKfMultiSelectMode, kfMultiSelectAll, copyTimelineSelection, pasteTimelineClipboard,
+  copyBeatGridRange, duplicateBeatGridRange, clearBeatGridRange,
+  setRange(start, end){ beatGridRangeStart = start; beatGridRangeEnd = end; updateBeatGridRangeUI(); },
   get bones() { return bones; }, get model() { return model; },
   get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
   get current() { return typeof poseController === "undefined" ? current : poseController.snapshotState().current; },
@@ -188,6 +191,23 @@ try {
       await page.evaluate(() => { window.__smoke.setTarget('rForeArm', [-20, 10, 45]); });
       await page.locator('#kfAddBtn').click();
       assert.equal(await page.locator('#kfList .kfChip').count(), 2);
+      await page.evaluate(() => {
+        const app = window.__smoke;
+        app.pushHistory();
+        app.setKfMultiSelectMode(true); app.kfMultiSelectAll();
+        if (!app.copyTimelineSelection() || !app.pasteTimelineClipboard()) throw new Error('multi-select paste failed');
+      });
+      assert.equal(await page.locator('#kfList .kfChip').count(), 4);
+      await page.evaluate(() => { window.__smoke.undo(); window.__smoke.setKfMultiSelectMode(false); });
+      assert.equal(await page.locator('#kfList .kfChip').count(), 2);
+      await page.evaluate(() => {
+        const app = window.__smoke;
+        app.setRange(.25, .75);
+        if (!app.copyBeatGridRange() || !app.duplicateBeatGridRange()) throw new Error('range duplicate failed');
+      });
+      assert.equal(await page.locator('#kfList .kfChip').count(), 4);
+      await page.evaluate(() => { window.__smoke.undo(); window.__smoke.clearBeatGridRange(); });
+      assert.equal(await page.locator('#kfList .kfChip').count(), 2);
       // Exercise the extracted clip UI, then restore the two-frame test timeline.
       // Compact clips hide this button; dispatch its editing callback directly.
       await page.locator('#kfList .kfChip .dup').first().evaluate(el => el.click());
@@ -259,7 +279,7 @@ try {
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
       results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
-      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
+      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clipboard/range editing, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
       const directory = resolve('test-results', entry.replace(/^\//, '').replace(/[^a-zA-Z0-9_.-]/g, '_'));
       await mkdir(directory, { recursive: true });

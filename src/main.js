@@ -1,3 +1,5 @@
+import { createTimelineSelection } from "./timeline/selection-clipboard.js";
+import { createRangeEditor } from "./timeline/range-editor.js";
 import { createPreferences } from "./storage/preferences.js";
 import { createRigPreferences } from "./storage/rig-preferences.js";
 import { createLibraryStore } from "./library/library-store.js";
@@ -5265,154 +5267,51 @@ function kfTotalBeats(){
 
 // ---- 多選批次刪除 ----
 function timelineClipboardCount(){
-  return (timelineClipboard.poseItems?.length || 0) + (timelineClipboard.grooveItems?.length || 0);
+  return timelineSelection.timelineClipboardCount();
 }
 function updateKfMultiSelectBar(){
-  const bar = document.getElementById("kfMultiSelectBar");
-  const btn = document.getElementById("kfMultiSelectBtn");
-  const countEl = document.getElementById("kfMultiSelectCount");
-  const delBtn = document.getElementById("kfMultiSelectDeleteBtn");
-  const copyBtn = document.getElementById("kfMultiSelectCopyBtn");
-  const cutBtn = document.getElementById("kfMultiSelectCutBtn");
-  const pasteBtn = document.getElementById("kfMultiSelectPasteBtn");
-  const total = kfMultiSelected.size + grooveMultiSelected.size;
-  if (btn) btn.classList.toggle("active", kfMultiSelectMode);
-  if (bar) bar.style.display = kfMultiSelectMode ? "inline-flex" : "none";
-  if (countEl){
-    const parts = [];
-    if (kfMultiSelected.size) parts.push(`POSE ${kfMultiSelected.size}`);
-    if (grooveMultiSelected.size) parts.push(`GROOVE ${grooveMultiSelected.size}`);
-    countEl.textContent = total ? `已選 ${parts.join(" · ")}` : "已選 0 個";
-  }
-  if (delBtn) delBtn.disabled = total === 0;
-  if (copyBtn) copyBtn.disabled = total === 0;
-  if (cutBtn) cutBtn.disabled = total === 0;
-  if (pasteBtn) pasteBtn.disabled = timelineClipboardCount() === 0;
+  return timelineSelection.updateKfMultiSelectBar();
 }
 
 function setKfMultiSelectMode(on){
-  kfMultiSelectMode = on;
-  kfMultiSelected.clear();
-  grooveMultiSelected.clear();
-  if (on){
-    kfEditingIndex = -1;
-    grooveSeqSelectedIndex = -1;
-    syncEasingControlsFromSelection();
-    if (kfPlaying) stopKeyframePlayback();
-  }
-  updateKfMultiSelectBar();
-  renderKeyframeChips();
-  renderGrooveSeqChips();
+  return timelineSelection.setKfMultiSelectMode(on);
 }
 
 function toggleKfMultiSelectItem(i){
-  if (kfMultiSelected.has(i)) kfMultiSelected.delete(i); else kfMultiSelected.add(i);
-  updateKfMultiSelectBar();
-  renderKeyframeChips();
+  return timelineSelection.toggleKfMultiSelectItem(i);
 }
 function toggleGrooveMultiSelectItem(i){
-  if (grooveMultiSelected.has(i)) grooveMultiSelected.delete(i); else grooveMultiSelected.add(i);
-  updateKfMultiSelectBar();
-  renderGrooveSeqChips();
+  return timelineSelection.toggleGrooveMultiSelectItem(i);
 }
 
 function kfMultiSelectAll(){
-  kfMultiSelected = new Set(keyframes.map((_, i) => i));
-  grooveMultiSelected = new Set(grooveSequence.map((_, i) => i));
-  updateKfMultiSelectBar();
-  renderKeyframeChips();
-  renderGrooveSeqChips();
+  return timelineSelection.kfMultiSelectAll();
 }
 
 function kfMultiSelectNone(){
-  kfMultiSelected.clear();
-  grooveMultiSelected.clear();
-  updateKfMultiSelectBar();
-  renderKeyframeChips();
-  renderGrooveSeqChips();
+  return timelineSelection.kfMultiSelectNone();
 }
 
 function deepCloneTimelineItem(item){
-  return JSON.parse(JSON.stringify(item));
+  return timelineSelection.deepCloneTimelineItem(item);
 }
 function currentTimelineClipboardSelection(){
-  let poseIndices = [];
-  let grooveIndices = [];
-  if (kfMultiSelectMode){
-    poseIndices = Array.from(kfMultiSelected).filter(i => keyframes[i]).sort((a,b)=>a-b);
-    grooveIndices = Array.from(grooveMultiSelected).filter(i => grooveSequence[i]).sort((a,b)=>a-b);
-  } else if (kfEditingIndex >= 0 && keyframes[kfEditingIndex]){
-    poseIndices = [kfEditingIndex];
-  } else if (grooveSeqSelectedIndex >= 0 && grooveSequence[grooveSeqSelectedIndex]){
-    grooveIndices = [grooveSeqSelectedIndex];
-  }
-  return { poseIndices, grooveIndices };
+  return timelineSelection.currentTimelineClipboardSelection();
 }
 function copyTimelineSelection(){
-  const {poseIndices, grooveIndices} = currentTimelineClipboardSelection();
-  if (!poseIndices.length && !grooveIndices.length) return false;
-  timelineClipboard = {
-    poseItems: poseIndices.map(i => deepCloneTimelineItem(keyframes[i])),
-    grooveItems: grooveIndices.map(i => deepCloneTimelineItem(grooveSequence[i]))
-  };
-  updateKfMultiSelectBar();
-  const hud = document.getElementById("timelineDragHud");
-  if (hud){
-    const parts=[];
-    if (timelineClipboard.poseItems.length) parts.push(`${timelineClipboard.poseItems.length} POSE`);
-    if (timelineClipboard.grooveItems.length) parts.push(`${timelineClipboard.grooveItems.length} GROOVE`);
-    hud.textContent = `已複製 ${parts.join(" + ")}`;
-    hud.style.left = "50%"; hud.style.top = "16px"; hud.style.transform = "translateX(-50%)"; hud.style.display="block";
-    clearTimeout(copyTimelineSelection._t); copyTimelineSelection._t=setTimeout(()=>{hud.style.display="none"; hud.style.transform="";},900);
-  }
-  return true;
+  return timelineSelection.copyTimelineSelection();
 }
-function deleteTimelineSelection({confirmDelete=true, push=true}={}){
-  const {poseIndices, grooveIndices} = currentTimelineClipboardSelection();
-  const total = poseIndices.length + grooveIndices.length;
-  if (!total) return false;
-  if (confirmDelete && !confirm(`確定要刪除已選取的 ${total} 個 Timeline 項目嗎？此動作可用 Ctrl+Z 復原。`)) return false;
-  poseIndices.slice().sort((a,b)=>b-a).forEach(i => keyframes.splice(i,1));
-  grooveIndices.slice().sort((a,b)=>b-a).forEach(i => grooveSequence.splice(i,1));
-  kfEditingIndex = -1; grooveSeqSelectedIndex = -1;
-  kfMultiSelected.clear(); grooveMultiSelected.clear();
-  if (kfPlaying && keyframes.length < 2) stopKeyframePlayback();
-  updateKfMultiSelectBar(); syncEasingControlsFromSelection();
-  renderKeyframeChips(); renderGrooveSeqChips(); scheduleAutoSave();
-  if (push) pushHistory();
-  return true;
+function deleteTimelineSelection(options){
+  return timelineSelection.deleteTimelineSelection(options);
 }
-function deleteKfMultiSelected(){ return deleteTimelineSelection({confirmDelete:true, push:true}); }
+function deleteKfMultiSelected(){
+  return timelineSelection.deleteKfMultiSelected();
+}
 function cutTimelineSelection(){
-  if (kfPlaying) return false;
-  if (!copyTimelineSelection()) return false;
-  return deleteTimelineSelection({confirmDelete:false, push:true});
+  return timelineSelection.cutTimelineSelection();
 }
 function pasteTimelineClipboard(){
-  if (kfPlaying || timelineClipboardCount() === 0) return false;
-  const poseCopies = (timelineClipboard.poseItems || []).map(deepCloneTimelineItem);
-  const grooveCopies = (timelineClipboard.grooveItems || []).map(it => Object.assign(deepCloneTimelineItem(it), {id:makeLibId()}));
-  let poseAt = keyframes.length;
-  let grooveAt = grooveSequence.length;
-  if (kfMultiSelectMode && kfMultiSelected.size) poseAt = Math.max(...kfMultiSelected) + 1;
-  else if (kfEditingIndex >= 0) poseAt = kfEditingIndex + 1;
-  if (kfMultiSelectMode && grooveMultiSelected.size) grooveAt = Math.max(...grooveMultiSelected) + 1;
-  else if (grooveSeqSelectedIndex >= 0) grooveAt = grooveSeqSelectedIndex + 1;
-  if (poseCopies.length) keyframes.splice(poseAt, 0, ...poseCopies);
-  if (grooveCopies.length) grooveSequence.splice(grooveAt, 0, ...grooveCopies);
-
-  if (kfMultiSelectMode){
-    kfMultiSelected = new Set(poseCopies.map((_,j)=>poseAt+j));
-    grooveMultiSelected = new Set(grooveCopies.map((_,j)=>grooveAt+j));
-    kfEditingIndex = -1; grooveSeqSelectedIndex = -1;
-  } else if (poseCopies.length){
-    kfEditingIndex = poseAt + poseCopies.length - 1; grooveSeqSelectedIndex = -1;
-  } else if (grooveCopies.length){
-    grooveSeqSelectedIndex = grooveAt + grooveCopies.length - 1; kfEditingIndex = -1;
-  }
-  updateKfMultiSelectBar(); syncEasingControlsFromSelection();
-  renderKeyframeChips(); renderGrooveSeqChips(); scheduleAutoSave(); pushHistory();
-  return true;
+  return timelineSelection.pasteTimelineClipboard();
 }
 
 function updateKeyframe(){
@@ -5666,242 +5565,65 @@ function updateBeatGridGeometry(){
 }
 
 function hasBeatGridRange(){
-  return Number.isFinite(beatGridRangeStart) && Number.isFinite(beatGridRangeEnd) && beatGridRangeEnd - beatGridRangeStart > 1e-6;
+  return rangeEditor.hasBeatGridRange();
 }
 
 function normalizeBeatGridRange(a, b){
-  const total = beatGridTimelineBeats();
-  let start = clampNum(Math.min(Number(a) || 0, Number(b) || 0), 0, total);
-  let end = clampNum(Math.max(Number(a) || 0, Number(b) || 0), 0, total);
-  const step = Number(BEAT_GRID_SNAP) || 0;
-  const snap = (v) => step > 0 ? clampNum(Number((Math.round(v / step) * step).toFixed(4)), 0, total) : clampNum(Number(v.toFixed(4)), 0, total);
-  start = snap(start); end = snap(end);
-  if (end < start){ const t = start; start = end; end = t; }
-  return [start, end];
+  return rangeEditor.normalizeBeatGridRange(a, b);
 }
 
 function formatRangeBeatLabel(beat){
-  return formatBeatValue((Number(beat) || 0) + 1);
+  return rangeEditor.formatRangeBeatLabel(beat);
 }
 
 
 function beatGridRangeClipboardCount(){
-  return (beatGridRangeClipboard.poseItems?.length || 0) + (beatGridRangeClipboard.grooveItems?.length || 0);
+  return rangeEditor.beatGridRangeClipboardCount();
 }
 
 // 回傳目前 Range 實際會影響的資料索引。POSE 以 transition interval 判斷相交；
 // GROOVE 以 clip interval 判斷相交。這裡刻意不切半段，確保既有 sequential timeline schema 不變。
-function getBeatGridRangeAffectedItems(start = beatGridRangeStart, end = beatGridRangeEnd){
-  const result = { poseTransitions:[], poseFrameStart:-1, poseFrameEnd:-1, grooveIndices:[] };
-  if (!(Number.isFinite(start) && Number.isFinite(end) && end - start > 1e-6)) return result;
-  const eps = 1e-7;
-  let acc = 0;
-  for (let i = 0; i < keyframes.length - 1; i++){
-    const dur = Math.max(0.0001, Number(keyframes[i].beats || 1));
-    const a = acc, b = acc + dur;
-    if (b > start + eps && a < end - eps) result.poseTransitions.push(i);
-    acc = b;
-  }
-  if (result.poseTransitions.length){
-    result.poseFrameStart = result.poseTransitions[0];
-    // 要保留最後一個 transition 的 target frame，所以 frameEnd = last transition + 1（inclusive）。
-    result.poseFrameEnd = result.poseTransitions[result.poseTransitions.length - 1] + 1;
-  }
-  acc = 0;
-  for (let i = 0; i < grooveSequence.length; i++){
-    const dur = Math.max(0, Number(grooveSequence[i].beats) || 0);
-    const a = acc, b = acc + dur;
-    if (dur > 0 && b > start + eps && a < end - eps) result.grooveIndices.push(i);
-    acc = b;
-  }
-  return result;
+function getBeatGridRangeAffectedItems(start, end){
+  return rangeEditor.getBeatGridRangeAffectedItems(start, end);
 }
 
-function showRangeEditHud(message, ms=1100){
-  const hud = document.getElementById("timelineDragHud");
-  if (!hud) return;
-  hud.textContent = message;
-  hud.style.left = "50%"; hud.style.top = "16px"; hud.style.transform = "translateX(-50%)"; hud.style.display = "block";
-  clearTimeout(showRangeEditHud._t);
-  showRangeEditHud._t = setTimeout(() => { hud.style.display="none"; hud.style.transform=""; }, ms);
+function showRangeEditHud(message, ms){
+  return rangeEditor.showRangeEditHud(message, ms);
 }
 
 function copyBeatGridRange(){
-  if (!hasBeatGridRange()) return false;
-  const hit = getBeatGridRangeAffectedItems();
-  const poseItems = hit.poseFrameStart >= 0
-    ? keyframes.slice(hit.poseFrameStart, hit.poseFrameEnd + 1).map(deepCloneTimelineItem)
-    : [];
-  const grooveItems = hit.grooveIndices.map(i => deepCloneTimelineItem(grooveSequence[i]));
-  if (!poseItems.length && !grooveItems.length){
-    showRangeEditHud("Range 內沒有可複製項目");
-    return false;
-  }
-  beatGridRangeClipboard = {
-    poseItems,
-    grooveItems,
-    source:{ start:beatGridRangeStart, end:beatGridRangeEnd },
-    affected:{ poseTransitions:hit.poseTransitions.length, grooves:hit.grooveIndices.length }
-  };
-  updateBeatGridRangeUI();
-  const parts=[];
-  if (hit.poseTransitions.length) parts.push(`${hit.poseTransitions.length} POSE transition`);
-  if (hit.grooveIndices.length) parts.push(`${hit.grooveIndices.length} GROOVE`);
-  showRangeEditHud(`已複製 Range：${parts.join(" + ")}`);
-  return true;
+  return rangeEditor.copyBeatGridRange();
 }
 
 function findPoseRangeInsertIndexAtBeat(beat){
-  if (!keyframes.length) return 0;
-  const target = Math.max(0, Number(beat) || 0);
-  for (let i = 0; i < keyframes.length; i++){
-    if (keyframeStartBeat(i) >= target - 1e-7) return i;
-  }
-  return keyframes.length;
+  return rangeEditor.findPoseRangeInsertIndexAtBeat(beat);
 }
 function findGrooveRangeInsertIndexAtBeat(beat){
-  const target = Math.max(0, Number(beat) || 0);
-  for (let i = 0; i < grooveSequence.length; i++){
-    if (grooveSegmentStartBeat(i) >= target - 1e-7) return i;
-  }
-  return grooveSequence.length;
+  return rangeEditor.findGrooveRangeInsertIndexAtBeat(beat);
 }
 
-function pasteBeatGridRange({push=true, showHud=true}={}){
-  if (kfPlaying || !hasBeatGridRange() || beatGridRangeClipboardCount() === 0) return false;
-  const poseCopies = (beatGridRangeClipboard.poseItems || []).map(deepCloneTimelineItem);
-  const grooveCopies = (beatGridRangeClipboard.grooveItems || []).map(it => Object.assign(deepCloneTimelineItem(it), {id:makeLibId()}));
-  const insertBeat = beatGridRangeEnd;
-  // Range 編輯採完整項目語意：若 Range 結尾落在某個 transition/clip 中間，
-  // 貼上位置要放到該完整項目之後，而不是硬插進它的中間。
-  const currentHit = getBeatGridRangeAffectedItems();
-  const poseAt = currentHit.poseFrameEnd >= 0 ? currentHit.poseFrameEnd + 1 : findPoseRangeInsertIndexAtBeat(insertBeat);
-  const grooveAt = currentHit.grooveIndices.length ? currentHit.grooveIndices[currentHit.grooveIndices.length - 1] + 1 : findGrooveRangeInsertIndexAtBeat(insertBeat);
-  if (poseCopies.length) keyframes.splice(poseAt, 0, ...poseCopies);
-  if (grooveCopies.length) grooveSequence.splice(grooveAt, 0, ...grooveCopies);
-  kfEditingIndex = -1; grooveSeqSelectedIndex = -1;
-  kfMultiSelected.clear(); grooveMultiSelected.clear();
-  updateKfMultiSelectBar(); syncEasingControlsFromSelection();
-  renderKeyframeChips(); renderGrooveSeqChips(); scheduleAutoSave();
-  if (push) pushHistory();
-  updateBeatGridRangeUI();
-  if (showHud) showRangeEditHud(`已貼上 Range：${poseCopies.length ? (poseCopies.length-1)+" POSE transition" : ""}${poseCopies.length && grooveCopies.length ? " + " : ""}${grooveCopies.length ? grooveCopies.length+" GROOVE" : ""}`);
-  return true;
+function pasteBeatGridRange(options){
+  return rangeEditor.pasteBeatGridRange(options);
 }
 
 function duplicateBeatGridRange(){
-  if (kfPlaying || !hasBeatGridRange()) return false;
-  if (!copyBeatGridRange()) return false;
-  // copy 本身不寫 history；paste 只寫一次，因此整個 Duplicate 是單一 Undo transaction。
-  const ok = pasteBeatGridRange({push:true, showHud:false});
-  if (ok) showRangeEditHud("Range 已重複到選取範圍之後");
-  return ok;
+  return rangeEditor.duplicateBeatGridRange();
 }
 
 function deleteBeatGridRange(){
-  if (kfPlaying || !hasBeatGridRange()) return false;
-  const hit = getBeatGridRangeAffectedItems();
-  const poseCount = hit.poseTransitions.length;
-  const grooveCount = hit.grooveIndices.length;
-  if (!poseCount && !grooveCount){ showRangeEditHud("Range 內沒有可刪除項目"); return false; }
-  const parts=[];
-  if (poseCount) parts.push(`${poseCount} 個 POSE transition`);
-  if (grooveCount) parts.push(`${grooveCount} 個 GROOVE clip`);
-  if (!confirm(`確定刪除 Range 相交的 ${parts.join("、")}？\n\n目前版本以完整 Timeline 項目為單位刪除，後方內容會自動前移。此動作可用 Ctrl+Z 復原。`)) return false;
-
-  // POSE transition i 對應移除它的起始 frame i；保留最後 target frame，確保至少留下一個姿勢。
-  hit.poseTransitions.slice().sort((a,b)=>b-a).forEach(i => {
-    if (i >= 0 && i < keyframes.length - 1) keyframes.splice(i, 1);
-  });
-  hit.grooveIndices.slice().sort((a,b)=>b-a).forEach(i => {
-    if (i >= 0 && i < grooveSequence.length) grooveSequence.splice(i, 1);
-  });
-  if (kfPlaying && keyframes.length < 2) stopKeyframePlayback();
-  kfEditingIndex = -1; grooveSeqSelectedIndex = -1;
-  kfMultiSelected.clear(); grooveMultiSelected.clear();
-  beatGridRangeLoop = false;
-  beatGridRangeStart = beatGridRangeEnd = null;
-  updateKfMultiSelectBar(); syncEasingControlsFromSelection();
-  renderKeyframeChips(); renderGrooveSeqChips(); scheduleAutoSave(); pushHistory();
-  updateBeatGridRangeUI();
-  showRangeEditHud(`已刪除 ${parts.join(" + ")}`);
-  return true;
+  return rangeEditor.deleteBeatGridRange();
 }
 
 function updateBeatGridRangeUI(){
-  const overlay = document.getElementById("beatGridRangeSelection");
-  const info = document.getElementById("beatGridRangeInfo");
-  const loopBtn = document.getElementById("beatGridRangeLoopBtn");
-  const clearBtn = document.getElementById("beatGridRangeClearBtn");
-  const copyBtn = document.getElementById("beatGridRangeCopyBtn");
-  const pasteBtn = document.getElementById("beatGridRangePasteBtn");
-  const duplicateBtn = document.getElementById("beatGridRangeDuplicateBtn");
-  const deleteBtn = document.getElementById("beatGridRangeDeleteBtn");
-  const valid = hasBeatGridRange();
-  const hit = valid ? getBeatGridRangeAffectedItems() : {poseTransitions:[], grooveIndices:[]};
-  const affectedCount = hit.poseTransitions.length + hit.grooveIndices.length;
-  if (overlay){
-    overlay.classList.toggle("active", valid);
-    overlay.classList.toggle("looping", valid && beatGridRangeLoop);
-    if (valid){
-      overlay.style.left = `${BEAT_GRID_LABEL_W + beatGridRangeStart * BEAT_GRID_PX_PER_BEAT}px`;
-      overlay.style.width = `${Math.max(2, (beatGridRangeEnd - beatGridRangeStart) * BEAT_GRID_PX_PER_BEAT)}px`;
-    }
-  }
-  if (info){
-    if (valid){
-      const counts = [];
-      if (hit.poseTransitions.length) counts.push(`P${hit.poseTransitions.length}`);
-      if (hit.grooveIndices.length) counts.push(`G${hit.grooveIndices.length}`);
-      info.textContent = `Beat ${formatRangeBeatLabel(beatGridRangeStart)}→${formatRangeBeatLabel(beatGridRangeEnd)} · ${formatBeatValue(beatGridRangeEnd - beatGridRangeStart)}拍${counts.length ? " · "+counts.join("/") : ""}`;
-      info.title = `${info.textContent}
-Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位`;
-    } else {
-      info.textContent = "未選範圍";
-      info.title = info.textContent;
-    }
-  }
-  if (loopBtn){
-    const poseTotal = waveClips.length?wavePlaybackEnd():beatGridPoseTotalBeats();
-    const playable = valid && (keyframes.length >= 2 || waveClips.length > 0) && beatGridRangeStart < poseTotal - 1e-6;
-    loopBtn.disabled = !playable;
-    loopBtn.classList.toggle("active", playable && beatGridRangeLoop);
-    loopBtn.textContent = playable && beatGridRangeLoop ? "⟳ Range ON" : "⟳ Range";
-    loopBtn.title = playable ? "只循環播放選取範圍" : (valid ? "Range 必須與 POSE／WAVING 播放範圍重疊" : "請先在 Beat Ruler 上拖曳選取範圍");
-  }
-  if (copyBtn) copyBtn.disabled = !valid || affectedCount === 0 || kfPlaying;
-  if (pasteBtn) pasteBtn.disabled = !valid || beatGridRangeClipboardCount() === 0 || kfPlaying;
-  if (duplicateBtn) duplicateBtn.disabled = !valid || affectedCount === 0 || kfPlaying;
-  if (deleteBtn) deleteBtn.disabled = !valid || affectedCount === 0 || kfPlaying;
-  if (clearBtn) clearBtn.disabled = !valid;
+  return rangeEditor.updateBeatGridRangeUI();
 }
 
 function clearBeatGridRange(){
-  beatGridRangeStart = null;
-  beatGridRangeEnd = null;
-  beatGridRangeLoop = false;
-  beatGridRangeDrag = null;
-  updateBeatGridRangeUI();
+  return rangeEditor.clearBeatGridRange();
 }
 
 function setBeatGridRangeLoop(on){
-  if (!hasBeatGridRange()) on = false;
-  if (on){
-    const poseTotal = waveClips.length?wavePlaybackEnd():beatGridPoseTotalBeats();
-    if (!((keyframes.length >= 2 || waveClips.length > 0) && beatGridRangeStart < poseTotal - 1e-6)) on = false;
-    else if (beatGridRangeEnd > poseTotal){
-      beatGridRangeEnd = poseTotal;
-      if (!(beatGridRangeEnd - beatGridRangeStart > 1e-6)) on = false;
-    }
-  }
-  beatGridRangeLoop = !!on;
-  if (beatGridRangeLoop){
-    // Range Loop 與整段 Loop 互斥，避免播放結尾規則出現兩個來源。
-    kfLoop = false;
-    const fullLoopBtn = document.getElementById("kfLoopBtn");
-    if (fullLoopBtn) fullLoopBtn.classList.remove("active");
-  }
-  updateBeatGridRangeUI();
+  return rangeEditor.setBeatGridRangeLoop(on);
 }
 
 function beatGridClientXToBeat(clientX){
@@ -10377,5 +10099,77 @@ const libraryDependencies = {
   alert: message => alert(message), confirm: message => confirm(message),
   prompt: (message, value) => prompt(message, value),
 };
+
+const timelineSelection = createTimelineSelection({
+  get timelineClipboard(){ return timelineClipboard; },
+  set timelineClipboard(value){ timelineClipboard = value; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  set kfMultiSelected(value){ kfMultiSelected = value; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  set grooveMultiSelected(value){ grooveMultiSelected = value; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  set kfMultiSelectMode(value){ kfMultiSelectMode = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get kfPlaying(){ return kfPlaying; },
+  get keyframes(){ return keyframes; },
+  get grooveSequence(){ return grooveSequence; },
+  confirm: message => confirm(message),
+  syncEasingControlsFromSelection,
+  stopKeyframePlayback,
+  renderKeyframeChips,
+  renderGrooveSeqChips,
+  scheduleAutoSave,
+  pushHistory,
+  makeLibId,
+});
+
+const rangeEditor = createRangeEditor({
+  get kfMultiSelected(){ return kfMultiSelected; },
+  set kfMultiSelected(value){ kfMultiSelected = value; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  set grooveMultiSelected(value){ grooveMultiSelected = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get kfPlaying(){ return kfPlaying; },
+  get keyframes(){ return keyframes; },
+  get grooveSequence(){ return grooveSequence; },
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  set beatGridRangeStart(value){ beatGridRangeStart = value; },
+  get beatGridRangeEnd(){ return beatGridRangeEnd; },
+  set beatGridRangeEnd(value){ beatGridRangeEnd = value; },
+  get beatGridRangeClipboard(){ return beatGridRangeClipboard; },
+  set beatGridRangeClipboard(value){ beatGridRangeClipboard = value; },
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  set beatGridRangeLoop(value){ beatGridRangeLoop = value; },
+  get beatGridRangeDrag(){ return beatGridRangeDrag; },
+  set beatGridRangeDrag(value){ beatGridRangeDrag = value; },
+  get kfLoop(){ return kfLoop; },
+  set kfLoop(value){ kfLoop = value; },
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  get BEAT_GRID_LABEL_W(){ return BEAT_GRID_LABEL_W; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get waveClips(){ return waveClips; },
+  confirm: message => confirm(message),
+  syncEasingControlsFromSelection,
+  stopKeyframePlayback,
+  renderKeyframeChips,
+  renderGrooveSeqChips,
+  scheduleAutoSave,
+  pushHistory,
+  makeLibId,
+  beatGridTimelineBeats,
+  formatBeatValue,
+  keyframeStartBeat,
+  grooveSegmentStartBeat,
+  wavePlaybackEnd,
+  beatGridPoseTotalBeats,
+  updateKfMultiSelectBar,
+  deepCloneTimelineItem,
+});
 
 init();
