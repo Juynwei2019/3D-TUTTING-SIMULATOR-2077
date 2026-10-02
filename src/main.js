@@ -1,3 +1,8 @@
+import { createPreferences } from "./storage/preferences.js";
+import { createRigPreferences } from "./storage/rig-preferences.js";
+import { createLibraryStore } from "./library/library-store.js";
+import { createLibraryController as createSharedLibraryController } from "./library/library-controller.js";
+import { renderLibraryList } from "./ui/library-list.js";
 import { createHistory } from "./history/history-controller.js";
 import { createSnapshots } from "./history/snapshot.js";
 import { createAutosave } from "./storage/autosave.js";
@@ -32,6 +37,21 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 
+const preferences = createPreferences(() => localStorage);
+const rigPreferences = createRigPreferences(preferences, {
+  get JOINT_LIMITS_STORAGE_KEY(){ return JOINT_LIMITS_STORAGE_KEY; },
+  get JOINT_LIMIT_KEYS(){ return JOINT_LIMIT_KEYS; },
+  get JOINT_LIMITS(){ return JOINT_LIMITS; },
+  get ISOLATION_STORAGE_KEY(){ return ISOLATION_STORAGE_KEY; },
+  get isolationSettings(){ return isolationSettings; },
+  get HAND_COLLISION_RADII_STORAGE_KEY(){ return HAND_COLLISION_RADII_STORAGE_KEY; },
+  get HAND_COLLISION_RADIUS(){ return HAND_COLLISION_RADIUS; },
+  set HAND_COLLISION_RADIUS(value){ HAND_COLLISION_RADIUS = value; },
+  get TORSO_CAPSULES(){ return TORSO_CAPSULES; },
+  get LEG_CAPSULES(){ return LEG_CAPSULES; },
+  get HEAD_CAPSULES(){ return HEAD_CAPSULES; },
+});
+
 initGlobalTooltips();
 
 const MODEL_URL = "https://threejs.org/examples/models/gltf/Xbot.glb";
@@ -62,22 +82,11 @@ let JOINT_LIMITS = defaultJointLimits();
 loadJointLimits(); // 開頁就從 localStorage 還原使用者上次設定的限制範圍（若有）
 
 function loadJointLimits(){
-  try {
-    const raw = localStorage.getItem(JOINT_LIMITS_STORAGE_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    for (const k of JOINT_LIMIT_KEYS){
-      if (!saved[k]) continue;
-      for (const axis of ["x","y","z"]){
-        if (saved[k][axis]) Object.assign(JOINT_LIMITS[k][axis], saved[k][axis]);
-      }
-    }
-  } catch (e){ console.warn("關節限制讀取失敗:", e); }
+  rigPreferences.loadJointLimits();
 }
 
 function saveJointLimits(){
-  try { localStorage.setItem(JOINT_LIMITS_STORAGE_KEY, JSON.stringify(JOINT_LIMITS)); }
-  catch (e){ console.warn("關節限制儲存失敗:", e); }
+  rigPreferences.saveJointLimits();
 }
 
 // ==== Isolation（分區隨機）設定 ====
@@ -95,21 +104,11 @@ let isolationSettings = {
 loadIsolationSettings();
 
 function loadIsolationSettings(){
-  try {
-    const raw = localStorage.getItem(ISOLATION_STORAGE_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    if (typeof saved.enabled === "boolean") isolationSettings.enabled = saved.enabled;
-    if (typeof saved.minGroups === "number") isolationSettings.minGroups = saved.minGroups;
-    if (typeof saved.maxGroups === "number") isolationSettings.maxGroups = saved.maxGroups;
-    if (saved.weights && typeof saved.weights === "object") Object.assign(isolationSettings.weights, saved.weights);
-    if (saved.jointWeights && typeof saved.jointWeights === "object") Object.assign(isolationSettings.jointWeights, saved.jointWeights);
-  } catch (e){ console.warn("Isolation設定讀取失敗:", e); }
+  rigPreferences.loadIsolationSettings();
 }
 
 function saveIsolationSettings(){
-  try { localStorage.setItem(ISOLATION_STORAGE_KEY, JSON.stringify(isolationSettings)); }
-  catch (e){ console.warn("Isolation設定儲存失敗:", e); }
+  rigPreferences.saveIsolationSettings();
 }
 
 function getGroupWeight(groupId){
@@ -4387,47 +4386,17 @@ function makeLibId(){ return Date.now().toString(36) + Math.random().toString(36
 // 就視為 legacy 格式自動轉換，之後存回去就會變成新的 envelope 格式。
 // 未來如果要調整 items 內部資料結構，把版本號 +1，並在 LIB_MIGRATIONS 加一個
 // `[舊版本號]: (items) => 轉換後的items` 的函式即可，不會讓舊使用者的資料讀壞或消失。
-const CURRENT_LIB_SCHEMA_VERSION = 1;
-const LIB_MIGRATIONS = {
-  // 範例（尚未使用）： 2: (items) => items.map(it => ({...it, someNewField: ""}))
-};
-
 function migrateLibraryItems(fromVersion, items){
-  let v = fromVersion;
-  let out = items;
-  while (v < CURRENT_LIB_SCHEMA_VERSION){
-    const step = LIB_MIGRATIONS[v];
-    if (typeof step === "function") out = step(out);
-    v++;
-  }
-  return out;
+  return libraryStore.migrateLibraryItems(fromVersion, items);
 }
 
 function loadLibraryFromStorage(key){
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)){
-      // legacy 格式（無版本號的純陣列）：視為版本 1，跑一次遷移（目前版本=1所以不會做任何事，
-      // 但保留這個分支是為了未來版本升級時舊資料仍然讀得到）。
-      return migrateLibraryItems(1, parsed);
-    }
-    if (parsed && typeof parsed === "object" && Array.isArray(parsed.items)){
-      const fromV = Number.isFinite(parsed.v) ? parsed.v : 1;
-      return migrateLibraryItems(fromV, parsed.items);
-    }
-    return [];
-  } catch (e){
-    console.warn("讀取資料庫失敗，可能是儲存內容毀損：", key, e);
-    return [];
-  }
+  return libraryStore.loadLibraryFromStorage(key);
 }
 
 // 粗估這個 key 目前佔用的位元組數（localStorage 是 UTF-16，字元數*2估算）。
 function estimateKeyBytes(key){
-  const raw = localStorage.getItem(key);
-  return raw ? raw.length * 2 : 0;
+  return libraryStore.estimateKeyBytes(key);
 }
 const LIB_STORAGE_KEYS = () => [POSE_LIB_KEY, GESTURE_LIB_KEY, MOVE_LIB_KEY, GROOVE_LIB_KEY];
 // 大多數瀏覽器每個來源(origin)的 localStorage 上限落在 5–10MB，這裡保守抓 5MB 當警戒基準。
@@ -4438,28 +4407,11 @@ function formatBytes(n){
   return (n/1024/1024).toFixed(2) + " MB";
 }
 function getTotalLibraryStorageBytes(){
-  return LIB_STORAGE_KEYS().reduce((sum, k) => sum + estimateKeyBytes(k), 0);
+  return libraryStore.getTotalLibraryStorageBytes();
 }
 
 function saveLibraryToStorage(key, arr){
-  const payload = JSON.stringify({ v: CURRENT_LIB_SCHEMA_VERSION, items: arr });
-  try {
-    localStorage.setItem(key, payload);
-    renderStorageUsageIndicator();
-    return true;
-  } catch (e){
-    console.warn("儲存庫寫入 localStorage 失敗：", e);
-    // 寫入失敗時（通常是空間已滿）：記憶體裡的 items 其實還在（呼叫端還沒重整頁面），
-    // 立刻自動幫使用者匯出一份 JSON 備份，避免這次的異動在重新整理後直接消失。
-    try {
-      downloadJSON(arr, "招式庫備份_寫入失敗_" + Date.now() + ".json");
-      alert("儲存空間已滿，這次的變更無法存進瀏覽器！\n已自動幫你匯出一份 JSON 備份到下載資料夾，請先用「匯出全部」清出一些舊招式（例如刪除不需要的、或匯出後在別的裝置匯入），再繼續使用。");
-    } catch (e2){
-      alert("儲存失敗（瀏覽器儲存空間可能已滿），且自動備份也失敗了：" + e.message + "\n建議立即手動使用「匯出全部」把目前看得到的內容存下來。");
-    }
-    renderStorageUsageIndicator();
-    return false;
-  }
+  return libraryStore.saveLibraryToStorage(key, arr);
 }
 
 // 在畫面上顯示目前姿勢庫／手勢庫／招式庫共用的 localStorage 用量，並在快滿時提早示警
@@ -4510,164 +4462,12 @@ function readJSONFile(file, cb){
 // 徽章數字卡住不變、要重新整理頁面才會恢復正常的成因。改成不依賴任何可能已消失的舊節點，
 // 每次都用呼叫端傳入、在 controller 剛建立、DOM 還是原始樣子時就先存好的文字重新建立節點。
 function renderLibList(items, listElId, emptyElId, handlers, emptyText){
-  const host = document.getElementById(listElId);
-  host.innerHTML = "";
-  if (items.length === 0){
-    const empty = document.createElement("span");
-    empty.id = emptyElId;
-    empty.className = "libEmpty";
-    empty.textContent = emptyText || "";
-    host.appendChild(empty);
-    return;
-  }
-  items.forEach((item) => {
-    const chip = document.createElement("div");
-    chip.className = "libChip";
-
-    const sel = document.createElement("button");
-    sel.className = "sel";
-    sel.title = "套用「" + item.name + "」";
-    sel.onclick = () => handlers.apply(item);
-    const nameSpan = document.createElement("span");
-    nameSpan.className = "selName";
-    nameSpan.textContent = item.name;
-    sel.appendChild(nameSpan);
-    if (typeof handlers.subtitle === "function"){
-      const subText = handlers.subtitle(item);
-      if (subText){
-        const subSpan = document.createElement("span");
-        subSpan.className = "selSub";
-        subSpan.textContent = subText;
-        sel.appendChild(subSpan);
-      }
-    }
-    chip.appendChild(sel);
-
-    if (typeof handlers.rename === "function"){
-      const ren = document.createElement("button");
-      ren.className = "ren";
-      ren.textContent = "✎";
-      ren.title = "重新命名「" + item.name + "」";
-      ren.onclick = (ev) => { ev.stopPropagation(); handlers.rename(item); };
-      chip.appendChild(ren);
-    }
-
-    const exp = document.createElement("button");
-    exp.className = "exp";
-    exp.textContent = "⬇";
-    exp.title = "匯出「" + item.name + "」為 JSON 檔";
-    exp.onclick = (ev) => { ev.stopPropagation(); handlers.exportOne(item); };
-    chip.appendChild(exp);
-
-    const del = document.createElement("button");
-    del.className = "del";
-    del.textContent = "×";
-    del.title = "刪除「" + item.name + "」";
-    del.onclick = (ev) => { ev.stopPropagation(); handlers.del(item); };
-    chip.appendChild(del);
-
-    host.appendChild(chip);
-  });
+  renderLibraryList(items, listElId, emptyElId, handlers, emptyText);
 }
 
 // 工廠函式：產生一個獨立運作的「庫」控制器（姿勢庫／手勢庫／招式庫各建一個實例，邏輯完全共用不重複寫）
 function createLibraryController(opts){
-  // opts: { storageKey, captureFn, applyFn, listElId, emptyElId, filePrefix, itemLabel, subtitleFn?, extraDeleteWarning? }
-  // extraDeleteWarning(item)：可選，回傳一段字串就會附加在刪除確認對話框裡（例如提醒這個項目正被別處引用）；不提供或回傳空值則維持原本的確認文字。
-  let items = loadLibraryFromStorage(opts.storageKey);
-  let filterText = "";
-
-  // 空狀態提示文字：趁 controller 剛建立、DOM 還是 HTML 原始樣子時就先存起來，之後
-  // renderLibList 顯示空狀態一律用這份文字重新建立節點，不再依賴可能已經被清空、找不到的舊節點
-  // （見 renderLibList 內的修正說明）。
-  const emptyOrigEl = document.getElementById(opts.emptyElId);
-  const emptyText = emptyOrigEl ? emptyOrigEl.textContent : "";
-
-  function persist(){ saveLibraryToStorage(opts.storageKey, items); }
-
-  function render(){
-    const q = filterText.trim().toLowerCase();
-    const filtered = q ? items.filter(it => it.name.toLowerCase().includes(q)) : items;
-
-    if (filtered.length === 0 && items.length > 0){
-      // 清單本身不是空的，只是搜尋沒有結果——顯示不同提示，不要跟「從來沒存過」的空狀態混在一起
-      const host = document.getElementById(opts.listElId);
-      host.innerHTML = "";
-      const msg = document.createElement("span");
-      msg.className = "libEmpty";
-      msg.textContent = `沒有符合「${filterText.trim()}」的${opts.itemLabel}。`;
-      host.appendChild(msg);
-    } else {
-      renderLibList(filtered, opts.listElId, opts.emptyElId, {
-        apply: (item) => { opts.applyFn(item.data); pushHistory(); },
-        del: (item) => {
-          let msg = `刪除${opts.itemLabel}「${item.name}」？此動作無法復原。`;
-          if (typeof opts.extraDeleteWarning === "function"){
-            const extra = opts.extraDeleteWarning(item);
-            if (extra) msg += "\n\n" + extra;
-          }
-          if (!confirm(msg)) return;
-          items = items.filter(x => x.id !== item.id);
-          persist(); render();
-        },
-        exportOne: (item) => downloadJSON(item, opts.filePrefix + "_" + sanitizeFilename(item.name) + ".json"),
-        subtitle: opts.subtitleFn,
-        rename: (item) => {
-          const next = prompt(`重新命名「${item.name}」為：`, item.name);
-          if (next === null) return; // 使用者取消
-          const clean = next.trim();
-          if (!clean){ alert("名稱不能是空的。"); return; }
-          item.name = clean;
-          persist(); render();
-        }
-      }, emptyText);
-    }
-    if (typeof opts.onRender === "function") opts.onRender(items.length);
-  }
-
-  function setFilter(text){ filterText = text || ""; render(); }
-
-  function saveCurrent(name){
-    const clean = (name || "").trim() || ("未命名" + opts.itemLabel);
-    items.push({ id: makeLibId(), name: clean, savedAt: Date.now(), data: opts.captureFn() });
-    persist(); render();
-  }
-
-  function exportAll(){
-    if (items.length === 0){ alert(`${opts.itemLabel}庫目前是空的，沒有可匯出的內容。`); return; }
-    downloadJSON(items, opts.filePrefix + "庫_全部_" + Date.now() + ".json");
-  }
-
-  function importOne(file){
-    readJSONFile(file, (obj) => {
-      if (!obj || typeof obj !== "object" || !obj.data || typeof obj.data !== "object"){
-        alert("檔案格式錯誤：找不到有效的" + opts.itemLabel + "資料（需含 data 欄位）。"); return;
-      }
-      items.push({ id: makeLibId(), name: (obj.name || ("匯入" + opts.itemLabel)), savedAt: Date.now(), data: obj.data });
-      persist(); render();
-    });
-  }
-
-  function importAll(file){
-    readJSONFile(file, (arr) => {
-      if (!Array.isArray(arr)){ alert("檔案格式錯誤：整批匯入需要一個 JSON 陣列。"); return; }
-      const cleaned = arr
-        .filter(x => x && typeof x === "object" && x.data && typeof x.data === "object")
-        .map(x => ({ id: makeLibId(), name: (x.name || ("匯入" + opts.itemLabel)), savedAt: Date.now(), data: x.data }));
-      if (cleaned.length === 0){ alert("檔案內沒有找到任何有效項目。"); return; }
-      const merge = confirm(`偵測到 ${cleaned.length} 筆${opts.itemLabel}。\n按「確定」＝合併進現有清單；按「取消」＝整批取代現有清單。`);
-      items = merge ? items.concat(cleaned) : cleaned;
-      persist(); render();
-    });
-  }
-
-  function saveData(name, data){
-    const clean = (name || "").trim() || ("未命名" + opts.itemLabel);
-    items.push({ id: makeLibId(), name: clean, savedAt: Date.now(), data });
-    persist(); render();
-  }
-
-  return { render, saveCurrent, saveData, exportAll, importOne, importAll, setFilter, getItems: () => items.slice() };
+  return createSharedLibraryController(opts, libraryDependencies);
 }
 
 // -- 動作姿勢庫：只讀寫身體關節（BODY_LIB_JOINT_KEYS），完全不碰手指 --
@@ -8557,7 +8357,7 @@ const DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY = "tuttingDisplayTogglesCollapsed";
 function setDisplayTogglesCollapsed(collapsed){
   const panel = document.getElementById("displayTogglesPanel");
   if (panel) panel.classList.toggle("collapsed", collapsed);
-  try { localStorage.setItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0"); } catch (e) {}
+  try { preferences.setItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0"); } catch (e) {}
 }
 
 function initDisplayTogglesPanel(){
@@ -8585,7 +8385,7 @@ function initDisplayTogglesPanel(){
   const collapseBtn = document.getElementById("displayTogglesCollapseBtn");
   if (collapseBtn){
     let collapsed = false;
-    try { collapsed = localStorage.getItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY) === "1"; } catch (e) {}
+    try { collapsed = preferences.getItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY) === "1"; } catch (e) {}
     setDisplayTogglesCollapsed(collapsed);
     collapseBtn.onclick = () => {
       const panel = document.getElementById("displayTogglesPanel");
@@ -8615,7 +8415,7 @@ function initUIResize(){
     const h = clampHeight(px);
     ui.style.height = h + "px";
     if (save){
-      try { localStorage.setItem("tuttingUIHeightRatio", String(h / window.innerHeight)); } catch (e) {}
+      try { preferences.setItem("tuttingUIHeightRatio", String(h / window.innerHeight)); } catch (e) {}
     }
   }
 
@@ -8655,12 +8455,12 @@ function initUIResize(){
   window.addEventListener("resize", () => {
     if (ui.classList.contains("uiFloating")) return;
     let ratio = UI_HEIGHT_DEFAULT_RATIO;
-    try { ratio = parseFloat(localStorage.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
+    try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
     applyHeight(window.innerHeight * ratio, false);
   });
 
   let ratio = UI_HEIGHT_DEFAULT_RATIO;
-  try { ratio = parseFloat(localStorage.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
+  try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
   applyHeight(window.innerHeight * ratio, false);
 }
 
@@ -8701,7 +8501,7 @@ function initUIFloat(){
     ui.style.width = rect.width + "px";
     ui.style.height = rect.height + "px";
     if (save){
-      try { localStorage.setItem("tuttingUIFloatRect", JSON.stringify(rect)); } catch (e) {}
+      try { preferences.setItem("tuttingUIFloatRect", JSON.stringify(rect)); } catch (e) {}
     }
   }
 
@@ -8711,7 +8511,7 @@ function initUIFloat(){
 
   function getSavedRect(){
     let rect = null;
-    try { rect = JSON.parse(localStorage.getItem("tuttingUIFloatRect")); } catch (e) {}
+    try { rect = JSON.parse(preferences.getItem("tuttingUIFloatRect")); } catch (e) {}
     if (!rect || typeof rect.left !== "number") return getDefaultRect();
     return clampRect(rect.left, rect.top, rect.width, rect.height);
   }
@@ -8728,11 +8528,11 @@ function initUIFloat(){
       ui.style.top = "";
       ui.style.width = "";
       let ratio = UI_HEIGHT_DEFAULT_RATIO;
-      try { ratio = parseFloat(localStorage.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
+      try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
       ui.style.height = (window.innerHeight * ratio) + "px";
     }
     if (save){
-      try { localStorage.setItem("tuttingUIFloating", floating ? "1" : "0"); } catch (e) {}
+      try { preferences.setItem("tuttingUIFloating", floating ? "1" : "0"); } catch (e) {}
     }
   }
 
@@ -8808,7 +8608,7 @@ function initUIFloat(){
   });
 
   let floating = false;
-  try { floating = localStorage.getItem("tuttingUIFloating") === "1"; } catch (e) {}
+  try { floating = preferences.getItem("tuttingUIFloating") === "1"; } catch (e) {}
   setFloating(floating, false);
 }
 
@@ -8869,7 +8669,7 @@ function makeFloatablePanel(opts){
     panel.style.width = rect.width + "px";
     panel.style.height = rect.height + "px";
     if (save){
-      try { localStorage.setItem(storageKey, JSON.stringify(rect)); } catch (e) {}
+      try { preferences.setItem(storageKey, JSON.stringify(rect)); } catch (e) {}
     }
   }
   function getDefaultRect(){
@@ -8877,7 +8677,7 @@ function makeFloatablePanel(opts){
   }
   function getSavedRect(){
     let rect = null;
-    try { rect = JSON.parse(localStorage.getItem(storageKey)); } catch (e) {}
+    try { rect = JSON.parse(preferences.getItem(storageKey)); } catch (e) {}
     if (!rect || typeof rect.left !== "number") return getDefaultRect();
     return clampRect(rect.left, rect.top, rect.width, rect.height);
   }
@@ -8897,7 +8697,7 @@ function makeFloatablePanel(opts){
         homeParent.appendChild(contentEl);
       }
     }
-    try { localStorage.setItem(storageKey + "_on", on ? "1" : "0"); } catch (e) {}
+    try { preferences.setItem(storageKey + "_on", on ? "1" : "0"); } catch (e) {}
     if (typeof onChange === "function") onChange(on); // 不論從外部按鈕還是面板內的收合鈕觸發，都要同步通知外部狀態已改變
   }
   dockBtn.onclick = () => setFloating(false);
@@ -9002,7 +8802,7 @@ function initFingerFloatPanel(){
   btn.onclick = () => { floatable.toggle(); };
 
   let restoreFloating = false;
-  try { restoreFloating = localStorage.getItem("tuttingFingerFloatRect_on") === "1"; } catch (e) {}
+  try { restoreFloating = preferences.getItem("tuttingFingerFloatRect_on") === "1"; } catch (e) {}
   if (restoreFloating) floatable.toggle(true);
   syncLabel();
 }
@@ -9023,14 +8823,14 @@ function initUITabs(){
     if (name === "overview") updateOverviewPanel(true);
     if (name === "jointLimits") updateJointLimitPanelAngles(true);
     if (name === "keyframe") requestAnimationFrame(drawKfWaveform); // 分頁剛顯示時canvas寬度才量得到，下一幀再畫
-    try { localStorage.setItem("tuttingActiveTab", name); } catch (e) {}
+    try { preferences.setItem("tuttingActiveTab", name); } catch (e) {}
     updateOnionSkins();
   }
 
   tabBtns.forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
   let savedTab = "poseLib";
-  try { savedTab = localStorage.getItem("tuttingActiveTab") || "poseLib"; } catch (e) {}
+  try { savedTab = preferences.getItem("tuttingActiveTab") || "poseLib"; } catch (e) {}
   // 舊版存的分頁名稱（例如已移除的「poses」）在目前分頁清單裡找不到時，退回預設分頁，避免面板空白
   if (!validTabNames.includes(savedTab)) savedTab = "poseLib";
   switchTab(savedTab);
@@ -9045,7 +8845,7 @@ function initUIVisibility(){
   function setHidden(hidden){
     ui.style.display = hidden ? "none" : "flex";
     showBtn.style.display = hidden ? "block" : "none";
-    try { localStorage.setItem("tuttingUIHidden", hidden ? "1" : "0"); } catch (e) {}
+    try { preferences.setItem("tuttingUIHidden", hidden ? "1" : "0"); } catch (e) {}
   }
 
   hideBtn.onclick = () => setHidden(true);
@@ -9060,7 +8860,7 @@ function initUIVisibility(){
   });
 
   let hidden = false;
-  try { hidden = localStorage.getItem("tuttingUIHidden") === "1"; } catch (e) {}
+  try { hidden = preferences.getItem("tuttingUIHidden") === "1"; } catch (e) {}
   setHidden(hidden);
 }
 
@@ -9238,30 +9038,10 @@ let handHandCollisionEnabled = false;
 // ---- 半徑設定的 localStorage 讀寫（跟 JOINT_LIMITS 同一套模式）----
 const HAND_COLLISION_RADII_STORAGE_KEY = "tuttingHandCollisionRadii";
 function saveHandCollisionRadii(){
-  try {
-    const data = {
-      hand: HAND_COLLISION_RADIUS,
-      capsules: TORSO_CAPSULES.map(c => c.radius),
-      legCapsules: LEG_CAPSULES.map(c => c.radius),
-      headRadius: HEAD_CAPSULES[0].radius
-    };
-    localStorage.setItem(HAND_COLLISION_RADII_STORAGE_KEY, JSON.stringify(data));
-  } catch (e){ console.warn("手部碰撞半徑儲存失敗:", e); }
+  rigPreferences.saveHandCollisionRadii();
 }
 function loadHandCollisionRadii(){
-  try {
-    const raw = localStorage.getItem(HAND_COLLISION_RADII_STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    if (typeof data.hand === "number") HAND_COLLISION_RADIUS = data.hand;
-    if (Array.isArray(data.capsules)){
-      data.capsules.forEach((r, i) => { if (typeof r === "number" && TORSO_CAPSULES[i]) TORSO_CAPSULES[i].radius = r; });
-    }
-    if (Array.isArray(data.legCapsules)){
-      data.legCapsules.forEach((r, i) => { if (typeof r === "number" && LEG_CAPSULES[i]) LEG_CAPSULES[i].radius = r; });
-    }
-    if (typeof data.headRadius === "number") HEAD_CAPSULES[0].radius = data.headRadius;
-  } catch (e){ console.warn("手部碰撞半徑讀取失敗:", e); }
+  rigPreferences.loadHandCollisionRadii();
 }
 loadHandCollisionRadii(); // 開頁就還原使用者上次調過的半徑（若有）
 
@@ -10144,7 +9924,7 @@ function updateSplitViewCheckboxDisabled(){
 }
 
 function saveSplitViewState(){
-  try { localStorage.setItem("tuttingSplitViewPanes", JSON.stringify(Object.keys(splitViewPanes))); } catch (e) {}
+  try { preferences.setItem("tuttingSplitViewPanes", JSON.stringify(Object.keys(splitViewPanes))); } catch (e) {}
 }
 
 function bindSplitViewUI(){
@@ -10161,7 +9941,7 @@ function bindSplitViewUI(){
 // 從 localStorage 還原上次開啟的預覽視窗（跟其他面板設定一樣的持久化模式）
 function loadSplitViewState(){
   let names = [];
-  try { names = JSON.parse(localStorage.getItem("tuttingSplitViewPanes")) || []; } catch (e) {}
+  try { names = JSON.parse(preferences.getItem("tuttingSplitViewPanes")) || []; } catch (e) {}
   names.filter(n => SPLIT_VIEW_LABELS[n]).slice(0, SPLIT_VIEW_MAX_PANES).forEach(name => {
     const chk = document.getElementById("splitChk_" + name);
     if (chk) chk.checked = true; // 先勾選再建立，createSplitPane() 內部判斷是否達上限時才看得到正確的勾選狀態
@@ -10271,7 +10051,7 @@ function initPerfPanel(){
   const panel = document.getElementById("perfPanel");
   if (!chk || !panel) return;
   try {
-    const raw = localStorage.getItem(PERF_PANEL_STORAGE_KEY);
+    const raw = preferences.getItem(PERF_PANEL_STORAGE_KEY);
     perfPanelEnabled = (raw === null) ? true : (raw === "1");
   } catch (e) { perfPanelEnabled = true; }
   chk.checked = perfPanelEnabled;
@@ -10279,7 +10059,7 @@ function initPerfPanel(){
   chk.onchange = (e) => {
     perfPanelEnabled = e.target.checked;
     panel.style.display = perfPanelEnabled ? "flex" : "none";
-    try { localStorage.setItem(PERF_PANEL_STORAGE_KEY, perfPanelEnabled ? "1" : "0"); } catch (err) {}
+    try { preferences.setItem(PERF_PANEL_STORAGE_KEY, perfPanelEnabled ? "1" : "0"); } catch (err) {}
   };
 }
 
@@ -10586,5 +10366,16 @@ const projectFiles = createProjectFiles({
   restoreTimelineData, pushHistory, scheduleAutoSave,
   alert: message => alert(message), confirm: message => confirm(message),
 });
+
+const libraryStore = createLibraryStore({
+  getStorage: () => localStorage, getKeys: LIB_STORAGE_KEYS,
+  downloadJSON, alert: message => alert(message), onUsageChange: renderStorageUsageIndicator,
+});
+const libraryDependencies = {
+  loadLibraryFromStorage, saveLibraryToStorage, renderLibList, pushHistory,
+  downloadJSON, sanitizeFilename, makeLibId, readJSONFile,
+  alert: message => alert(message), confirm: message => confirm(message),
+  prompt: (message, value) => prompt(message, value),
+};
 
 init();

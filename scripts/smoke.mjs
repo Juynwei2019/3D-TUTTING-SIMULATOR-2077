@@ -163,6 +163,25 @@ try {
       assert.deepEqual(await page.evaluate(() => window.__smoke.target.rForeArm), [0, 0, 0]);
       await page.evaluate(() => window.__smoke.redo());
       assert.deepEqual(await page.evaluate(() => window.__smoke.target.rForeArm), [10, 20, 30]);
+      // Save and apply through the shared pose/gesture library controllers.
+      await page.locator('.tabBtn[data-tab="poseLib"]').evaluate(el => el.click());
+      await page.locator('#poseLibNameInput').fill('smoke pose');
+      await page.locator('#poseLibSaveBtn').click();
+      await page.locator('.tabBtn[data-tab="gestureLib"]').evaluate(el => el.click());
+      await page.locator('#gestureLibNameInput').fill('smoke gesture');
+      await page.locator('#gestureLibSaveBtn').click();
+      await page.locator('.tabBtn[data-tab="poseLib"]').evaluate(el => el.click());
+      await page.evaluate(() => window.__smoke.setTarget('rForeArm', [0, 0, 0]));
+      await page.locator('#poseLibList .sel').first().evaluate(el => el.click());
+      assert.deepEqual(await page.evaluate(() => window.__smoke.target.rForeArm), [10, 20, 30]);
+      const libraryData = await page.evaluate(() => ({
+        pose: JSON.parse(localStorage.getItem('tuttingPoseLibrary_v1')),
+        gesture: JSON.parse(localStorage.getItem('tuttingGestureLibrary_v1')),
+      }));
+      assert.equal(libraryData.pose.v, 1); assert.equal(libraryData.gesture.v, 1);
+      assert.equal(libraryData.pose.items[0].name, 'smoke pose');
+      assert.equal('rThumb1' in libraryData.pose.items[0].data, false);
+      assert.equal('rForeArm' in libraryData.gesture.items[0].data, false);
       // Add, play and persist an actual two-pose timeline.
       await page.locator('.tabBtn[data-tab="keyframe"]').evaluate(el => el.click());
       await page.locator('#kfAddBtn').click();
@@ -234,11 +253,13 @@ try {
       await page.reload();
       await page.waitForFunction(() => document.getElementById('loading').style.display === 'none');
       assert.equal(await page.locator('#kfList .kfChip').count(), 2);
+      assert.equal(await page.locator('#poseLibList .libChip').count(), 1);
+      assert.equal(await page.locator('#gestureLibList .libChip').count(), 1);
       assert.deepEqual(errors, [], `${entry} JavaScript errors`);
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
       results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
-      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
+      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
       const directory = resolve('test-results', entry.replace(/^\//, '').replace(/[^a-zA-Z0-9_.-]/g, '_'));
       await mkdir(directory, { recursive: true });

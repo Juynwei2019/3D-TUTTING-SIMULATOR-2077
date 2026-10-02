@@ -23,6 +23,10 @@
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
 | `src/interaction/grab-shapes.js` | 扶握形狀、幾何建構與表面投影 |
 | `src/interaction/grab-core.js` | 扶握狀態與控制環；以 `deps` 注入模型、手部骨骼和 IK 操作 |
+| `src/storage/preferences.js`、`rig-preferences.js` | 共用偏好 storage 存取與關節限制／Isolation／碰撞半徑讀寫；保留原鍵名與合併規則 |
+| `src/library/library-store.js` | 素材庫 v1 envelope、legacy 讀取、容量估算及儲存失敗備份 |
+| `src/library/library-controller.js` | 四種素材庫共用的儲存、搜尋、套用、重新命名、刪除與匯入／匯出控制 |
+| `src/ui/library-list.js` | 共用素材清單 DOM、空狀態與按鈕事件；操作由回呼委派 |
 | `src/history/history-controller.js` | 私有 Undo／Redo 堆疊、50 筆上限、分支截斷、播放防護與還原重入保護 |
 | `src/history/snapshot.js` | 分開產生歷史與專案快照，透過 getter 讀取當前狀態 |
 | `src/storage/autosave.js` | 1500ms debounce、localStorage 讀寫、錯誤處理與取消排程 |
@@ -109,3 +113,13 @@
 `createProjectFiles()` 保留檔案驗證、覆蓋確認、匯入後記錄歷史及排程存檔的順序。`restoreSnapshot()` 與 `restoreTimelineData()` 暫留主程式：它們依序還原 Wave、LookAt、軌跡、骨架及 UI；後续拆分各功能 controller 時再逐步轉為模組回呼。
 
 第一批涵蓋歷史、快照產生、自動存檔與專案檔案控制；偏好設定及場景還原協調尚待拆分。完整批次進度見 [refactor-roadmap.md](refactor-roadmap.md)。
+
+## 偏好設定與素材庫
+
+`createPreferences()` 集中偏好設定的 raw storage 入口，保留原有字串／JSON 編碼與鍵名。各面板繼續決定 fallback、警告及應用時機；`createRigPreferences()` 抽出關節限制、Isolation 與碰撞半徑的合併／讀寫規則，透過 getter 取得目前設定，避免匯入替換設定物件後保留舊參照。它們在原有啟動時機載入，未改變偏好與專案檔的界線。
+
+`createLibraryStore()` 統一讀取 legacy 陣列與 `{ v: 1, items }` envelope、儲存及 UTF-16 用量估算。寫入失敗仍保留記憶體資料，呼叫既有 JSON 備份及提示流程。素材庫與專案存檔保持獨立。
+
+`createLibraryController(opts, dependencies)` 保留各庫獨立的 items／filter；由 opts 注入姿勢、手勢、招式或律動的 capture／apply 函式。共用控制器處理搜尋、命名、套用後記錄歷史、刪除確認、單筆匯入及整批合併／取代。`renderLibraryList()` 建立原有 `.libChip` 介面及空狀態，保留 DOM ID 和按鈕行為。各庫的領域捕捉／套用、工具列綁定與儲存用量提示仍在主程式。
+
+測試新增偏好合併、舊庫讀取、版本化儲存、容量／備份與控制器操作；瀏覽器新增實際姿勢／手勢儲存、姿勢套用、欄位隔離與重載。
