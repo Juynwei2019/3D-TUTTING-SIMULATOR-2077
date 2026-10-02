@@ -1,3 +1,13 @@
+import { createCameraController } from "./scene/camera-controller.js";
+import { createSplitView } from "./scene/split-view.js";
+import { createSceneSelection } from "./scene/selection.js";
+import { createTransformGizmos } from "./scene/transform-gizmos.js";
+import { createFloatingPanels } from "./ui/floating-panels.js";
+import { createWorkspacePanels } from "./ui/workspace-panels.js";
+import { createSceneBootstrap } from "./scene/bootstrap.js";
+import { createRigVisuals } from "./scene/rig-visuals.js";
+import { createPerformancePanel } from "./scene/performance-panel.js";
+import { createAnimationLoop } from "./scene/animation-loop.js";
 import { createLibraryDomainController } from "./library/domain-controller.js";
 import { createOnionSkin } from "./scene/onion-skin.js";
 import { createPoseEditor } from "./timeline/pose-editor.js";
@@ -803,206 +813,12 @@ function bindWave(...args){
 }
 
 
-function init(){
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a12);
-  scene.fog = new THREE.Fog(0x0a0a12, 12, 26);
-
-  camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
-  camera.position.set(0, 1.4, 3.2);
-
-  renderer = new THREE.WebGLRenderer({ antialias:true });
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  document.getElementById("canvasHolder").appendChild(renderer.domElement);
-
-  scene.add(new THREE.AmbientLight(0x8899ff, 0.7));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-  keyLight.position.set(3, 5, 4);
-  scene.add(keyLight);
-  const rim = new THREE.DirectionalLight(0xff2f7e, 0.5);
-  rim.position.set(-4, 3, -3);
-  scene.add(rim);
-
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 1, 0);
-  controls.enableDamping = true;
-  controls.minDistance = 1.0;
-  controls.maxDistance = 14;
-
-  transformControls = new TransformControls(camera, renderer.domElement);
-  transformControls.setMode("rotate");
-  transformControls.setSpace("local");
-  transformControls.setSize(0.7);
-  transformControls.setRotationSnap(D(15));
-  transformControls.addEventListener("dragging-changed", (e) => {
-    controls.enabled = !e.value;
-    if (e.value) {
-      draggingKey = selectedKey;
-    } else {
-      draggingKey = null;
-      // 若剛放開拖曳的關節，是某條開啟中腿部IK鏈的腳掌（Foot），
-      // 重新抓取當下世界旋轉當作新的鎖存基準，讓使用者的手動微調保留下來，
-      // 而不是下一幀就被舊的鎖存值蓋回去。
-      for (const limb of ["rLeg", "lLeg"]){
-        if (ikEnabled[limb] && selectedKey === IK_CHAINS[limb].end) captureFootLock(limb);
-      }
-      suppressClick = true;
-      setTimeout(() => suppressClick = false, 80);
-      pushHistory();
-    }
-  });
-  transformControls.addEventListener("objectChange", () => {
-    if (selectedKey) commitFromBone(selectedKey);
-  });
-  scene.add(transformControls);
-
-  // IK 目標球／極向球專用的平移控制環（跟關節旋轉環分開，模式固定為 translate）
-  transformControlsIK = new TransformControls(camera, renderer.domElement);
-  transformControlsIK.setMode("translate");
-  transformControlsIK.setSpace("world");
-  transformControlsIK.setSize(0.7);
-  transformControlsIK.addEventListener("dragging-changed", (e) => {
-    controls.enabled = !e.value;
-    if(selectedIK?.role==='laPoint'){
-      if(e.value){pushHistory();laCustomDrag={center:laCustomCenter()};}
-      else {laCustomDrag=null;renderLACustomList();pushHistory();scheduleAutoSave();}
-    }
-    const handName=selectedIK?.limb?.startsWith('lookAt_')?selectedIK.limb.slice(7):null;
-    if(LOOKAT_RANGE_NAMES.includes(handName)){
-      if(!e.value){if(HAND_AIM_NAMES.includes(handName))solveHandAim(handName);else solveLookAt(handName);}
-      pushHistory();if(e.value)beginHandRangeDrag(handName);else {handRangeDrag=null;scheduleAutoSave();}
-    }
-    if(e.value) beginPoleDrag();
-    else if(poleDrag){const changed=!poleDrag.blocked;poleDrag=null;if(changed){pushHistory();scheduleAutoSave();}}
-    if (footPlantEnabled) {
-      if (!e.value) solveFootPlant();
-      pushHistory();
-      if (!e.value) scheduleAutoSave();
-    }
-    if (!e.value) {
-      suppressClick = true;
-      setTimeout(() => suppressClick = false, 80);
-    }
-  });
-  // 身體移動：拖曳的是bodyGizmoProxy（放在Hips高度），不是model本身，
-  // 這裡把每次拖曳造成的位移量(delta)同步套用到model.position，
-  // 讓控制環視覺上停在髖部，但實際移動的是整個角色。
-  transformControlsIK.addEventListener("objectChange", () => {
-    clampPoleDrag();
-    clampHandRangeDrag();
-    dragLACustom();
-    if (selectedIK && selectedIK.limb === "body" && bodyGizmoProxy && bodyProxyLastPos){
-      const delta = bodyGizmoProxy.position.clone().sub(bodyProxyLastPos);
-      model.position.add(delta);
-      model.updateWorldMatrix(true, true);
-      bodyProxyLastPos.copy(bodyGizmoProxy.position);
-    } else if (selectedIK && selectedIK.role === "trajPoint"){
-      updateTrajVisual(selectedIK.limb);
-    }
-  });
-  scene.add(transformControlsIK);
-
-  bodyGizmoProxy = new THREE.Object3D();
-  scene.add(bodyGizmoProxy);
-
-  window.addEventListener("resize", onResize);
-  setupPickRaycaster();
-
-  loadModel();
-  requestAnimationFrame(animate);
+function init(...args){
+  return sceneBootstrapController.init(...args);
 }
 
-function loadModel(){
-  const loader = new GLTFLoader();
-  loader.load(MODEL_URL, (gltf) => {
-    model = gltf.scene;
-
-    const targetHeight = 1.75;
-    modelHeight = targetHeight;
-    placeModelOnGround(model, targetHeight);
-
-    scene.add(model);
-    scene.add(new THREE.GridHelper(20, 20, 0x2a2a55, 0x1a1a33));
-
-    model.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
-
-    for (const key of ALL_JOINT_KEYS){
-      bones[key] = findBone(model, BONE_SUFFIXES[key]);
-      if (!bones[key]) console.warn("找不到骨骼:", BONE_SUFFIXES[key]);
-    }
-    for (const key of ALL_JOINT_KEYS){
-      if (bones[key]) restQuat[key] = bones[key].quaternion.clone();
-    }
-    buildOnionGhosts();
-
-    // 手指IK effector：優先找指尖第4節骨（只讀位置，不開放FK），模型萬一沒有這根骨頭，
-    // 優雅退回用第3節自己當effector，只是精準度變差、不會整個壞掉。
-    for (const fingerId of FINGER_IDS){
-      const chain = FINGER_IK_CHAINS[fingerId];
-      let tipBone = findBone(model, chain.tipSuffix);
-      if (!tipBone){
-        console.warn("找不到指尖骨骼(" + chain.tipSuffix + ")，" + chain.label + " IK 退回用第3節自身當effector，精準度會變差");
-        tipBone = bones[chain.bones[2]];
-      }
-      fingerEffectorBones[fingerId] = tipBone;
-    }
-
-    // 記錄置中/貼地完成後的初始位置，供「重置身體位置」使用
-    defaultModelPosition = model.position.clone();
-    defaultModelQuaternion = model.quaternion.clone();
-
-    calibrateFootGround();
-    buildJointMarkers();
-    buildSkeletonLines();
-    buildHandCollisionVizMeshes();
-    buildIKMarkers();
-    buildSpineIKMarker();
-    buildLookAtMarkers();
-    buildTrajMarkers();
-    buildFingerIKMarkers();
-    buildFingerPanel();
-    buildJointLimitPanel();
-    buildOverviewPanel();
-    buildJsonRefTable();
-    rebuildIKDrivenKeys(); // 防呆：初始四個開關都是 false，理論上等於空集合，但不依賴這個假設
-
-    // 扶握箱核心：依賴用「讀取用函式」注入，不直接傳物件參照，
-    // 避免主程式之後改變 bones/ikTargetMeshes 時，核心還抱著舊的參照。
-    grabBoxCore = createGrabBoxCore({
-      scene, camera, renderer,
-      orbitControls: controls,
-      getModel: () => model,
-      getBones: () => bones,
-      getHandBone: (limb) => bones[IK_CHAINS[limb]?.end],
-      getIKTargetMesh: (limb) => ikTargetMeshes[limb],
-      isIKEnabled: (limb) => ikEnabled[limb],
-      setIKEnabled: (limb, on) => setIKEnabled(limb, on),
-    });
-    grabBoxCore.buildAfterModelLoad();
-
-    controls.target.set(0, targetHeight * 0.55, 0);
-    camera.position.set(0, targetHeight * 0.75, targetHeight * 1.6);
-    controls.update();
-
-    // 用實際量測到的包圍盒重新套用一次「正面」視角，確保初始畫面就能完整照到全身
-    // （包含手臂張開的寬度等，不只是單純用身高比例粗估），瞬間套用不做過渡動畫。
-    goToCameraPreset("front", true);
-    controls.update();
-
-    resetPose();
-    bindTopUI();
-    tryLoadAutosave();
-    renderKeyframeChips();
-    pushHistory();
-
-    document.getElementById("loading").style.display = "none";
-    // #ui 的顯示/隱藏（flex/none）已由 bindTopUI() 內的 initUIVisibility() 依 localStorage 設定好，這裡不再覆蓋
-  }, undefined, (err) => {
-    document.getElementById("loading").textContent = "模型載入失敗，請檢查網路連線";
-    console.error(err);
-  });
+function loadModel(...args){
+  return sceneBootstrapController.loadModel(...args);
 }
 
 // 必須在套用任何姿勢之前（緊接在 restQuat 算完之後）就複製，這樣殘影骨架的初始本地旋轉
@@ -1040,110 +856,35 @@ function updateOnionSkinsForPlayback(...args){
 }
 
 // ---- 關節球（直接掛在骨骼上的可點擊 marker） ----
-function buildJointMarkers(){
-  // 修正 Xbot 身高後，維持舊版關節球相對角色的視覺比例。
-  const markerSizeRatio = modelHeight / 4.600099111737363;
-  const geo = new THREE.SphereGeometry(0.03 * markerSizeRatio, 14, 14);
-  // 手指骨節間距很小，用原本身體關節球半徑會讓相鄰指節重疊難點選，改用更小半徑＋不同顏色區分
-  const fingerGeo = new THREE.SphereGeometry(0.012 * markerSizeRatio, 10, 10);
-  for (const key of ALL_JOINT_KEYS){
-    if (!bones[key]) continue;
-    const isFinger = FINGER_JOINT_KEY_SET.has(key);
-    const mat = new THREE.MeshBasicMaterial({ color: isFinger ? 0xffa8e8 : 0x7fe0ff, transparent:true, opacity:0.9, depthTest:false });
-    const marker = new THREE.Mesh(isFinger ? fingerGeo : geo, mat);
-    marker.renderOrder = 999;
-    marker.userData.jointKey = key;
-    marker.userData.pickType = "joint";
-    scene.add(marker);
-    markerMeshes[key] = marker;
-  }
+function buildJointMarkers(...args){
+  return rigVisualsController.buildJointMarkers(...args);
 }
 
 // 共用暫存向量，避免每幀呼叫都 new 一個新的 Vector3（跟碰撞/CCD等熱路徑同一套習慣）。
-const _markerV = new THREE.Vector3();
-function updateMarkers(){
-  // 兩個分類開關都關閉時，49 顆關節球全部不可見：只需要隱藏一次，
-  // 不必逐一呼叫 getWorldPosition()（要沿骨骼鏈往上算世界矩陣，不是免費的）。
-  if (!showHandJoints && !showBodyJoints){
-    for (const key in markerMeshes) markerMeshes[key].visible = false;
-    return;
-  }
-  for (const key in markerMeshes){
-    if (!bones[key]) continue;
-    const marker = markerMeshes[key];
-    // 最終顯示 = 分類開關（手部/身體）開著 AND 沒有被 IK 接管而隱藏
-    const isHand = FINGER_JOINT_KEY_SET.has(key);
-    const categoryOn = isHand ? showHandJoints : showBodyJoints;
-    marker.visible = categoryOn && !markerIKHidden[key];
-    if (!marker.visible) continue; // 不可見就不必更新座標，省下這顆球的世界矩陣運算
-    bones[key].getWorldPosition(_markerV);
-    marker.position.copy(_markerV);
-  }
+
+function updateMarkers(...args){
+  return rigVisualsController.updateMarkers(...args);
 }
 
 // ---- 骨架連線（把有追蹤的關節依真實骨骼親子關係連成一條條線段）----
 // 不是每個 ALL_JOINT_KEYS 的骨骼在模型階層裡都直接互為親子（例如中間可能夾著沒被追蹤的
 // 輔助骨），所以每個關節往上找「最近一個也在 bones{} 追蹤清單裡的祖先」當作連線對象，
 // 而不是直接假設 bone.parent 一定也是我們認得的 key。
-function buildSkeletonLines(){
-  const boneKeyByUuid = {};
-  for (const key of ALL_JOINT_KEYS){
-    if (bones[key]) boneKeyByUuid[bones[key].uuid] = key;
-  }
-  const pairs = [];
-  for (const key of ALL_JOINT_KEYS){
-    const bone = bones[key];
-    if (!bone) continue;
-    let p = bone.parent;
-    while (p){
-      const parentKey = boneKeyByUuid[p.uuid];
-      if (parentKey){ pairs.push([key, parentKey]); break; }
-      p = p.parent;
-    }
-  }
-  skeletonLinePairs = pairs;
-  const positions = new Float32Array(pairs.length * 2 * 3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.LineBasicMaterial({ color: 0x7fe0ff, transparent:true, opacity:0.55, depthTest:false });
-  skeletonLines = new THREE.LineSegments(geo, mat);
-  skeletonLines.renderOrder = 998; // 略低於關節球（999），視覺上線段在球體「後面」一點
-  skeletonLines.frustumCulled = false;
-  scene.add(skeletonLines);
+function buildSkeletonLines(...args){
+  return rigVisualsController.buildSkeletonLines(...args);
 }
 
-function updateSkeletonLines(){
-  if (!skeletonLines) return;
-  skeletonLines.visible = showSkeleton;
-  if (!showSkeleton) return;
-  const posAttr = skeletonLines.geometry.attributes.position;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < skeletonLinePairs.length; i++){
-    const [childKey, parentKey] = skeletonLinePairs[i];
-    bones[childKey].getWorldPosition(v);
-    posAttr.setXYZ(i*2, v.x, v.y, v.z);
-    bones[parentKey].getWorldPosition(v);
-    posAttr.setXYZ(i*2+1, v.x, v.y, v.z);
-  }
-  posAttr.needsUpdate = true;
+function updateSkeletonLines(...args){
+  return rigVisualsController.updateSkeletonLines(...args);
 }
 
 // 切換「身體」或「手部」關節球分類的顯示開關；實際可見與否在 updateMarkers() 每幀合併 IK 隱藏狀態計算
-function setJointCategoryVisible(category, on){
-  if (category === "hand") showHandJoints = on;
-  else showBodyJoints = on;
+function setJointCategoryVisible(...args){
+  return rigVisualsController.setJointCategoryVisible(...args);
 }
 
-function highlightMarkers(){
-  for (const key in markerMeshes){
-    const m = markerMeshes[key];
-    const isSel = key === selectedKey;
-    const isFinger = FINGER_JOINT_KEY_SET.has(key);
-    m.material.color.set(isSel ? 0xff2f7e : (isFinger ? 0xffa8e8 : 0x7fe0ff));
-    m.scale.setScalar(isSel ? 1.6 : 1.0);
-  }
-  highlightFingerButtons();
-  highlightOverviewRows();
+function highlightMarkers(...args){
+  return rigVisualsController.highlightMarkers(...args);
 }
 
 // ---- 關節總覽面板：即時列出全部關節的旋轉角度（相對初始姿勢）與世界座標 ----
@@ -1832,41 +1573,12 @@ function generateKeyframesFromTrajectory(...args){
 // 自動用那些機制調整 model.position，但這裡的代理物件位置不會跟著自動同步，
 // 可能導致控制環視覺上跟身體實際位置脫節——若發生這種情況，重新按一次
 // 「移動身體」即可讓控制環重新對齊。
-function selectBodyMarker(){
-  selectedKey = null;
-  selectedIK = { limb: "body", role: "target" };
-  transformControls.detach();
-
-  const hipsBone = bones["hips"];
-  if (hipsBone){
-    const hipsPos = new THREE.Vector3();
-    hipsBone.getWorldPosition(hipsPos);
-    bodyGizmoProxy.position.copy(hipsPos);
-  } else {
-    bodyGizmoProxy.position.copy(model.position);
-  }
-  bodyProxyLastPos = bodyGizmoProxy.position.clone();
-
-  transformControlsIK.attach(bodyGizmoProxy);
-  highlightMarkers();
-  highlightIKMarkers();
-  updateSelectedBar();
+function selectBodyMarker(...args){
+  return sceneSelectionController.selectBodyMarker(...args);
 }
 
-function resetBodyTransform(){
-  if (!defaultModelPosition || !defaultModelQuaternion) return;
-  model.position.copy(defaultModelPosition);
-  model.quaternion.copy(defaultModelQuaternion);
-  model.updateWorldMatrix(true, true);
-  // 若目前正選取著身體控制環，重置後重新對齊代理物件到新的Hips世界座標，
-  // 避免控制環還停在舊位置、跟reset後的身體視覺脫節
-  if (selectedIK && selectedIK.limb === "body" && bodyGizmoProxy){
-    const hipsBone = bones["hips"];
-    const hipsPos = new THREE.Vector3();
-    if (hipsBone) hipsBone.getWorldPosition(hipsPos); else hipsPos.copy(model.position);
-    bodyGizmoProxy.position.copy(hipsPos);
-    bodyProxyLastPos = hipsPos.clone();
-  }
+function resetBodyTransform(...args){
+  return sceneSelectionController.resetBodyTransform(...args);
 }
 
 // 開關某肢體的 IK：開啟時鎖住 root/mid 骨骼改由 IK 求解（隱藏它們的關節球），
@@ -1929,177 +1641,25 @@ function bindTrajShapeGenUI(...args){
 
 // 所有目前「可被點擊」的球（關節球 + 可見的 IK 目標球／極向球），自己過濾 visible，
 // 不依賴 Raycaster 是否會自動跳過隱藏物件。
-function allPickableMeshes(){
-  const list = laCustomMeshes.filter(m=>m.visible);
-  for (const key in markerMeshes){ if (markerMeshes[key].visible) list.push(markerMeshes[key]); }
-  for (const limb of IK_LIMB_KEYS){
-    if (ikTargetMeshes[limb] && ikTargetMeshes[limb].visible) list.push(ikTargetMeshes[limb]);
-    if (ikPoleMeshes[limb] && ikPoleMeshes[limb].visible) list.push(ikPoleMeshes[limb]);
-  }
-  if (spineIKTargetMesh && spineIKTargetMesh.visible) list.push(spineIKTargetMesh);
-  for (const name of Object.keys(LOOKAT_CONFIG)){
-    if (lookAtTargetMesh[name] && lookAtTargetMesh[name].visible) list.push(lookAtTargetMesh[name]);
-  }
-  for (const limb of IK_LIMB_KEYS){
-    for (const m of trajPointMeshes[limb]) if (m.visible) list.push(m);
-  }
-  for (const fingerId of FINGER_IDS){
-    if (fingerIKTargetMeshes[fingerId] && fingerIKTargetMeshes[fingerId].visible) list.push(fingerIKTargetMeshes[fingerId]);
-  }
-  return list;
+function allPickableMeshes(...args){
+  return sceneSelectionController.allPickableMeshes(...args);
 }
 
 // ---- 點擊選取關節 ----
-function setupPickRaycaster(){
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  let downX = 0, downY = 0;
-
-  const dom = renderer.domElement;
-  dom.addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; });
-
-  dom.addEventListener("pointerup", (e) => {
-    // suppressClick 會在剛拖完控制環之後短暫為 true，避免放開拖曳的那次 click 被誤判成「點空白處」
-    if (suppressClick || transformControls.dragging || transformControlsIK.dragging || kfPlaying) return;
-    const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
-    if (dist > 6) return;
-
-    const rect = dom.getBoundingClientRect();
-    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(allPickableMeshes());
-    if (hits.length > 0){
-      const obj = hits[0].object;
-      const pickType = obj.userData.pickType;
-      if (pickType === "laPoint") selectLACustom(obj.userData.index);
-      else if (pickType === "ikTarget") selectIKMarker(obj.userData.limb, "target");
-      else if (pickType === "ikPole") selectIKMarker(obj.userData.limb, "pole");
-      else if (pickType === "spineIKTarget") selectIKMarker("spine", "target");
-      else if (pickType === "lookAtTarget") selectIKMarker("lookAt_" + obj.userData.lookAtName, "target");
-      else if (pickType === "trajPoint") selectIKMarker(obj.userData.limb, "trajPoint", obj.userData.index);
-      else if (pickType === "fingerIKTarget") selectIKMarker(FINGER_IK_PREFIX + obj.userData.fingerId, "target");
-      else selectJoint(obj.userData.jointKey);
-    } else if (selectedKey || selectedIK){
-      // 點到模型本身或空白處（沒點中任何球）：視為取消選取，收起控制環
-      deselectJoint();
-    }
-  });
-
-  // 按 Esc 取消目前選取，收起控制環（拍點播放中或沒有選取時忽略）
-  window.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (kfPlaying || (!selectedKey && !selectedIK)) return;
-    deselectJoint();
-  });
+function setupPickRaycaster(...args){
+  return sceneSelectionController.setupPickRaycaster(...args);
 }
 
-function selectJoint(key){
-  tgCancelPreview();
-  if(waveRun)stopWave();
-  if (FOOT_PLANT_LIMBS.some(l => isFootPlanted(l) && IK_CHAINS[l].end === key)) return;
-  if (!bones[key]) return;
-  selectedIK = null;
-  transformControlsIK.detach();
-  selectedKey = key;
-  transformControls.attach(bones[key]);
-  highlightMarkers();
-  highlightIKMarkers();
-  updateSelectedBar();
+function selectJoint(...args){
+  return sceneSelectionController.selectJoint(...args);
 }
 
-function deselectJoint(){
-  laCustomDrag=null;
-  selectedKey = null;
-  selectedIK = null;
-  transformControls.detach();
-  transformControlsIK.detach();
-  highlightMarkers();
-  highlightIKMarkers();
-  updateSelectedBar();
-  renderTrajPointList();
+function deselectJoint(...args){
+  return sceneSelectionController.deselectJoint(...args);
 }
 
-function updateSelectedBar(){
-  updatePoleRadiusUI();
-  const label = document.getElementById("selectedLabel");
-  const angles = document.getElementById("selectedAngles");
-  const spaceBtn = document.getElementById("spaceBtn");
-  const snapLabel = document.getElementById("snapLabel");
-  const snapSelect = document.getElementById("snapSelect");
-  const zeroBtn = document.getElementById("zeroJointBtn");
-  if(zeroBtn)zeroBtn.disabled=false;
-  if(selectedIK?.role==='laPoint'){
-    const m=laCustomMeshes[selectedIK.index];if(!m)return;
-    label.textContent='LookAt 控制點 P'+(selectedIK.index+1);angles.textContent='X '+m.position.x.toFixed(3)+' Y '+m.position.y.toFixed(3)+' Z '+m.position.z.toFixed(3);
-    for(const el of [spaceBtn,snapLabel,snapSelect,document.getElementById('ikModeBtn')])if(el)el.style.display='none';
-    if(zeroBtn){zeroBtn.disabled=true;zeroBtn.textContent='請由控制點清單刪除';}return;
-  }
-  if (selectedIK){
-    let labelText, mesh;
-    if (selectedIK.limb === "spine"){
-      labelText = `${SPINE_IK_CHAIN.label}・頭部目標球`;
-      mesh = spineIKTargetMesh;
-    } else if (selectedIK.limb.startsWith("lookAt_")){
-      const name = selectedIK.limb.replace("lookAt_", "");
-      labelText = `${LOOKAT_CONFIG[name].label}・Look-At目標球`;
-      mesh = lookAtTargetMesh[name];
-    } else if (selectedIK.limb.startsWith(FINGER_IK_PREFIX)){
-      const fingerId = selectedIK.limb.slice(FINGER_IK_PREFIX.length);
-      labelText = `${FINGER_IK_CHAINS[fingerId].label}・指尖目標球`;
-      mesh = fingerIKTargetMeshes[fingerId];
-    } else if (selectedIK.limb === "body"){
-      labelText = "身體位置（整個角色，控制環顯示於髖部）";
-      mesh = bodyGizmoProxy;
-    } else if (selectedIK.role === "trajPoint"){
-      const chain = IK_CHAINS[selectedIK.limb];
-      const idx = selectedIK.index || 0;
-      labelText = `${chain.label}・軌跡控制點 #${idx + 1}`;
-      mesh = trajPointMeshes[selectedIK.limb][idx];
-      if (!mesh){ deselectJoint(); return; }
-    } else {
-      const chain = IK_CHAINS[selectedIK.limb];
-      labelText = `${chain.label}・${selectedIK.role === "target" ? "IK目標球" : "彎曲極向球"}`;
-      mesh = selectedIK.role === "target" ? ikTargetMeshes[selectedIK.limb] : ikPoleMeshes[selectedIK.limb];
-    }
-    label.textContent = labelText;
-    angles.textContent = `X ${mesh.position.x.toFixed(2)}  Y ${mesh.position.y.toFixed(2)}  Z ${mesh.position.z.toFixed(2)}`;
-    if (spaceBtn) spaceBtn.style.display = "none";
-    if (snapLabel) snapLabel.style.display = "none";
-    if (snapSelect) snapSelect.style.display = "none";
-    if (zeroBtn) zeroBtn.textContent = "重置此球位置";
-
-    // 「位置/朝向」切換按鈕：只有手腳IK的目標球、且該肢體有開啟Effector朝向控制時才顯示，
-    // 其他標記球（脊椎/look-at/極向球/身體）旋轉環拖了也沒有對應的求解邏輯讀取，顯示了只會困惑使用者
-    const ikModeBtn = document.getElementById("ikModeBtn");
-    const isArmLegTarget = IK_CHAINS[selectedIK.limb] && selectedIK.role === "target";
-    if (ikModeBtn){
-      if (isArmLegTarget && effectorOrientEnabled[selectedIK.limb]){
-        ikModeBtn.style.display = "";
-        ikModeBtn.textContent = "切換：" + (transformControlsIK.getMode() === "translate" ? "位置" : "朝向");
-      } else {
-        ikModeBtn.style.display = "none";
-        transformControlsIK.setMode("translate"); // 離開這類標記球時強制切回位置模式，避免殘留旋轉模式影響其他標記球
-      }
-    }
-    return;
-  }
-
-  if (spaceBtn) spaceBtn.style.display = "";
-  if (snapLabel) snapLabel.style.display = "";
-  if (snapSelect) snapSelect.style.display = "";
-  if (zeroBtn) zeroBtn.textContent = "此關節歸零";
-  const ikModeBtnHide = document.getElementById("ikModeBtn");
-  if (ikModeBtnHide) ikModeBtnHide.style.display = "none";
-
-  if (!selectedKey){
-    label.textContent = "未選取";
-    angles.textContent = "";
-    return;
-  }
-  label.textContent = LABEL_LOOKUP[selectedKey] || selectedKey;
-  const a = poseController.getTarget(selectedKey) || [0,0,0];
-  angles.textContent = `X ${a[0].toFixed(1)}°  Y ${a[1].toFixed(1)}°  Z ${a[2].toFixed(1)}°`;
+function updateSelectedBar(...args){
+  return sceneSelectionController.updateSelectedBar(...args);
 }
 
 // 從骨骼目前的四元數反推「相對 rest pose」的角度，寫回 target/current
@@ -3839,44 +3399,12 @@ function bindTopUI(){
 // ======================================================================
 const DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY = "tuttingDisplayTogglesCollapsed";
 
-function setDisplayTogglesCollapsed(collapsed){
-  const panel = document.getElementById("displayTogglesPanel");
-  if (panel) panel.classList.toggle("collapsed", collapsed);
-  try { preferences.setItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0"); } catch (e) {}
+function setDisplayTogglesCollapsed(...args){
+  return workspacePanelsController.setDisplayTogglesCollapsed(...args);
 }
 
-function initDisplayTogglesPanel(){
-  const showBodyJointsChk = document.getElementById("showBodyJointsChk");
-  if (showBodyJointsChk){
-    showBodyJointsChk.checked = showBodyJoints;
-    showBodyJointsChk.onchange = (e) => setJointCategoryVisible("body", e.target.checked);
-  }
-  const showHandJointsChk = document.getElementById("showHandJointsChk");
-  if (showHandJointsChk){
-    showHandJointsChk.checked = showHandJoints;
-    showHandJointsChk.onchange = (e) => setJointCategoryVisible("hand", e.target.checked);
-  }
-  const showSkeletonChk = document.getElementById("showSkeletonChk");
-  if (showSkeletonChk){
-    showSkeletonChk.checked = showSkeleton;
-    showSkeletonChk.onchange = (e) => { showSkeleton = e.target.checked; };
-  }
-  const handCollisionVizCb = document.getElementById("handCollisionVizCb");
-  if (handCollisionVizCb){
-    handCollisionVizCb.checked = handCollisionVizEnabled;
-    handCollisionVizCb.onchange = (e) => { handCollisionVizEnabled = e.target.checked; };
-  }
-
-  const collapseBtn = document.getElementById("displayTogglesCollapseBtn");
-  if (collapseBtn){
-    let collapsed = false;
-    try { collapsed = preferences.getItem(DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY) === "1"; } catch (e) {}
-    setDisplayTogglesCollapsed(collapsed);
-    collapseBtn.onclick = () => {
-      const panel = document.getElementById("displayTogglesPanel");
-      setDisplayTogglesCollapsed(!panel.classList.contains("collapsed"));
-    };
-  }
+function initDisplayTogglesPanel(...args){
+  return workspacePanelsController.initDisplayTogglesPanel(...args);
 }
 
 // ---- 面板高度：拖曳把手手動調整 ----
@@ -3884,69 +3412,8 @@ const UI_HEIGHT_MIN_PX = 160;
 const UI_HEIGHT_DEFAULT_RATIO = 0.46; // 對應原本的 46vh 預設
 const UI_HEIGHT_MAX_RATIO = 0.85;
 
-function initUIResize(){
-  const ui = document.getElementById("ui");
-  const handle = document.getElementById("uiResizeHandle");
-  let dragging = false;
-  let startY = 0;
-  let startHeight = 0;
-
-  function clampHeight(px){
-    const max = window.innerHeight * UI_HEIGHT_MAX_RATIO;
-    return Math.min(max, Math.max(UI_HEIGHT_MIN_PX, px));
-  }
-
-  function applyHeight(px, save){
-    const h = clampHeight(px);
-    ui.style.height = h + "px";
-    if (save){
-      try { preferences.setItem("tuttingUIHeightRatio", String(h / window.innerHeight)); } catch (e) {}
-    }
-  }
-
-  function onPointerMove(e){
-    if (!dragging) return;
-    // 面板貼底部，往上拖（clientY 變小）要變高，所以是「起始Y - 目前Y」
-    applyHeight(startHeight + (startY - e.clientY), false);
-  }
-
-  function onPointerUp(e){
-    if (!dragging) return;
-    dragging = false;
-    handle.classList.remove("dragging");
-    document.body.classList.remove("uiResizing");
-    applyHeight(ui.getBoundingClientRect().height, true);
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", onPointerUp);
-  }
-
-  handle.addEventListener("pointerdown", (e) => {
-    dragging = true;
-    startY = e.clientY;
-    startHeight = ui.getBoundingClientRect().height;
-    handle.classList.add("dragging");
-    document.body.classList.add("uiResizing");
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    e.preventDefault();
-  });
-
-  // 雙擊把手：重置回預設高度
-  handle.addEventListener("dblclick", () => {
-    applyHeight(window.innerHeight * UI_HEIGHT_DEFAULT_RATIO, true);
-  });
-
-  // 視窗尺寸改變時，依原本比例換算成新的 px 高度，維持相對大小（浮動模式的尺寸由 initUIFloat() 自己處理，這裡略過）
-  window.addEventListener("resize", () => {
-    if (ui.classList.contains("uiFloating")) return;
-    let ratio = UI_HEIGHT_DEFAULT_RATIO;
-    try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
-    applyHeight(window.innerHeight * ratio, false);
-  });
-
-  let ratio = UI_HEIGHT_DEFAULT_RATIO;
-  try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
-  applyHeight(window.innerHeight * ratio, false);
+function initUIResize(...args){
+  return floatingPanelsController.initUIResize(...args);
 }
 
 // ---- 面板浮動模式：可拖曳移動、可從右下角拖曳縮放，取代貼底整版寬的預設佈局 ----
@@ -3958,143 +3425,8 @@ const UI_FLOAT_DEFAULT_WIDTH = 440;
 const UI_FLOAT_DEFAULT_LEFT = 24;
 const UI_FLOAT_DEFAULT_TOP = 64;
 
-function initUIFloat(){
-  const ui = document.getElementById("ui");
-  const floatBtn = document.getElementById("uiFloatBtn");
-  const dragHandle = document.getElementById("uiDragHandle");
-  const resizeHandle = document.getElementById("uiFloatResizeHandle");
-
-  // 限制浮動視窗的位置跟大小都不超出目前視窗範圍，避免拖到畫面外找不回來
-  // top 的下限不能只留 4px——面板頂部那排「浮動/隱藏面板」按鈕是用往上位移 28px 的方式疊在面板外面，
-  // 面板一旦貼近畫面最上緣，那排按鈕就會被推到瀏覽器可視範圍外面，完全看不到也點不到、卡在浮動模式關不掉。
-  // 這裡把 top 下限拉高到留得出那排按鈕的空間，從根本避免這個位置存在。
-  const UI_FLOAT_TOP_MIN = 34;
-
-  function clampRect(left, top, width, height){
-    const maxW = window.innerWidth - 8;
-    const maxH = window.innerHeight - 8;
-    width = Math.min(Math.max(width, UI_FLOAT_MIN_WIDTH), maxW);
-    height = Math.min(Math.max(height, UI_FLOAT_MIN_HEIGHT), maxH);
-    left = Math.min(Math.max(left, 4), window.innerWidth - width - 4);
-    top = Math.min(Math.max(top, UI_FLOAT_TOP_MIN), window.innerHeight - height - 4);
-    return { left, top, width, height };
-  }
-
-  function applyRect(rect, save){
-    ui.style.left = rect.left + "px";
-    ui.style.top = rect.top + "px";
-    ui.style.width = rect.width + "px";
-    ui.style.height = rect.height + "px";
-    if (save){
-      try { preferences.setItem("tuttingUIFloatRect", JSON.stringify(rect)); } catch (e) {}
-    }
-  }
-
-  function getDefaultRect(){
-    return clampRect(UI_FLOAT_DEFAULT_LEFT, UI_FLOAT_DEFAULT_TOP, UI_FLOAT_DEFAULT_WIDTH, window.innerHeight * UI_HEIGHT_DEFAULT_RATIO);
-  }
-
-  function getSavedRect(){
-    let rect = null;
-    try { rect = JSON.parse(preferences.getItem("tuttingUIFloatRect")); } catch (e) {}
-    if (!rect || typeof rect.left !== "number") return getDefaultRect();
-    return clampRect(rect.left, rect.top, rect.width, rect.height);
-  }
-
-  function setFloating(floating, save){
-    ui.classList.toggle("uiFloating", floating);
-    floatBtn.textContent = floating ? "📌 貼底面板" : "🗗 浮動面板";
-    floatBtn.title = floating ? "切換回貼底整版寬的面板" : "切換成可拖曳移動、可縮放大小的浮動面板";
-    if (floating){
-      applyRect(getSavedRect(), false);
-    } else {
-      // 交還給貼底模式（initUIResize()）自己的 CSS/高度邏輯，這裡只要清掉浮動模式加的 inline 定位
-      ui.style.left = "";
-      ui.style.top = "";
-      ui.style.width = "";
-      let ratio = UI_HEIGHT_DEFAULT_RATIO;
-      try { ratio = parseFloat(preferences.getItem("tuttingUIHeightRatio")) || UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
-      ui.style.height = (window.innerHeight * ratio) + "px";
-    }
-    if (save){
-      try { preferences.setItem("tuttingUIFloating", floating ? "1" : "0"); } catch (e) {}
-    }
-  }
-
-  floatBtn.onclick = () => setFloating(!ui.classList.contains("uiFloating"), true);
-
-  // ---- 拖曳移動 ----
-  let dragging = false, dragStartX = 0, dragStartY = 0, dragStartLeft = 0, dragStartTop = 0;
-
-  function onDragMove(e){
-    if (!dragging) return;
-    const r = ui.getBoundingClientRect();
-    applyRect(clampRect(dragStartLeft + (e.clientX - dragStartX), dragStartTop + (e.clientY - dragStartY), r.width, r.height), false);
-  }
-  function onDragUp(){
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove("uiFloatDragging");
-    const r = ui.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, r.width, r.height), true);
-    window.removeEventListener("pointermove", onDragMove);
-    window.removeEventListener("pointerup", onDragUp);
-  }
-  dragHandle.addEventListener("pointerdown", (e) => {
-    if (!ui.classList.contains("uiFloating")) return;
-    dragging = true;
-    dragStartX = e.clientX; dragStartY = e.clientY;
-    const r = ui.getBoundingClientRect();
-    dragStartLeft = r.left; dragStartTop = r.top;
-    document.body.classList.add("uiFloatDragging");
-    window.addEventListener("pointermove", onDragMove);
-    window.addEventListener("pointerup", onDragUp);
-    e.preventDefault();
-  });
-  dragHandle.addEventListener("dblclick", () => {
-    if (!ui.classList.contains("uiFloating")) return;
-    applyRect(getDefaultRect(), true);
-  });
-
-  // ---- 拖曳右下角縮放（同時調寬高） ----
-  let resizing = false, rzStartX = 0, rzStartY = 0, rzStartW = 0, rzStartH = 0, rzLeft = 0, rzTop = 0;
-
-  function onResizeMove(e){
-    if (!resizing) return;
-    applyRect(clampRect(rzLeft, rzTop, rzStartW + (e.clientX - rzStartX), rzStartH + (e.clientY - rzStartY)), false);
-  }
-  function onResizeUp(){
-    if (!resizing) return;
-    resizing = false;
-    document.body.classList.remove("uiFloatResizing");
-    const r = ui.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, r.width, r.height), true);
-    window.removeEventListener("pointermove", onResizeMove);
-    window.removeEventListener("pointerup", onResizeUp);
-  }
-  resizeHandle.addEventListener("pointerdown", (e) => {
-    if (!ui.classList.contains("uiFloating")) return;
-    resizing = true;
-    rzStartX = e.clientX; rzStartY = e.clientY;
-    const r = ui.getBoundingClientRect();
-    rzStartW = r.width; rzStartH = r.height; rzLeft = r.left; rzTop = r.top;
-    document.body.classList.add("uiFloatResizing");
-    window.addEventListener("pointermove", onResizeMove);
-    window.addEventListener("pointerup", onResizeUp);
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  // 視窗尺寸改變時，若正在浮動模式要重新 clamp，避免面板被卡在畫面外看不到、抓不回來
-  window.addEventListener("resize", () => {
-    if (!ui.classList.contains("uiFloating")) return;
-    const r = ui.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, r.width, r.height), true);
-  });
-
-  let floating = false;
-  try { floating = preferences.getItem("tuttingUIFloating") === "1"; } catch (e) {}
-  setFloating(floating, false);
+function initUIFloat(...args){
+  return floatingPanelsController.initUIFloat(...args);
 }
 
 // ======================================================================
@@ -4102,251 +3434,24 @@ function initUIFloat(){
 // 跟主面板（#ui）分開拖曳/縮放，收合時精準插回原本在 DOM 裡的位置。
 // 沿用跟 initUIFloat() 一樣的拖曳/縮放手感，抽成參數化的通用版本方便重複使用。
 // ======================================================================
-function makeFloatablePanel(opts){
-  const { contentEl, storageKey, title, defaultRect, minWidth = 240, minHeight = 160, onChange } = opts;
-  const homeParent = contentEl.parentNode;
-  const homeNextSibling = contentEl.nextSibling; // 記住原本插入點，收合時要精準插回原位，不能只 append 到最後
-
-  const panel = document.createElement("div");
-  panel.className = "floatablePanel";
-  panel.style.display = "none";
-
-  const header = document.createElement("div");
-  header.className = "floatablePanelHeader";
-  const grip = document.createElement("span");
-  grip.className = "grip";
-  const titleSpan = document.createElement("span");
-  titleSpan.className = "floatablePanelTitle";
-  titleSpan.textContent = title;
-  const dockBtn = document.createElement("button");
-  dockBtn.type = "button";
-  dockBtn.className = "floatablePanelDockBtn";
-  dockBtn.textContent = "📌 收合回面板";
-  dockBtn.setAttribute("data-tooltip", "收合回原本的分頁");
-  header.appendChild(grip);
-  header.appendChild(titleSpan);
-  header.appendChild(dockBtn);
-
-  const body = document.createElement("div");
-  body.className = "floatablePanelBody";
-
-  const resizeHandle = document.createElement("div");
-  resizeHandle.className = "floatablePanelResizeHandle";
-  resizeHandle.setAttribute("data-tooltip", "拖曳調整大小");
-
-  panel.appendChild(header);
-  panel.appendChild(body);
-  panel.appendChild(resizeHandle);
-  document.body.appendChild(panel);
-
-  function clampRect(left, top, width, height){
-    const maxW = window.innerWidth - 8;
-    const maxH = window.innerHeight - 8;
-    width = Math.min(Math.max(width, minWidth), maxW);
-    height = Math.min(Math.max(height, minHeight), maxH);
-    left = Math.min(Math.max(left, 4), window.innerWidth - width - 4);
-    top = Math.min(Math.max(top, 4), window.innerHeight - height - 4);
-    return { left, top, width, height };
-  }
-  function applyRect(rect, save){
-    panel.style.left = rect.left + "px";
-    panel.style.top = rect.top + "px";
-    panel.style.width = rect.width + "px";
-    panel.style.height = rect.height + "px";
-    if (save){
-      try { preferences.setItem(storageKey, JSON.stringify(rect)); } catch (e) {}
-    }
-  }
-  function getDefaultRect(){
-    return clampRect(defaultRect.left, defaultRect.top, defaultRect.width, defaultRect.height);
-  }
-  function getSavedRect(){
-    let rect = null;
-    try { rect = JSON.parse(preferences.getItem(storageKey)); } catch (e) {}
-    if (!rect || typeof rect.left !== "number") return getDefaultRect();
-    return clampRect(rect.left, rect.top, rect.width, rect.height);
-  }
-
-  let floating = false;
-  function setFloating(on){
-    floating = on;
-    if (on){
-      body.appendChild(contentEl); // contentEl 直接搬過來，事件監聽器/選取狀態都不受影響
-      panel.style.display = "flex";
-      applyRect(getSavedRect(), false);
-    } else {
-      panel.style.display = "none";
-      if (homeNextSibling && homeNextSibling.parentNode === homeParent){
-        homeParent.insertBefore(contentEl, homeNextSibling);
-      } else {
-        homeParent.appendChild(contentEl);
-      }
-    }
-    try { preferences.setItem(storageKey + "_on", on ? "1" : "0"); } catch (e) {}
-    if (typeof onChange === "function") onChange(on); // 不論從外部按鈕還是面板內的收合鈕觸發，都要同步通知外部狀態已改變
-  }
-  dockBtn.onclick = () => setFloating(false);
-
-  // ---- 拖曳移動 ----
-  let dragging = false, dsx = 0, dsy = 0, dsl = 0, dst = 0, dsw = 0, dsh = 0;
-  function onDragMove(e){
-    if (!dragging) return;
-    // 寬高沿用拖曳開始那一刻量到的值，不要在每個 mousemove 都重新用 getBoundingClientRect() 量測——
-    // 那樣量到的是含 border 的算後尺寸，若元素不是 border-box，每次搬過去當作新的 style.width/height
-    // 會把 border 疊加進內容寬度，越拖越大；固定住寬高只改位置才是正確的拖曳行為。
-    applyRect(clampRect(dsl + (e.clientX - dsx), dst + (e.clientY - dsy), dsw, dsh), false);
-  }
-  function onDragUp(){
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove("uiFloatDragging");
-    const r = panel.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, dsw, dsh), true);
-    window.removeEventListener("pointermove", onDragMove);
-    window.removeEventListener("pointerup", onDragUp);
-  }
-  header.addEventListener("pointerdown", (e) => {
-    if (e.target === dockBtn) return;
-    dragging = true;
-    dsx = e.clientX; dsy = e.clientY;
-    const r = panel.getBoundingClientRect();
-    dsl = r.left; dst = r.top; dsw = r.width; dsh = r.height;
-    document.body.classList.add("uiFloatDragging");
-    window.addEventListener("pointermove", onDragMove);
-    window.addEventListener("pointerup", onDragUp);
-    e.preventDefault();
-  });
-  header.addEventListener("dblclick", (e) => {
-    if (e.target === dockBtn) return;
-    applyRect(getDefaultRect(), true);
-  });
-
-  // ---- 拖曳右下角縮放 ----
-  let resizing = false, rsx = 0, rsy = 0, rsw = 0, rsh = 0, rl = 0, rt = 0;
-  function onResizeMove(e){
-    if (!resizing) return;
-    applyRect(clampRect(rl, rt, rsw + (e.clientX - rsx), rsh + (e.clientY - rsy)), false);
-  }
-  function onResizeUp(){
-    if (!resizing) return;
-    resizing = false;
-    document.body.classList.remove("uiFloatResizing");
-    const r = panel.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, r.width, r.height), true);
-    window.removeEventListener("pointermove", onResizeMove);
-    window.removeEventListener("pointerup", onResizeUp);
-  }
-  resizeHandle.addEventListener("pointerdown", (e) => {
-    resizing = true;
-    rsx = e.clientX; rsy = e.clientY;
-    const r = panel.getBoundingClientRect();
-    rsw = r.width; rsh = r.height; rl = r.left; rt = r.top;
-    document.body.classList.add("uiFloatResizing");
-    window.addEventListener("pointermove", onResizeMove);
-    window.addEventListener("pointerup", onResizeUp);
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  // 視窗尺寸改變時重新 clamp，避免浮動視窗被卡在畫面外
-  window.addEventListener("resize", () => {
-    if (!floating) return;
-    const r = panel.getBoundingClientRect();
-    applyRect(clampRect(r.left, r.top, r.width, r.height), true);
-  });
-
-  return {
-    toggle(on){ setFloating(on === undefined ? !floating : on); },
-    isFloating(){ return floating; }
-  };
+function makeFloatablePanel(...args){
+  return floatingPanelsController.makeFloatablePanel(...args);
 }
 
 // ---- 手指面板：套用上面的通用浮動視窗，方便一邊看 3D 一邊微調手指、不被主面板佔用的畫面空間卡住 ----
-function initFingerFloatPanel(){
-  const grid = document.querySelector("#tabFingers .fingerHandGrid");
-  const btn = document.getElementById("fingerFloatBtn");
-  if (!grid || !btn) return;
-
-  const floatable = makeFloatablePanel({
-    contentEl: grid,
-    storageKey: "tuttingFingerFloatRect",
-    title: "✋ 手指 FK／IK",
-    defaultRect: { left: Math.max(4, window.innerWidth - 400), top: 90, width: 360, height: 440 },
-    minWidth: 260,
-    minHeight: 220,
-    onChange: () => syncLabel(), // 不管是點頁籤上的按鈕還是浮動視窗內的「收合回面板」，都要同步更新頁籤按鈕文字
-  });
-
-  function syncLabel(){
-    const on = floatable.isFloating();
-    btn.textContent = on ? "📌 收合回面板" : "🗗 浮動視窗";
-    btn.setAttribute("data-tooltip", on
-      ? "收合回「手指」分頁裡"
-      : "彈出成獨立的浮動視窗，可拖曳移動、拖右下角調整大小，編輯手指時不用被主面板卡住");
-  }
-  btn.onclick = () => { floatable.toggle(); };
-
-  let restoreFloating = false;
-  try { restoreFloating = preferences.getItem("tuttingFingerFloatRect_on") === "1"; } catch (e) {}
-  if (restoreFloating) floatable.toggle(true);
-  syncLabel();
+function initFingerFloatPanel(...args){
+  return floatingPanelsController.initFingerFloatPanel(...args);
 }
 
 
 // ---- 面板分頁（動作姿勢庫／JSON／時間軸） ----
-function initUITabs(){
-  const tabBtns = document.querySelectorAll(".tabBtn");
-  const panels = document.querySelectorAll(".tabPanel");
-  const validTabNames = Array.from(tabBtns).map(b => b.dataset.tab);
-
-  function switchTab(name){
-    if(name!=="tuttingGen")tgCancelPreview();
-    tabBtns.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-    panels.forEach(p => p.classList.toggle("active", p.dataset.tab === name));
-    if (name === "json") refreshJsonArea();
-    if (name === "traj") renderTrajPointList();
-    if (name === "overview") updateOverviewPanel(true);
-    if (name === "jointLimits") updateJointLimitPanelAngles(true);
-    if (name === "keyframe") requestAnimationFrame(drawKfWaveform); // 分頁剛顯示時canvas寬度才量得到，下一幀再畫
-    try { preferences.setItem("tuttingActiveTab", name); } catch (e) {}
-    updateOnionSkins();
-  }
-
-  tabBtns.forEach(b => b.onclick = () => switchTab(b.dataset.tab));
-
-  let savedTab = "poseLib";
-  try { savedTab = preferences.getItem("tuttingActiveTab") || "poseLib"; } catch (e) {}
-  // 舊版存的分頁名稱（例如已移除的「poses」）在目前分頁清單裡找不到時，退回預設分頁，避免面板空白
-  if (!validTabNames.includes(savedTab)) savedTab = "poseLib";
-  switchTab(savedTab);
+function initUITabs(...args){
+  return workspacePanelsController.initUITabs(...args);
 }
 
 // ---- 面板整體隱藏／顯示（快速鍵 H） ----
-function initUIVisibility(){
-  const ui = document.getElementById("ui");
-  const hideBtn = document.getElementById("uiHideBtn");
-  const showBtn = document.getElementById("uiShowBtn");
-
-  function setHidden(hidden){
-    ui.style.display = hidden ? "none" : "flex";
-    showBtn.style.display = hidden ? "block" : "none";
-    try { preferences.setItem("tuttingUIHidden", hidden ? "1" : "0"); } catch (e) {}
-  }
-
-  hideBtn.onclick = () => setHidden(true);
-  showBtn.onclick = () => setHidden(false);
-
-  window.addEventListener("keydown", (e) => {
-    if (e.key !== "h" && e.key !== "H") return;
-    const t = e.target;
-    const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT");
-    if (typing) return;
-    setHidden(ui.style.display !== "none");
-  });
-
-  let hidden = false;
-  try { hidden = preferences.getItem("tuttingUIHidden") === "1"; } catch (e) {}
-  setHidden(hidden);
+function initUIVisibility(...args){
+  return workspacePanelsController.initUIVisibility(...args);
 }
 
 function updateBpm(event){
@@ -4691,49 +3796,17 @@ function updateBones(){
 // ⚠️ 回傳的 result 物件是「共用的」：呼叫端必須立刻把數值讀走／用掉，
 //    不可以存起來跨呼叫使用，否則下一次量測就會把它覆寫掉。
 //    （全身與單手各有一份獨立的 result，兩者不會互相污染。）
-const _boundsVec = new THREE.Vector3();
-const _boundsBox = new THREE.Box3();
-const _boundsSize = new THREE.Vector3();
-const _bodyBoundsResult = { halfX:0, halfY:0, halfZ:0, center: new THREE.Vector3() };
-const _handBoundsResult = { halfX:0, halfY:0, halfZ:0, center: new THREE.Vector3() };
+
+
+
+
+
 
 // skipMatrixUpdate=true：呼叫端保證世界矩陣已是最新（例如剛跑完 renderer.render()，
 // 或同一批流程開頭已經自己更新過一次），可省掉重複的 model.updateWorldMatrix()。
 // 一次要算好幾個視角時，這個旗標讓整批只更新一次而不是每個視角各更新一次。
-function getModelBoundsInfo(skipMatrixUpdate){
-  if (!model) return null;
-  if (!skipMatrixUpdate) model.updateWorldMatrix(true, true);
-  const v = _boundsVec;
-  const box = _boundsBox.makeEmpty();
-  let hasPoint = false;
-  for (const key of ALL_JOINT_KEYS){
-    const bone = bones[key];
-    if (!bone) continue;
-    bone.getWorldPosition(v);
-    box.expandByPoint(v);
-    hasPoint = true;
-  }
-  // 指尖 effector（比最後一節手指骨更接近真正指尖）也算進去，張開手指時範圍才夠準
-  for (const fingerId of FINGER_IDS){
-    const eff = fingerEffectorBones[fingerId];
-    if (!eff) continue;
-    eff.getWorldPosition(v);
-    box.expandByPoint(v);
-    hasPoint = true;
-  }
-  if (!hasPoint || box.isEmpty()) return null;
-  // 骨骼只是關節中心點，實際外形（頭型、肩寬、腳掌長度等）會再往外一點，
-  // 用身高的固定比例抓一個大概的留白，頭頂/腳底再多留一些避免貼邊。
-  const pad = modelHeight * 0.09;
-  box.min.x -= pad;          box.max.x += pad;
-  box.min.y -= pad * 0.7;    box.max.y += pad * 1.4; // 頭頂比腳底需要更多留白
-  box.min.z -= pad;          box.max.z += pad;
-  box.getSize(_boundsSize);
-  box.getCenter(_bodyBoundsResult.center);
-  _bodyBoundsResult.halfX = _boundsSize.x/2;
-  _bodyBoundsResult.halfY = _boundsSize.y/2;
-  _bodyBoundsResult.halfZ = _boundsSize.z/2;
-  return _bodyBoundsResult;
+function getModelBoundsInfo(...args){
+  return cameraController.getModelBoundsInfo(...args);
 }
 
 // 算出「要讓一個半寬 halfW、半高 halfH 的平面完整入鏡」所需的鏡頭距離，
@@ -4742,44 +3815,14 @@ function getModelBoundsInfo(skipMatrixUpdate){
 // aspect 可選：不傳時沿用主鏡頭的長寬比（原本的行為）。分割視窗的小 canvas
 // 長寬比跟主畫面完全不同（例如主畫面 2.4、預覽視窗 1.6），沿用主鏡頭的值算出來的
 // 距離會太近或太遠、把角色裁掉，所以那邊改成傳入該預覽視窗自己的 aspect。
-function computeFitDistance(halfW, halfH, marginFactor, aspect){
-  const vFovHalf = (camera.fov * Math.PI / 180) / 2;
-  const a = (typeof aspect === "number" && aspect > 0) ? aspect : camera.aspect;
-  const hFovHalf = Math.atan(Math.tan(vFovHalf) * a);
-  const distV = halfH / Math.tan(vFovHalf);
-  const distH = halfW / Math.tan(hFovHalf);
-  return Math.max(distV, distH) * (marginFactor || 1.45);
+function computeFitDistance(...args){
+  return cameraController.computeFitDistance(...args);
 }
 
 // 手部特寫用的包圍範圍：只抓該手掌骨本身＋該手5指指尖 effector 的目前世界座標，
 // 不像 getModelBoundsInfo() 抓全身，這樣特寫時才不會因為身體其他部位太遠而把手縮得很小。
-function getHandBoundsInfo(prefix, skipMatrixUpdate){ // prefix："r" 或 "l"
-  if (!model) return null;
-  if (!skipMatrixUpdate) model.updateWorldMatrix(true, true);
-  const v = _boundsVec;
-  const box = _boundsBox.makeEmpty();
-  let hasPoint = false;
-  const handBone = bones[prefix + "Hand"];
-  if (handBone){ handBone.getWorldPosition(v); box.expandByPoint(v); hasPoint = true; }
-  for (const fingerId of FINGER_IDS){
-    if (fingerId[0] !== prefix) continue; // fingerId 例："rThumb"，第一個字元就是側別
-    const eff = fingerEffectorBones[fingerId];
-    if (!eff) continue;
-    eff.getWorldPosition(v);
-    box.expandByPoint(v);
-    hasPoint = true;
-  }
-  if (!hasPoint || box.isEmpty()) return null;
-  const pad = modelHeight * 0.04; // 手掌範圍本來就小，留白比例比全身鏡頭小一點即可
-  box.min.x -= pad; box.max.x += pad;
-  box.min.y -= pad; box.max.y += pad;
-  box.min.z -= pad; box.max.z += pad;
-  box.getSize(_boundsSize);
-  box.getCenter(_handBoundsResult.center);
-  _handBoundsResult.halfX = _boundsSize.x/2;
-  _handBoundsResult.halfY = _boundsSize.y/2;
-  _handBoundsResult.halfZ = _boundsSize.z/2;
-  return _handBoundsResult;
+function getHandBoundsInfo(...args){
+  return cameraController.getHandBoundsInfo(...args);
 }
 
 // 算出「右手特寫」/「左手特寫」鏡頭預設值：以該手掌＋手指目前的世界座標為中心，
@@ -4787,51 +3830,18 @@ function getHandBoundsInfo(prefix, skipMatrixUpdate){ // prefix："r" 或 "l"
 // 也比較不會被前臂/身體擋住。外側偏移方向用 hips 骨盆 x 座標跟手掌中心比較後自動判斷
 // （而不是直接寫死 r=偏一邊、l=偏另一邊），這樣即使角色擺出交叉手臂之類的姿勢，
 // 鏡頭仍會往手實際所在的那一側偏，不會反而拍到手背。
-const _handHipsVec = new THREE.Vector3();
-const _handDirVec = new THREE.Vector3();
-function computeHandCameraPreset(prefix, skipMatrixUpdate){
-  const h = modelHeight;
-  const info = getHandBoundsInfo(prefix, skipMatrixUpdate);
-  if (!info){
-    // 模型/骨骼尚未就緒時的退回值，理論上跟全身鏡頭一樣不會真的用到
-    const midY = h * 0.55;
-    const sideSign = prefix === "r" ? -1 : 1;
-    return { pos:[sideSign*h*0.35, midY + h*0.05, h*0.9], target:[sideSign*h*0.2, midY, 0] };
-  }
-  const { halfX, halfY, halfZ, center } = info;
-  const hipsBone = bones.hips;
-  let sideSign = prefix === "r" ? -1 : 1;
-  if (hipsBone){
-    const hv = _handHipsVec;
-    hipsBone.getWorldPosition(hv);
-    const diff = center.x - hv.x;
-    if (Math.abs(diff) > 1e-4) sideSign = Math.sign(diff);
-  }
-  const sphereR = Math.max(halfX, halfY, halfZ, h * 0.06);
-  const dist = computeFitDistance(sphereR, sphereR, 1.9);
-  const dir = _handDirVec.set(sideSign * 0.45, 0.4, 1).normalize().multiplyScalar(dist);
-  return {
-    pos:[center.x + dir.x, center.y + dir.y, center.z + dir.z],
-    target:[center.x, center.y, center.z]
-  };
+
+
+function computeHandCameraPreset(...args){
+  return cameraController.computeHandCameraPreset(...args);
 }
 
 // 全身類視角（相對於 rhand/lhand 這種手部特寫）的名稱清單
 const CAMERA_BODY_VIEW_NAMES = ["front", "back", "left", "right", "top", "iso"];
 
 // 模型/骨骼尚未就緒時的退回值（跟舊版邏輯一致，只是理論上不會真的走到這裡）
-function fallbackBodyCameraPreset(name){
-  const h = modelHeight;
-  const midY = h * 0.55;
-  switch (name){
-    case "front": return { pos:[0, h*0.75, h*1.6],  target:[0, midY, 0] };
-    case "back":  return { pos:[0, h*0.75, -h*1.6], target:[0, midY, 0] };
-    case "left":  return { pos:[-h*1.6, h*0.75, 0], target:[0, midY, 0] };
-    case "right": return { pos:[h*1.6, h*0.75, 0],  target:[0, midY, 0] };
-    case "top":   return { pos:[0.01, h*2.3, 0.01], target:[0, midY, 0] };
-    case "iso":   return { pos:[h*1.15, h*0.95, h*1.15], target:[0, midY, 0] };
-  }
-  return null;
+function fallbackBodyCameraPreset(...args){
+  return cameraController.fallbackBodyCameraPreset(...args);
 }
 
 // 依「已經量好的包圍盒 info」算出「單一個」全身視角的鏡頭參數。
@@ -4839,100 +3849,37 @@ function fallbackBodyCameraPreset(name){
 // （getModelBoundsInfo，會遍歷 50 根骨骼＋10 個指尖）是整批共用的成本，
 // 不該每個視角各量一次；更不該為了拿「正面」而順便把兩個手部特寫也算出來。
 // aspect 可選：分割視窗傳自己那顆小 canvas 的長寬比，取景才不會被裁到。
-const _isoDirVec = new THREE.Vector3();
-function computeBodyCameraPreset(name, info, aspect){
-  if (!info) return fallbackBodyCameraPreset(name);
-  const { halfX, halfY, halfZ, center } = info;
-  const cx = center.x, cy = center.y, cz = center.z;
-  const margin = 1.45;
-  switch (name){
-    // 正面/背面：鏡頭沿 Z 軸看，畫面裡的「寬」對應模型 X 方向、「高」對應模型 Y 方向
-    case "front": case "back": {
-      const d = computeFitDistance(halfX, halfY, margin, aspect);
-      const sign = name === "front" ? 1 : -1;
-      return { pos:[cx, cy, cz + sign*d], target:[cx, cy, cz] };
-    }
-    // 左側/右側：鏡頭沿 X 軸看，畫面裡的「寬」對應模型 Z 方向（厚度）、「高」對應 Y 方向
-    case "left": case "right": {
-      const d = computeFitDistance(halfZ, halfY, margin, aspect);
-      const sign = name === "right" ? 1 : -1;
-      return { pos:[cx + sign*d, cy, cz], target:[cx, cy, cz] };
-    }
-    // 俯視：由上往下看 XZ 平面，兩個方向都可能被裁到，取較大者保證整個人（含手腳張開的範圍）都入鏡
-    case "top": {
-      const topHalf = Math.max(halfX, halfZ);
-      const d = computeFitDistance(topHalf, topHalf, margin, aspect);
-      // x/z 給極小偏移避免正上方 gimbal 問題
-      return { pos:[cx + 0.01, cy + d, cz + 0.01], target:[cx, cy, cz] };
-    }
-    // 45° 斜角：用整體包圍球半徑估算，確保從任何斜角看過去都不會裁到
-    case "iso": {
-      const sphereR = Math.sqrt(halfX*halfX + halfY*halfY + halfZ*halfZ);
-      const d = computeFitDistance(sphereR, sphereR, margin, aspect);
-      const dir = _isoDirVec.set(1, 0.82, 1).normalize().multiplyScalar(d);
-      return { pos:[cx + dir.x, cy + dir.y, cz + dir.z], target:[cx, cy, cz] };
-    }
-  }
-  return null;
+
+function computeBodyCameraPreset(...args){
+  return cameraController.computeBodyCameraPreset(...args);
 }
 
 // 對外單取入口：只算被要求的那一個視角。
 // 「鏡頭」下拉選單一次只切換到一個視角，過去卻要把 8 個視角（含兩次手部特寫、
 // 三次完整世界矩陣重算）全部算完再丟掉 7 個——這裡直接取需要的那個就好。
-function getCameraPreset(name, aspect, skipMatrixUpdate){
-  if (name === "rhand") return computeHandCameraPreset("r", skipMatrixUpdate);
-  if (name === "lhand") return computeHandCameraPreset("l", skipMatrixUpdate);
-  return computeBodyCameraPreset(name, getModelBoundsInfo(skipMatrixUpdate), aspect);
+function getCameraPreset(...args){
+  return cameraController.getCameraPreset(...args);
 }
 
 // 保留「一次取得整份」的介面給真的需要全部視角的呼叫端（目前沒有，留作相容用）。
 // 這裡自己先更新一次世界矩陣，下面各視角就全部帶 skipMatrixUpdate=true，
 // 整批只更新一次而不是每個視角各更新一次。
-function getCameraPresets(){
-  if (model) model.updateWorldMatrix(true, true);
-  const info = getModelBoundsInfo(true);
-  const out = {};
-  for (const name of CAMERA_BODY_VIEW_NAMES) out[name] = computeBodyCameraPreset(name, info);
-  out.rhand = computeHandCameraPreset("r", true);
-  out.lhand = computeHandCameraPreset("l", true);
-  return out;
+function getCameraPresets(...args){
+  return cameraController.getCameraPresets(...args);
 }
 
 // 平滑過渡到某個預設視角（不直接瞬間跳，體感較不突兀）；updateCameraTween() 每幀推進。
 // instant=true 時直接套用不做過渡動畫（用於初始載入模型時，避免畫面一開始還要飛一段）。
-function goToCameraPreset(name, instant){
-  const preset = getCameraPreset(name);
-  if (!preset || !camera || !controls) return;
-  const toPos = new THREE.Vector3(preset.pos[0], preset.pos[1], preset.pos[2]);
-  const toTarget = new THREE.Vector3(preset.target[0], preset.target[1], preset.target[2]);
-  if (instant){
-    camera.position.copy(toPos);
-    controls.target.copy(toTarget);
-    cameraTween = null;
-    return;
-  }
-  cameraTween = {
-    fromPos: camera.position.clone(),
-    toPos,
-    fromTarget: controls.target.clone(),
-    toTarget,
-    start: performance.now(),
-    duration: 500
-  };
+function goToCameraPreset(...args){
+  return cameraController.goToCameraPreset(...args);
 }
 
-function updateCameraTween(now){
-  if (!cameraTween) return;
-  const t = clampNum((now - cameraTween.start) / cameraTween.duration, 0, 1);
-  const et = EASINGS.easeInOutQuad(t);
-  camera.position.lerpVectors(cameraTween.fromPos, cameraTween.toPos, et);
-  controls.target.lerpVectors(cameraTween.fromTarget, cameraTween.toTarget, et);
-  if (t >= 1) cameraTween = null;
+function updateCameraTween(...args){
+  return cameraController.updateCameraTween(...args);
 }
 
-function bindCameraUI(){
-  const sel = document.getElementById("camSelect");
-  if (sel) sel.onchange = () => goToCameraPreset(sel.value);
+function bindCameraUI(...args){
+  return cameraController.bindCameraUI(...args);
 }
 
 // ======================================================================
@@ -4946,63 +3893,20 @@ const SPLIT_VIEW_NAMES = ["front", "back", "left", "right", "top", "iso"];
 const SPLIT_VIEW_LABELS = { front:"正面", back:"背面", left:"左側", right:"右側", top:"俯視", iso:"45°斜角" };
 let splitViewPanes = {}; // name -> { root, canvas, renderer, camera }
 
-function createSplitPane(name){
-  if (splitViewPanes[name]) return;
-  const container = document.getElementById("splitViewPanes");
-  if (!container) return;
-
-  const root = document.createElement("div");
-  root.className = "splitPane";
-  root.dataset.name = name;
-  const canvas = document.createElement("canvas");
-  const label = document.createElement("div");
-  label.className = "splitPaneLabel";
-  label.textContent = SPLIT_VIEW_LABELS[name] || name;
-  root.appendChild(canvas);
-  root.appendChild(label);
-  container.appendChild(root);
-
-  const paneRenderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-  paneRenderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); // 預覽視窗解析度不用跟主視窗一樣高，省效能
-  paneRenderer.outputColorSpace = THREE.SRGBColorSpace;
-  const paneCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-
-  splitViewPanes[name] = {
-    root, canvas, renderer: paneRenderer, camera: paneCamera,
-    // 取景狀態：desired＝最近一次重新取景算出的目標；cur＝畫面上實際使用的值（每幀朝 desired 阻尼靠近）。
-    // framed=false 代表還沒取過景，第一次會直接瞬間套用，不做阻尼（避免鏡頭從原點飛過來）。
-    desiredPos: new THREE.Vector3(), desiredTarget: new THREE.Vector3(),
-    curPos: new THREE.Vector3(), curTarget: new THREE.Vector3(),
-    framed: false
-  };
-  resizeSplitPane(name);
-  invalidateSplitViewFraming(); // 新開的視窗下一幀就先取一次景，不用等節流時間到
-  updateSplitViewCheckboxDisabled();
+function createSplitPane(...args){
+  return splitViewController.createSplitPane(...args);
 }
 
-function destroySplitPane(name){
-  const pane = splitViewPanes[name];
-  if (!pane) return;
-  pane.renderer.dispose();
-  pane.root.remove();
-  delete splitViewPanes[name];
-  updateSplitViewCheckboxDisabled();
+function destroySplitPane(...args){
+  return splitViewController.destroySplitPane(...args);
 }
 
-function resizeSplitPane(name){
-  const pane = splitViewPanes[name];
-  if (!pane) return;
-  const w = pane.root.clientWidth, h = pane.root.clientHeight;
-  if (w === 0 || h === 0) return;
-  pane.renderer.setSize(w, h, false);
-  pane.camera.aspect = w / h;
-  pane.camera.updateProjectionMatrix();
+function resizeSplitPane(...args){
+  return splitViewController.resizeSplitPane(...args);
 }
 
-function resizeAllSplitPanes(){
-  for (const name in splitViewPanes) resizeSplitPane(name);
-  // 預覽視窗的 aspect 變了，取景距離要重算，不必等節流時間到
-  invalidateSplitViewFraming();
+function resizeAllSplitPanes(...args){
+  return splitViewController.resizeAllSplitPanes(...args);
 }
 
 // 已開到上限時，把還沒勾選的其他 checkbox 先 disable 掉，避免使用者以為勾了卻沒反應。
@@ -5010,46 +3914,25 @@ function resizeAllSplitPanes(){
 // createSplitPane() 建立到剛好第3個（滿上限）時會在它自己的 checkbox 還沒被標記勾選前就呼叫到這裡，
 // 若只在「未勾選」才更新 disabled，那個 checkbox 就會被誤鎖住，之後即使補上 checked=true 也永遠解不開、
 // 使用者會發現有一個分割視窗怎麼取消勾選都沒反應、關不掉。
-function updateSplitViewCheckboxDisabled(){
-  const activeCount = Object.keys(splitViewPanes).length;
-  const atLimit = activeCount >= SPLIT_VIEW_MAX_PANES;
-  for (const name of SPLIT_VIEW_NAMES){
-    const chk = document.getElementById("splitChk_" + name);
-    if (!chk) continue;
-    chk.disabled = chk.checked ? false : atLimit;
-  }
+function updateSplitViewCheckboxDisabled(...args){
+  return splitViewController.updateSplitViewCheckboxDisabled(...args);
 }
 
-function saveSplitViewState(){
-  try { preferences.setItem("tuttingSplitViewPanes", JSON.stringify(Object.keys(splitViewPanes))); } catch (e) {}
+function saveSplitViewState(...args){
+  return splitViewController.saveSplitViewState(...args);
 }
 
-function bindSplitViewUI(){
-  for (const name of SPLIT_VIEW_NAMES){
-    const chk = document.getElementById("splitChk_" + name);
-    if (!chk) continue;
-    chk.onchange = () => {
-      if (chk.checked) createSplitPane(name); else destroySplitPane(name);
-      saveSplitViewState();
-    };
-  }
+function bindSplitViewUI(...args){
+  return splitViewController.bindSplitViewUI(...args);
 }
 
 // 從 localStorage 還原上次開啟的預覽視窗（跟其他面板設定一樣的持久化模式）
-function loadSplitViewState(){
-  let names = [];
-  try { names = JSON.parse(preferences.getItem("tuttingSplitViewPanes")) || []; } catch (e) {}
-  names.filter(n => SPLIT_VIEW_LABELS[n]).slice(0, SPLIT_VIEW_MAX_PANES).forEach(name => {
-    const chk = document.getElementById("splitChk_" + name);
-    if (chk) chk.checked = true; // 先勾選再建立，createSplitPane() 內部判斷是否達上限時才看得到正確的勾選狀態
-    createSplitPane(name);
-  });
-  updateSplitViewCheckboxDisabled();
+function loadSplitViewState(...args){
+  return splitViewController.loadSplitViewState(...args);
 }
 
-function initSplitView(){
-  bindSplitViewUI();
-  loadSplitViewState();
+function initSplitView(...args){
+  return splitViewController.initSplitView(...args);
 }
 
 // ---- 預覽視窗的取景（重新算鏡頭距離）節流 ----
@@ -5070,54 +3953,21 @@ function initSplitView(){
 //     所以節流造成的「每 250ms 跳一次」不會被看見，反而比原本更穩。
 const SPLIT_VIEW_REFIT_INTERVAL_MS = 250;
 const SPLIT_VIEW_FOLLOW_T = 0.15;
-let _splitRefitAt = -Infinity;
+
 
 // 讓下一幀無條件重新取景（開/關預覽視窗、視窗尺寸變動時呼叫）
-function invalidateSplitViewFraming(){ _splitRefitAt = -Infinity; }
+function invalidateSplitViewFraming(...args){
+  return splitViewController.invalidateSplitViewFraming(...args);
+}
 
 // animate() 每幀在主畫面渲染完之後呼叫：場景的 matrixWorld 這一幀已經由
 // renderer.render() 算好，所以量包圍盒時一律帶 skipMatrixUpdate=true。
-function updateSplitViewPanes(now){
-  const names = Object.keys(splitViewPanes);
-  if (names.length === 0 || !scene) return;
-  const t = (typeof now === "number") ? now : performance.now();
-
-  if (t - _splitRefitAt >= SPLIT_VIEW_REFIT_INTERVAL_MS){
-    _splitRefitAt = t;
-    const info = getModelBoundsInfo(true); // 整批共用這一份量測結果
-    for (const name of names){
-      const pane = splitViewPanes[name];
-      // 每個預覽視窗用自己的 aspect 算取景距離（小 canvas 的長寬比跟主畫面不同）
-      const preset = computeBodyCameraPreset(name, info, pane.camera.aspect);
-      if (!preset) continue;
-      pane.desiredPos.set(preset.pos[0], preset.pos[1], preset.pos[2]);
-      pane.desiredTarget.set(preset.target[0], preset.target[1], preset.target[2]);
-      if (!pane.framed){ // 第一次取景：瞬間就位，不做阻尼
-        pane.curPos.copy(pane.desiredPos);
-        pane.curTarget.copy(pane.desiredTarget);
-        pane.framed = true;
-      }
-    }
-  }
-
-  for (const name of names){
-    const pane = splitViewPanes[name];
-    // 防禦性檢查：正常情況一定為 true（量不到包圍盒時 computeBodyCameraPreset 會給退回值），
-    // 只有視角名稱不在 CAMERA_BODY_VIEW_NAMES 裡才會是 false，那種情況就別渲染了
-    if (!pane.framed) continue;
-    pane.curPos.lerp(pane.desiredPos, SPLIT_VIEW_FOLLOW_T);
-    pane.curTarget.lerp(pane.desiredTarget, SPLIT_VIEW_FOLLOW_T);
-    pane.camera.position.copy(pane.curPos);
-    pane.camera.lookAt(pane.curTarget);
-    pane.renderer.render(scene, pane.camera);
-  }
+function updateSplitViewPanes(...args){
+  return splitViewController.updateSplitViewPanes(...args);
 }
 
-function onResize(){
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  resizeAllSplitPanes(); // 內部會呼叫 invalidateSplitViewFraming()
+function onResize(...args){
+  return splitViewController.onResize(...args);
 }
 
 // ======================================================================
@@ -5131,77 +3981,36 @@ let perfPanelEnabled = true;
 const PERF_EMA_ALPHA = 0.12; // 指數移動平均的平滑係數，避免單幀抖動讓數字一直跳
 
 // rAF 回呼頻率：不管這一幀有沒有觸發實際渲染，每次 requestAnimationFrame 都算一次。
-let _perfRafLastTime = 0;
-let _perfRafEmaMs = 16.7;
+
+
 
 // 實際渲染幀率：只有真的呼叫 renderer.render() 才算一次。閒置降頻時這個數字
 // 會明顯掉到約 IDLE_RENDER_INTERVAL_MS 對應的 fps，跟上面 rAF 頻率的落差
 // 正好就是「閒置降頻機制省下來的量」，方便直接驗證該機制有沒有在運作。
-let _perfRenderLastTime = 0;
-let _perfRenderEmaMs = 16.7;
 
-let _perfLastDomUpdateAt = 0;
+
+
+
 const PERF_DOM_UPDATE_INTERVAL_MS = 250; // DOM 文字更新節流，數字本身每幀都在算，只是畫面沒必要每幀都重繪文字
 
-function initPerfPanel(){
-  const chk = document.getElementById("showPerfPanelChk");
-  const panel = document.getElementById("perfPanel");
-  if (!chk || !panel) return;
-  try {
-    const raw = preferences.getItem(PERF_PANEL_STORAGE_KEY);
-    perfPanelEnabled = (raw === null) ? true : (raw === "1");
-  } catch (e) { perfPanelEnabled = true; }
-  chk.checked = perfPanelEnabled;
-  panel.style.display = perfPanelEnabled ? "flex" : "none";
-  chk.onchange = (e) => {
-    perfPanelEnabled = e.target.checked;
-    panel.style.display = perfPanelEnabled ? "flex" : "none";
-    try { preferences.setItem(PERF_PANEL_STORAGE_KEY, perfPanelEnabled ? "1" : "0"); } catch (err) {}
-  };
+function initPerfPanel(...args){
+  return performancePanelController.initPerfPanel(...args);
 }
 
 // 每次 requestAnimationFrame 回呼「一開始」呼叫一次，量測瀏覽器實際排程給我們的頻率。
-function perfTickRaf(now){
-  if (_perfRafLastTime){
-    const dt = now - _perfRafLastTime;
-    if (dt > 0 && dt < 1000) _perfRafEmaMs += (dt - _perfRafEmaMs) * PERF_EMA_ALPHA;
-  }
-  _perfRafLastTime = now;
+function perfTickRaf(...args){
+  return performancePanelController.perfTickRaf(...args);
 }
 
 // 只有這一幀真的渲染了才呼叫，量測「畫面實際更新」的頻率。
-function perfTickRender(now){
-  if (_perfRenderLastTime){
-    const dt = now - _perfRenderLastTime;
-    if (dt > 0 && dt < 1000) _perfRenderEmaMs += (dt - _perfRenderEmaMs) * PERF_EMA_ALPHA;
-  }
-  _perfRenderLastTime = now;
+function perfTickRender(...args){
+  return performancePanelController.perfTickRender(...args);
 }
 
 // idle：是否正處於閒置降頻狀態（由 animate() 傳入，不在這裡重算）。
 // didRenderThisFrame：這一幀是否真的跑到 renderer.render()（idle 跳幀時為 false）。
-function updatePerfPanelDom(now, idle, didRenderThisFrame){
-  if (!perfPanelEnabled) return;
-  if (now - _perfLastDomUpdateAt < PERF_DOM_UPDATE_INTERVAL_MS) return;
-  _perfLastDomUpdateAt = now;
-
-  const rafFps = _perfRafEmaMs > 0 ? 1000 / _perfRafEmaMs : 0;
-  const renderFps = _perfRenderEmaMs > 0 ? 1000 / _perfRenderEmaMs : 0;
-  const info = (didRenderThisFrame && renderer) ? renderer.info.render : null;
-
-  const panelEl = document.getElementById("perfPanel");
-  const fpsEl = document.getElementById("perfFps");
-  const drawEl = document.getElementById("perfDraw");
-
-  const dot = idle ? "🟡" : "🟢";
-  if (fpsEl) fpsEl.textContent = `${dot} ${renderFps.toFixed(0)} fps ・ ${_perfRenderEmaMs.toFixed(1)} ms`;
-  if (info && drawEl) drawEl.textContent = `DC ${info.calls} ・ Tri ${info.triangles.toLocaleString()}`;
-  if (panelEl){
-    // 用既有的全站 Tooltip 系統，滑鼠移上去才看得到主循環(rAF)頻率跟閒置狀態說明，平常維持精簡
-    panelEl.setAttribute("data-tooltip",
-      (idle ? "🟡 閒置降頻中（約10fps）" : "🟢 全速運算中") +
-      ` — 主循環(rAF) ${rafFps.toFixed(0)}fps`);
-  }
+function updatePerfPanelDom(...args){
+  return performancePanelController.updatePerfPanelDom(...args);
 }
 
 // ======================================================================
@@ -5220,119 +4029,30 @@ function updatePerfPanelDom(now, idle, didRenderThisFrame){
 // 數學上永遠不會精確等於目標值，只能用「差距是否已經小到可視為靜止」來判斷，
 // 不能判斷「是否相等」。這裡沿用跟 updateBones() 一樣的閾值精神，只是換成用於相機。
 const IDLE_CAMERA_CONVERGE_EPS_SQ = 1e-8; // 位置/目標點差距平方和小於這個值才算已收斂
-const _idleLastCamPos = new THREE.Vector3();
-const _idleLastCamTarget = new THREE.Vector3();
-let _idleCamInited = false;
+
+
+
 
 // 回傳這一幀相機（位置＋看點）是否還在移動中（含 OrbitControls 阻尼滑動、拖曳、滾輪縮放）。
 // 呼叫端保證每幀都會呼叫一次（不能因為進入閒置模式就跳過呼叫，否則快照會停在舊值，
 // 之後使用者移動相機時第一幀的 delta 會被誤判成一大段瞬移）。
-function isCameraStillMoving(){
-  if (!_idleCamInited){
-    _idleLastCamPos.copy(camera.position);
-    _idleLastCamTarget.copy(controls.target);
-    _idleCamInited = true;
-    return true; // 第一次呼叫（例如剛載入模型），保守視為「還在動」
-  }
-  const posDeltaSq = camera.position.distanceToSquared(_idleLastCamPos);
-  const targetDeltaSq = controls.target.distanceToSquared(_idleLastCamTarget);
-  _idleLastCamPos.copy(camera.position);
-  _idleLastCamTarget.copy(controls.target);
-  return posDeltaSq > IDLE_CAMERA_CONVERGE_EPS_SQ || targetDeltaSq > IDLE_CAMERA_CONVERGE_EPS_SQ;
+function isCameraStillMoving(...args){
+  return animationLoopController.isCameraStillMoving(...args);
 }
 
 // posesStillMoving：由呼叫端傳入 updateBones() 這一幀的回傳值（避免這裡重算一次）。
 // 只要下列任何一項成立，這一幀就必須視為「場景活躍中」，不能被閒置降頻邏輯跳過：
-function isSceneActive(posesStillMoving, cameraStillMoving){
-  return !!tgPreview || !!waveRun?.playing || !!laPathRun?.playing || kfPlaying                                   // 正在播放關鍵影格
-      || groovePreviewEnabled                          // 律動即時預覽開著，姿勢會持續變化
-      || draggingKey !== null                           // 使用者正在拖曳某顆關節/IK球
-      || (transformControls && transformControls.dragging)
-      || (transformControlsIK && transformControlsIK.dragging)
-      || (grabBoxCore && grabBoxCore.isDragging())      // 扶握箱專屬控制環正在被拖曳
-      || cameraTween !== null                           // 「鏡頭」預設視角補間動畫進行中
-      || posesStillMoving                                // current 尚未追上 target（含彈簧式lerp的收尾）
-      || cameraStillMoving;                              // 相機位置/看點尚未收斂（含OrbitControls阻尼收尾）
+function isSceneActive(...args){
+  return animationLoopController.isSceneActive(...args);
 }
 
 const IDLE_THRESHOLD_FRAMES = 30;    // 連續約0.5秒（60fps下）沒有變化才視為進入閒置狀態，避免收斂尾段的抖動被誤判成「又活躍了」
 const IDLE_RENDER_INTERVAL_MS = 100; // 閒置狀態下，重運算＋渲染降到約每100ms一次（~10fps）；一有輸入立刻恢復全速
-let _idleFrameCount = 0;
-let _idleLastRenderAt = 0;
 
-function animate(now){
-  requestAnimationFrame(animate);
-  tickLAPath(now);
-  updateLACustomVisual();
-  updatePoleRange();
-  updateHandRangeHelper();
-  perfTickRaf(now); // 每次 rAF 回呼都要量測，不能因為閒置就跳過（道理跟下面相機收斂判斷一樣）
 
-  // 相機收斂判斷必須「每幀都呼叫」以維持快照正確（見函式內註解），跟是否要降頻無關，成本也很低。
-  const cameraStillMoving = isCameraStillMoving();
 
-  let posesStillMoving = kfPlaying; // 播放中永遠視為「還在動」，updateBones() 這幀不會被呼叫到
-  if (kfPlaying){
-    updateKeyframePlayback(now);
-  } else {
-    posesStillMoving = updateBones();
-    solveSpineRootFollow();
-    if (grabBoxCore) grabBoxCore.updateEachFrame();
-    solveIKAll();
-    solveSpineIK();
-    solveLookAt("chest");
-    solveLookAt("head");
-    for(const name of HAND_AIM_NAMES)solveHandAim(name);
-    solveFingerIKAll();
-    if (groovePreviewEnabled){
-      // 🔧 修正：這裡的律動是排在 solveIKAll()／solveSpineIK()／solveLookAt() 之後跑的，
-      // 若某關節正被 IK 接管（例如開著右手 IK 又勾了 rArm 律動），律動會 post-multiply 到
-      // 「已經解好的」IK 結果上，把手掌轉離目標球——看起來就是 IK 失效/手一直飄。
-      // 傳 grooveBlockedKeys 當 overrideKeys，讓律動主動避開這些關節（語意跟避開軌跡接管的關節一致）。
-      // 用 grooveBlockedKeys 而不是 ikDrivenKeys：它多含「手指IK開著的那隻手掌」，
-      // 否則腕部律動會把已經解好的手指整組轉離目標點（見該集合上方註解）。
-      // 只在預覽路徑做：播放拍點路徑不會呼叫 solveIKAll，那裡的 IK 開關並沒有真的在驅動骨骼，
-      // 若也跳過會變成「開著 IK 就播不出律動」的行為倒退。
-      applyGroove(now, grooveBlockedKeys, groovePreviewStartTime, false);
-      applySquatGroove(now, groovePreviewStartTime, true, undefined, false);
-    }
-  }
-
-  tickWave(now);
-  if (!kfPlaying) solveFootPlant();
-  updateFootPlantUI();
-  const active = isSceneActive(posesStillMoving, cameraStillMoving);
-  _idleFrameCount = active ? 0 : _idleFrameCount + 1;
-  const idle = _idleFrameCount > IDLE_THRESHOLD_FRAMES;
-
-  // 閒置中還沒到下一個降頻時間點：這一幀直接跳過碰撞/渲染，省下這幀剩下的所有工作。
-  // 上面 FK/IK 已經算過一次（求解本身很快，且下一幀馬上要用最新的 target/current 判斷是否已收斂，
-  // 拆出來反而複雜化狀態機），真正貴的是碰撞求解＋DOM更新＋render，所以降頻只作用在這之後。
-  if (idle && now - _idleLastRenderAt < IDLE_RENDER_INTERVAL_MS){
-    updatePerfPanelDom(now, idle, false); // 這幀沒渲染，仍更新面板讓 rAF fps／閒置狀態即時反映
-    return;
-  }
-  if (idle) _idleLastRenderAt = now;
-
-  solveHandBodyCollision(); // 放在 FK/IK/律動/關鍵影格播放都跑完之後，修正「最終姿勢」，不管姿勢來源是哪裡
-  solveHandHandCollision(); // 手-身體修正完之後再處理雙手互碰，避免兩套修正互相覆蓋彼此的結果
-  if(!kfPlaying&&HAND_AIM_NAMES.some(n=>lookAtEnabled[n])){
-    for(const name of HAND_AIM_NAMES)solveHandAim(name);
-    solveFingerIKAll();
-  }
-  if(!kfPlaying&&headFollowSource!=="free")solveLookAt("head");
-  tgTick();
-  updateHandCollisionVizMeshes();
-  updateMarkers();
-  updateSkeletonLines();
-  updateOverviewPanel();
-  updateJointLimitPanelAngles();
-  updateCameraTween(now);
-  controls.update();
-  renderer.render(scene, camera);
-  perfTickRender(now);
-  updateSplitViewPanes(now);
-  updatePerfPanelDom(now, idle, true);
+function animate(...args){
+  return animationLoopController.animate(...args);
 }
 
 // All declarations are initialized before startup. Model loading remains asynchronous.
@@ -6579,8 +5299,297 @@ const timelineToolbarController = createTimelineToolbar({
   get duplicateKeyframe(){ return duplicateKeyframe; },
 });
 
+const cameraController = createCameraController({
+  get model(){ return model; },
+  get bones(){ return bones; },
+  get fingerEffectorBones(){ return fingerEffectorBones; },
+  get modelHeight(){ return modelHeight; },
+  get camera(){ return camera; },
+  get CAMERA_BODY_VIEW_NAMES(){ return CAMERA_BODY_VIEW_NAMES; },
+  get controls(){ return controls; },
+  get cameraTween(){ return cameraTween; },
+  set cameraTween(value){ cameraTween = value; },
+});
+
+const splitViewController = createSplitView({
+  get splitViewPanes(){ return splitViewPanes; },
+  get SPLIT_VIEW_LABELS(){ return SPLIT_VIEW_LABELS; },
+  get SPLIT_VIEW_MAX_PANES(){ return SPLIT_VIEW_MAX_PANES; },
+  get SPLIT_VIEW_NAMES(){ return SPLIT_VIEW_NAMES; },
+  get preferences(){ return preferences; },
+  get scene(){ return scene; },
+  get SPLIT_VIEW_REFIT_INTERVAL_MS(){ return SPLIT_VIEW_REFIT_INTERVAL_MS; },
+  get getModelBoundsInfo(){ return getModelBoundsInfo; },
+  get computeBodyCameraPreset(){ return computeBodyCameraPreset; },
+  get SPLIT_VIEW_FOLLOW_T(){ return SPLIT_VIEW_FOLLOW_T; },
+  get camera(){ return camera; },
+  get renderer(){ return renderer; },
+});
+
+const sceneSelectionController = createSceneSelection({
+  get laCustomMeshes(){ return laCustomMeshes; },
+  get markerMeshes(){ return markerMeshes; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get ikPoleMeshes(){ return ikPoleMeshes; },
+  get spineIKTargetMesh(){ return spineIKTargetMesh; },
+  get lookAtTargetMesh(){ return lookAtTargetMesh; },
+  get trajPointMeshes(){ return trajPointMeshes; },
+  get fingerIKTargetMeshes(){ return fingerIKTargetMeshes; },
+  get renderer(){ return renderer; },
+  get suppressClick(){ return suppressClick; },
+  get transformControls(){ return transformControls; },
+  get transformControlsIK(){ return transformControlsIK; },
+  get kfPlaying(){ return kfPlaying; },
+  get camera(){ return camera; },
+  get selectLACustom(){ return selectLACustom; },
+  get selectIKMarker(){ return selectIKMarker; },
+  get selectedKey(){ return selectedKey; },
+  set selectedKey(value){ selectedKey = value; },
+  get selectedIK(){ return selectedIK; },
+  set selectedIK(value){ selectedIK = value; },
+  get tgCancelPreview(){ return tgCancelPreview; },
+  get waveRun(){ return waveRun; },
+  get stopWave(){ return stopWave; },
+  get FOOT_PLANT_LIMBS(){ return FOOT_PLANT_LIMBS; },
+  get isFootPlanted(){ return isFootPlanted; },
+  get bones(){ return bones; },
+  get highlightMarkers(){ return highlightMarkers; },
+  get highlightIKMarkers(){ return highlightIKMarkers; },
+  get laCustomDrag(){ return laCustomDrag; },
+  set laCustomDrag(value){ laCustomDrag = value; },
+  get renderTrajPointList(){ return renderTrajPointList; },
+  get updatePoleRadiusUI(){ return updatePoleRadiusUI; },
+  get bodyGizmoProxy(){ return bodyGizmoProxy; },
+  get effectorOrientEnabled(){ return effectorOrientEnabled; },
+  get poseController(){ return poseController; },
+  get model(){ return model; },
+  get bodyProxyLastPos(){ return bodyProxyLastPos; },
+  set bodyProxyLastPos(value){ bodyProxyLastPos = value; },
+  get defaultModelPosition(){ return defaultModelPosition; },
+  get defaultModelQuaternion(){ return defaultModelQuaternion; },
+});
+
+const transformGizmoController = createTransformGizmos({
+  get transformControls(){ return transformControls; },
+  set transformControls(value){ transformControls = value; },
+  get camera(){ return camera; },
+  get renderer(){ return renderer; },
+  get controls(){ return controls; },
+  get draggingKey(){ return draggingKey; },
+  set draggingKey(value){ draggingKey = value; },
+  get selectedKey(){ return selectedKey; },
+  get ikEnabled(){ return ikEnabled; },
+  get captureFootLock(){ return captureFootLock; },
+  get suppressClick(){ return suppressClick; },
+  set suppressClick(value){ suppressClick = value; },
+  get pushHistory(){ return pushHistory; },
+  get commitFromBone(){ return commitFromBone; },
+  get scene(){ return scene; },
+  get transformControlsIK(){ return transformControlsIK; },
+  set transformControlsIK(value){ transformControlsIK = value; },
+  get selectedIK(){ return selectedIK; },
+  get laCustomDrag(){ return laCustomDrag; },
+  set laCustomDrag(value){ laCustomDrag = value; },
+  get laCustomCenter(){ return laCustomCenter; },
+  get renderLACustomList(){ return renderLACustomList; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get LOOKAT_RANGE_NAMES(){ return LOOKAT_RANGE_NAMES; },
+  get HAND_AIM_NAMES(){ return HAND_AIM_NAMES; },
+  get solveHandAim(){ return solveHandAim; },
+  get solveLookAt(){ return solveLookAt; },
+  get beginHandRangeDrag(){ return beginHandRangeDrag; },
+  get handRangeDrag(){ return handRangeDrag; },
+  set handRangeDrag(value){ handRangeDrag = value; },
+  get beginPoleDrag(){ return beginPoleDrag; },
+  get poleDrag(){ return poleDrag; },
+  set poleDrag(value){ poleDrag = value; },
+  get footPlantEnabled(){ return footPlantEnabled; },
+  get solveFootPlant(){ return solveFootPlant; },
+  get clampPoleDrag(){ return clampPoleDrag; },
+  get clampHandRangeDrag(){ return clampHandRangeDrag; },
+  get dragLACustom(){ return dragLACustom; },
+  get bodyGizmoProxy(){ return bodyGizmoProxy; },
+  set bodyGizmoProxy(value){ bodyGizmoProxy = value; },
+  get bodyProxyLastPos(){ return bodyProxyLastPos; },
+  get model(){ return model; },
+  get updateTrajVisual(){ return updateTrajVisual; },
+});
+
+const floatingPanelsController = createFloatingPanels({
+  get UI_HEIGHT_MAX_RATIO(){ return UI_HEIGHT_MAX_RATIO; },
+  get UI_HEIGHT_MIN_PX(){ return UI_HEIGHT_MIN_PX; },
+  get preferences(){ return preferences; },
+  get UI_HEIGHT_DEFAULT_RATIO(){ return UI_HEIGHT_DEFAULT_RATIO; },
+  get UI_FLOAT_MIN_WIDTH(){ return UI_FLOAT_MIN_WIDTH; },
+  get UI_FLOAT_MIN_HEIGHT(){ return UI_FLOAT_MIN_HEIGHT; },
+  get UI_FLOAT_DEFAULT_LEFT(){ return UI_FLOAT_DEFAULT_LEFT; },
+  get UI_FLOAT_DEFAULT_TOP(){ return UI_FLOAT_DEFAULT_TOP; },
+  get UI_FLOAT_DEFAULT_WIDTH(){ return UI_FLOAT_DEFAULT_WIDTH; },
+});
+
+const workspacePanelsController = createWorkspacePanels({
+  get preferences(){ return preferences; },
+  get DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY(){ return DISPLAY_TOGGLES_COLLAPSED_STORAGE_KEY; },
+  get showBodyJoints(){ return showBodyJoints; },
+  get setJointCategoryVisible(){ return setJointCategoryVisible; },
+  get showHandJoints(){ return showHandJoints; },
+  get showSkeleton(){ return showSkeleton; },
+  set showSkeleton(value){ showSkeleton = value; },
+  get handCollisionVizEnabled(){ return handCollisionVizEnabled; },
+  set handCollisionVizEnabled(value){ handCollisionVizEnabled = value; },
+  get tgCancelPreview(){ return tgCancelPreview; },
+  get refreshJsonArea(){ return refreshJsonArea; },
+  get renderTrajPointList(){ return renderTrajPointList; },
+  get updateOverviewPanel(){ return updateOverviewPanel; },
+  get updateJointLimitPanelAngles(){ return updateJointLimitPanelAngles; },
+  get drawKfWaveform(){ return drawKfWaveform; },
+  get updateOnionSkins(){ return updateOnionSkins; },
+});
+
+const sceneBootstrapController = createSceneBootstrap({
+  get scene(){ return scene; },
+  set scene(value){ scene = value; },
+  get camera(){ return camera; },
+  set camera(value){ camera = value; },
+  get renderer(){ return renderer; },
+  set renderer(value){ renderer = value; },
+  get controls(){ return controls; },
+  set controls(value){ controls = value; },
+  get initTransformGizmos(){ return initTransformGizmos; },
+  get onResize(){ return onResize; },
+  get setupPickRaycaster(){ return setupPickRaycaster; },
+  get animate(){ return animate; },
+  get MODEL_URL(){ return MODEL_URL; },
+  get model(){ return model; },
+  set model(value){ model = value; },
+  get modelHeight(){ return modelHeight; },
+  set modelHeight(value){ modelHeight = value; },
+  get bones(){ return bones; },
+  get restQuat(){ return restQuat; },
+  get buildOnionGhosts(){ return buildOnionGhosts; },
+  get fingerEffectorBones(){ return fingerEffectorBones; },
+  get defaultModelPosition(){ return defaultModelPosition; },
+  set defaultModelPosition(value){ defaultModelPosition = value; },
+  get defaultModelQuaternion(){ return defaultModelQuaternion; },
+  set defaultModelQuaternion(value){ defaultModelQuaternion = value; },
+  get calibrateFootGround(){ return calibrateFootGround; },
+  get buildJointMarkers(){ return buildJointMarkers; },
+  get buildSkeletonLines(){ return buildSkeletonLines; },
+  get buildHandCollisionVizMeshes(){ return buildHandCollisionVizMeshes; },
+  get buildIKMarkers(){ return buildIKMarkers; },
+  get buildSpineIKMarker(){ return buildSpineIKMarker; },
+  get buildLookAtMarkers(){ return buildLookAtMarkers; },
+  get buildTrajMarkers(){ return buildTrajMarkers; },
+  get buildFingerIKMarkers(){ return buildFingerIKMarkers; },
+  get buildFingerPanel(){ return buildFingerPanel; },
+  get buildJointLimitPanel(){ return buildJointLimitPanel; },
+  get buildOverviewPanel(){ return buildOverviewPanel; },
+  get buildJsonRefTable(){ return buildJsonRefTable; },
+  get rebuildIKDrivenKeys(){ return rebuildIKDrivenKeys; },
+  get grabBoxCore(){ return grabBoxCore; },
+  set grabBoxCore(value){ grabBoxCore = value; },
+  get ikTargetMeshes(){ return ikTargetMeshes; },
+  get ikEnabled(){ return ikEnabled; },
+  get setIKEnabled(){ return setIKEnabled; },
+  get goToCameraPreset(){ return goToCameraPreset; },
+  get resetPose(){ return resetPose; },
+  get bindTopUI(){ return bindTopUI; },
+  get tryLoadAutosave(){ return tryLoadAutosave; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get pushHistory(){ return pushHistory; },
+});
+
+const rigVisualsController = createRigVisuals({
+  get modelHeight(){ return modelHeight; },
+  get bones(){ return bones; },
+  get scene(){ return scene; },
+  get markerMeshes(){ return markerMeshes; },
+  get showHandJoints(){ return showHandJoints; },
+  set showHandJoints(value){ showHandJoints = value; },
+  get showBodyJoints(){ return showBodyJoints; },
+  set showBodyJoints(value){ showBodyJoints = value; },
+  get markerIKHidden(){ return markerIKHidden; },
+  get skeletonLinePairs(){ return skeletonLinePairs; },
+  set skeletonLinePairs(value){ skeletonLinePairs = value; },
+  get skeletonLines(){ return skeletonLines; },
+  set skeletonLines(value){ skeletonLines = value; },
+  get showSkeleton(){ return showSkeleton; },
+  get selectedKey(){ return selectedKey; },
+  get highlightFingerButtons(){ return highlightFingerButtons; },
+  get highlightOverviewRows(){ return highlightOverviewRows; },
+});
+
+const performancePanelController = createPerformancePanel({
+  get preferences(){ return preferences; },
+  get PERF_PANEL_STORAGE_KEY(){ return PERF_PANEL_STORAGE_KEY; },
+  get perfPanelEnabled(){ return perfPanelEnabled; },
+  set perfPanelEnabled(value){ perfPanelEnabled = value; },
+  get PERF_EMA_ALPHA(){ return PERF_EMA_ALPHA; },
+  get PERF_DOM_UPDATE_INTERVAL_MS(){ return PERF_DOM_UPDATE_INTERVAL_MS; },
+  get renderer(){ return renderer; },
+});
+
+const animationLoopController = createAnimationLoop({
+  get camera(){ return camera; },
+  get controls(){ return controls; },
+  get IDLE_CAMERA_CONVERGE_EPS_SQ(){ return IDLE_CAMERA_CONVERGE_EPS_SQ; },
+  get tgPreview(){ return tgPreview; },
+  get waveRun(){ return waveRun; },
+  get laPathRun(){ return laPathRun; },
+  get kfPlaying(){ return kfPlaying; },
+  get groovePreviewEnabled(){ return groovePreviewEnabled; },
+  get draggingKey(){ return draggingKey; },
+  get transformControls(){ return transformControls; },
+  get transformControlsIK(){ return transformControlsIK; },
+  get grabBoxCore(){ return grabBoxCore; },
+  get cameraTween(){ return cameraTween; },
+  get tickLAPath(){ return tickLAPath; },
+  get updateLACustomVisual(){ return updateLACustomVisual; },
+  get updatePoleRange(){ return updatePoleRange; },
+  get updateHandRangeHelper(){ return updateHandRangeHelper; },
+  get perfTickRaf(){ return perfTickRaf; },
+  get updateKeyframePlayback(){ return updateKeyframePlayback; },
+  get updateBones(){ return updateBones; },
+  get solveSpineRootFollow(){ return solveSpineRootFollow; },
+  get solveIKAll(){ return solveIKAll; },
+  get solveSpineIK(){ return solveSpineIK; },
+  get solveLookAt(){ return solveLookAt; },
+  get HAND_AIM_NAMES(){ return HAND_AIM_NAMES; },
+  get solveHandAim(){ return solveHandAim; },
+  get solveFingerIKAll(){ return solveFingerIKAll; },
+  get applyGroove(){ return applyGroove; },
+  get grooveBlockedKeys(){ return grooveBlockedKeys; },
+  get groovePreviewStartTime(){ return groovePreviewStartTime; },
+  get applySquatGroove(){ return applySquatGroove; },
+  get tickWave(){ return tickWave; },
+  get solveFootPlant(){ return solveFootPlant; },
+  get updateFootPlantUI(){ return updateFootPlantUI; },
+  get IDLE_THRESHOLD_FRAMES(){ return IDLE_THRESHOLD_FRAMES; },
+  get IDLE_RENDER_INTERVAL_MS(){ return IDLE_RENDER_INTERVAL_MS; },
+  get updatePerfPanelDom(){ return updatePerfPanelDom; },
+  get solveHandBodyCollision(){ return solveHandBodyCollision; },
+  get solveHandHandCollision(){ return solveHandHandCollision; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get headFollowSource(){ return headFollowSource; },
+  get tgTick(){ return tgTick; },
+  get updateHandCollisionVizMeshes(){ return updateHandCollisionVizMeshes; },
+  get updateMarkers(){ return updateMarkers; },
+  get updateSkeletonLines(){ return updateSkeletonLines; },
+  get updateOverviewPanel(){ return updateOverviewPanel; },
+  get updateJointLimitPanelAngles(){ return updateJointLimitPanelAngles; },
+  get updateCameraTween(){ return updateCameraTween; },
+  get renderer(){ return renderer; },
+  get scene(){ return scene; },
+  get perfTickRender(){ return perfTickRender; },
+  get updateSplitViewPanes(){ return updateSplitViewPanes; },
+});
+
 init();
 
 function bindTimelineUI(...args){
   return timelineToolbarController.bindTimelineUI(...args);
+}
+
+function initTransformGizmos(...args){
+  return transformGizmoController.initTransformGizmos(...args);
 }

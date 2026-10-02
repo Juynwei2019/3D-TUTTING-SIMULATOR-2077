@@ -29,4 +29,4 @@
 
 ## 與模組拆分的關係
 
-布局與觸控可以集中修改 `ui/beat-grid.js`、`ui/timeline-toolbar.js`、`timeline/reorder.js`、`timeline/resize.js`，沿用既有資料、播放與儲存 controller。相機、三維互動及浮動面板尚待拆分，接下來抽出這些模組可讓手機手勢及布局調整更容易驗證。
+布局與觸控可以集中修改 `ui/beat-grid.js`、`ui/timeline-toolbar.js`、`timeline/reorder.js`、`timeline/resize.js`，沿用既有資料、播放與儲存 controller。相機、三維互動及浮動面板已拆分至 scene／ui 模組，手機手勢可集中修改 `scene/selection.js`、`scene/transform-gizmos.js`，布局可從 `ui/floating-panels.js` 與樣式調整。

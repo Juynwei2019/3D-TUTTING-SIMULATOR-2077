@@ -1,6 +1,6 @@
-# 模組拆分：姿勢與時間軸
+# 模組拆分與使用契約
 
-目前已將展示介面、可獨立驗證的運算／功能，以及姿勢角度狀態移出原始單檔。尚未搬出的時間軸編輯介面、UI 綁定、持久化與跨功能調度仍在 `src/main.js`。
+主要領域運算、時間軸、儲存、相機、三維互動、浮動面板與場景生命週期已拆成 factory／純函式模組。`src/main.js` 保留共享狀態、adapter、委派入口、場景還原協調及部分通用面板。
 
 ## 已建立的邊界
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | `index.html` | 介面標記、原有 DOM ID、Three.js import map、應用入口 |
 | `styles/simulator.css` | 原有樣式 |
-| `src/main.js` | 組裝、尚未拆出的功能狀態、模型初始化、既有 `animate()` 調度 |
+| `src/main.js` | 組裝、共享功能狀態、adapter、同名委派入口、场景還原及部分通用面板 |
 | `src/rig/definitions.js` | 50 個關節、手指與四肢鏈、分組與朝向定義；依賴 Three.js |
 | `src/rig/model-utils.js`、`find-bone.js` | 模型縮放貼地、骨骼搜尋 |
 | `src/math/angles.js`、`quaternions.js` | 度／弧度、數值夾限、局部／世界旋轉轉換 |
@@ -191,3 +191,29 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 保持原 DOM ID、事件順序、資料格式與播放防護。排序替換陣列與選取集合後，所有 adapter 立即讀取最新狀態；插值先刷新世界矩陣，再解軌跡，最後處理 Wave 足部覆寫。`main.js` 的同名函式僅委派給 controller，場景／历史還原協調與共用狀態仍待後續整理。
 
 本批增加非連續群組排序、即時 Snap、軌跡前矩陣刷新、身體與手勢欄位隔離測試；合計 61 項單元測試通過。三版本瀏覽器回歸包含素材庫、Wave、Tutting、時間軸編輯、歷史、音訊、匯入匯出與自動存檔。
+
+## 相機、三維互動與浮動面板
+
+| 模組 | 責任 |
+| --- | --- |
+| `scene/camera-controller.js` | 角色／手部 bounds、適配寬高比的取景、預設視角及補間 |
+| `scene/split-view.js` | 唯讀預覽視窗建立、尺寸調整、狀態儲存、取景更新與 renderer 清理 |
+| `scene/selection.js` | 可選物件集合、raycast、關節／角色選取、取消與選取提示 |
+| `scene/transform-gizmos.js` | 旋轉／平移控制環建立與拖曳事件；鏡頭操作互斥、腳部鎖存及目標補償 |
+| `ui/floating-panels.js` | 主面板調高、浮動拖曳／縮放、可復用浮動面板與手指視窗 |
+| `ui/workspace-panels.js` | 顯示設定收合、分頁及工作區可見性 |
+
+相機、角色與 renderer 仍由 host 持有，factory 的 getter／setter 讀寫即時參照。事件註冊維持原初始化時機；拖曳結束的選取抑制、歷史／自動存檔與腳掌鎖存順序保持不變。分割預覽仍使用獨立 renderer 與 camera，不增加自己的 RAF。
+
+## 場景初始化與動畫循環
+
+| 模組 | 責任 |
+| --- | --- |
+| `scene/bootstrap.js` | 場景／主 renderer／OrbitControls 初始化、燈光、模型非同步載入與載入後功能組裝 |
+| `scene/rig-visuals.js` | 關節球、角色選取標記、骨架線與顯示／高亮更新 |
+| `scene/performance-panel.js` | RAF／render 計時、效能指標與面板更新 |
+| `scene/animation-loop.js` | 單一 RAF 調度、相機收斂、活躍狀態判斷、閒置渲染降頻及求解／渲染順序 |
+
+所有 adapter 建立後才呼叫 bootstrap；動畫仍從原載入流程啟動。每幀先處理路徑與 FK／IK 或時間軸播放，再處理 Wave、足底、碰撞及必要的再次朝向／手指求解，最後更新顯示、相機與主／分割 renderer。閒置仍只略過後半段重運算與渲染，FK／IK 與相機收斂持續更新，播放可立即恢復渲染。這次沒有變更效能參數或手機手勢。
+
+新增單元測試驗證水平／垂直取景、相機補間完成、每次回呼只排程一次 RAF、求解順序、閒置節流與播放喚醒。瀏覽器回歸增加實際視角切換與浮動面板拖曳，並繼續檢查三版本姿勢／拍點／骨骼結果一致。總計 63 項單元測試。

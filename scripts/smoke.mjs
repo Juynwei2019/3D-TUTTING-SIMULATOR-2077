@@ -33,6 +33,7 @@ window.__smoke = {
   copyBeatGridRange, duplicateBeatGridRange, clearBeatGridRange,
   setRange(start, end){ beatGridRangeStart = start; beatGridRangeEnd = end; updateBeatGridRangeUI(); },
   get bones() { return bones; }, get model() { return model; },
+  get camera() { return camera; }, get controls() { return controls; },
   get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
   get current() { return typeof poseController === "undefined" ? current : poseController.snapshotState().current; },
   get keyframes() { return keyframes; }, get grab() { return grabBoxCore; },
@@ -103,6 +104,25 @@ try {
       }));
       assert.equal(initial.bones, 50);
       assert.notEqual(initial.ui, 'none');
+      // Camera presets and floating panel bindings remain functional after extraction.
+      const cameraBefore = await page.evaluate(() => window.__smoke.camera.position.toArray());
+      await page.locator('#camSelect').selectOption('right');
+      await page.waitForTimeout(650);
+      assert.notDeepEqual(await page.evaluate(() => window.__smoke.camera.position.toArray()), cameraBefore);
+      await page.locator('#camSelect').selectOption('front');
+      await page.waitForTimeout(650);
+      await page.locator('#uiFloatBtn').click();
+      assert.ok(await page.locator('#ui').evaluate(el => el.classList.contains('uiFloating')));
+      const handle = await page.locator('#uiDragHandle').boundingBox();
+      const panelBefore = await page.locator('#ui').boundingBox();
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handle.x + handle.width / 2 + 40, handle.y + handle.height / 2 + 20, { steps: 5 });
+      await page.mouse.up();
+      const panelAfter = await page.locator('#ui').boundingBox();
+      assert.ok(Math.abs(panelAfter.x - panelBefore.x) > 5 || Math.abs(panelAfter.y - panelBefore.y) > 5);
+      await page.locator('#uiFloatBtn').click();
+      assert.equal(await page.locator('#ui').evaluate(el => el.classList.contains('uiFloating')), false);
       // Drive the actual panel bindings, not just standalone math routines.
       for (const button of await page.locator('.tabBtn').all()) await button.evaluate(el => el.click());
       await page.locator('.tabBtn[data-tab="ik"]').evaluate(el => el.click());
