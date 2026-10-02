@@ -1,3 +1,24 @@
+import { createLibraryDomainController } from "./library/domain-controller.js";
+import { createOnionSkin } from "./scene/onion-skin.js";
+import { createPoseEditor } from "./timeline/pose-editor.js";
+import { createTimelineInspector } from "./ui/timeline-inspector.js";
+import { createTimelineReorder } from "./timeline/reorder.js";
+import { createTimelineResize } from "./timeline/resize.js";
+import { createBeatGrid } from "./ui/beat-grid.js";
+import { createTimelineTransport } from "./timeline/transport.js";
+import { createPoseInterpolator } from "./timeline/pose-interpolator.js";
+import { createTimelineToolbar } from "./ui/timeline-toolbar.js";
+import { GROOVE_PRESETS, GROOVE_JOINT_KEYS, GROOVE_SQUAT_DEFAULT, GROOVE_CHAIN_ORDER, GROOVE_ARM_PAIRS, GROOVE_GEN_DISTAL_PROB_FALLBACK, GROOVE_GEN_ENERGY_BUDGET, GROOVE_GEN_DISTAL_ENERGY_BONUS, GROOVE_ARCHETYPES, GROOVE_ARCHETYPE_IDS, WAVE_ROUTE_NODES, WAVE_GAIN_FIELDS, WAVE_DEFAULT, WAVE_SHAPE_HINTS, GROOVE_XFADE_BEATS } from "./motion/definitions.js";
+import { createTuttingController } from "./motion/tutting-controller.js";
+import { createRandomPoseGenerator } from "./motion/random-pose.js";
+import { createWaveController } from "./motion/wave-controller.js";
+import { createWaveTrack } from "./timeline/wave-track.js";
+import { createGrooveGenerator } from "./motion/groove-generator.js";
+import { createGrooveController } from "./motion/groove-controller.js";
+import { createSquatController } from "./motion/squat-controller.js";
+import { createGroovePanel } from "./ui/groove-panel.js";
+import { createGrooveSequence } from "./timeline/groove-sequence.js";
+import { createChoreographyGenerator } from "./motion/choreography-generator.js";
 import { createLimbController } from "./ik/limb-controller.js";
 import { createSpineController } from "./ik/spine-controller.js";
 import { createFingerController } from "./ik/finger-controller.js";
@@ -123,36 +144,21 @@ function saveIsolationSettings(){
   rigPreferences.saveIsolationSettings();
 }
 
-function getGroupWeight(groupId){
-  const w = isolationSettings.weights[groupId];
-  return (typeof w === "number" && Number.isFinite(w) && w >= 0) ? w : 1;
+function getGroupWeight(...args){
+  return randomPoseGenerator.getGroupWeight(...args);
 }
 
 // 單一關節「這次生成有沒有被摸到」的機率，單位0~100（%），沒設定過視為100＝一定摸到。
 // 跟分組權重是兩層獨立機制：分組權重決定「這次抽中哪些分組」，關節機率決定「抽中的分組裡，
 // 這個特定關節這次要不要真的重骰」——例如「右手臂」被抽中了，肩胛可以設低機率、手掌設高機率，
 // 做出「手臂動的時候通常是手掌先動、肩膀比較少跟著大幅擺」這種細節。
-function getJointWeight(key){
-  const w = isolationSettings.jointWeights[key];
-  return (typeof w === "number" && w >= 0 && w <= 100) ? w : 100;
+function getJointWeight(...args){
+  return randomPoseGenerator.getJointWeight(...args);
 }
 
 // 加權不放回抽樣：從 pool（分組陣列）依「基準權重」抽出 count 個不重複分組。
-function pickWeightedGroupsWithoutReplacement(pool, count){
-  const items = pool.map(g => ({ g, w: getGroupWeight(g.id) })).filter(it=>it.w>0);
-  const picked = [];
-  for (let i = 0; i < count && items.length > 0; i++){
-    const total = items.reduce((s, it) => s + it.w, 0);
-    let r = Math.random() * total;
-    let idx = 0;
-    for (; idx < items.length - 1; idx++){
-      r -= items[idx].w;
-      if (r <= 0) break;
-    }
-    picked.push(items[idx].g);
-    items.splice(idx, 1);
-  }
-  return picked;
+function pickWeightedGroupsWithoutReplacement(...args){
+  return randomPoseGenerator.pickWeightedGroupsWithoutReplacement(...args);
 }
 
 const { clampJointAngles } = createJointLimiter(() => JOINT_LIMITS);
@@ -163,92 +169,14 @@ const { clampJointAngles } = createJointLimiter(() => JOINT_LIMITS);
 // 取樣策略＝格點取樣＋偏向極值：比起純連續均勻隨機，這樣角度容易卡在同一批固定刻度、
 // 也有一定機率直接貼在min或max（=完全伸直/完全折死），視覺上比較接近tutting那種
 // 俐落方正、卡點到位的感覺，而不是軟趴趴的隨意角度。
-function sampleAxisAngle(key, axis, axisLim, gridStep, edgeProb){
-  if (!axisLim || !axisLim.enabled) return null; // null＝沒有範圍，呼叫端維持原值
-  let lo = axisLim.min, hi = axisLim.max;
-  if (lo > hi){ const t = lo; lo = hi; hi = t; }
-  if (hi - lo < 1e-6) return lo; // min===max，沒有隨機空間，直接回傳固定值
-
-  if (Math.random() < edgeProb){
-    // 貼邊界：候選值只有 [完全伸直, 完全折死] 兩個。
-    return Math.random() < 0.5 ? lo : hi;
-  }
-  if (gridStep > 0){
-    const first=Math.ceil(lo/gridStep),last=Math.floor(hi/gridStep);
-    if(first>last)return null; // no zero-anchored grid point: preserve the current axis
-    return (first+Math.floor(Math.random()*(last-first+1)))*gridStep;
-  }
-  return lo + Math.random() * (hi - lo); // gridStep<=0時退回連續均勻隨機
+function sampleAxisAngle(...args){
+  return randomPoseGenerator.sampleAxisAngle(...args);
 }
 
 // 產生並套用一個隨機姿勢：對 JOINT_LIMIT_KEYS（全部關節）逐一判斷每一軸有沒有啟用限制。
 // gridStep/edgeProb 由「關節限制」分頁的兩個輸入框即時讀取，方便你邊調參數邊按「動作生成」試感覺。
-function generateRandomPose(){
-  const gridStep = parseFloat(document.getElementById("jlGridStepInput")?.value) || 15;
-  const edgeProbPct = parseFloat(document.getElementById("jlEdgeProbInput")?.value);
-  const edgeProb = (isNaN(edgeProbPct) ? 40 : edgeProbPct) / 100;
-  const statusEl = document.getElementById("jlIsolationStatus");
-
-  // 「有資格被重骰」＝有對應骨骼、且至少一軸啟用限制；不管有沒有開Isolation都先算這份清單。
-  const eligibleKeys = JOINT_LIMIT_KEYS.filter(key => {
-    if (!bones[key]) return false;
-    const lim = JOINT_LIMITS[key];
-    return lim.x.enabled || lim.y.enabled || lim.z.enabled;
-  });
-  if (eligibleKeys.length === 0){
-    alert(`目前全部 ${JOINT_LIMIT_KEYS.length} 個關節都還沒有啟用任何一軸的限制，沒有範圍可以隨機。\n請先在下面找到想要的關節、勾選至少一軸並填入合理的最小/最大值。`);
-    return;
-  }
-
-  let keysToRoll;
-  if (isolationSettings.enabled){
-    const eligibleKeySet = new Set(eligibleKeys);
-    // 分組裡只要有任一關節「有資格」，這組就有資格被抽中
-    const eligibleGroups = OVERVIEW_GROUPS.filter(g => getGroupWeight(g.id)>0 && g.keys.some(k => eligibleKeySet.has(k)));
-    if (eligibleGroups.length === 0){
-      alert("目前沒有權重大於 0 且已啟用關節限制的分組，無法進行 Isolation 隨機。");
-      return;
-    }
-    const lo = Math.max(1, Math.min(isolationSettings.minGroups, isolationSettings.maxGroups));
-    const hi = Math.max(isolationSettings.minGroups, isolationSettings.maxGroups);
-    const wantCount = Math.min(eligibleGroups.length, lo + Math.floor(Math.random() * (hi - lo + 1)));
-    const pickedGroups = pickWeightedGroupsWithoutReplacement(eligibleGroups, wantCount);
-
-    const pickedKeySet = new Set();
-    for (const g of pickedGroups) for (const k of g.keys) if (eligibleKeySet.has(k)) pickedKeySet.add(k);
-    keysToRoll = eligibleKeys.filter(k => pickedKeySet.has(k));
-
-    if (statusEl) statusEl.textContent = "本次選中：" + pickedGroups.map(g => g.label).join("、");
-  } else {
-    keysToRoll = eligibleKeys;
-    if (statusEl) statusEl.textContent = "";
-  }
-
-  // 第二層篩選：範圍內（分組選中／或Isolation未開啟時的全部有資格關節）的每個關節，
-  // 再各自依「機率」決定這次是否真的要重骰——機率100（預設）＝一定摸到，行為跟原本一樣；
-  // 機率調低可以做出「同一組裡有些關節常動、有些關節難得動一次」的細節。
-  const finalKeys = keysToRoll.filter(key => Math.random() * 100 < getJointWeight(key));
-  const skippedByWeight = keysToRoll.length - finalKeys.length;
-  if (statusEl && skippedByWeight > 0){
-    statusEl.textContent += (statusEl.textContent ? "　" : "") + `（另有 ${skippedByWeight} 個關節因機率設定這次跳過）`;
-  }
-
-  for (const key of finalKeys){
-    const lim = JOINT_LIMITS[key];
-    const cur = poseController.getTarget(key) || [0,0,0];
-    const rawSamples = [
-      sampleAxisAngle(key, "x", lim.x, gridStep, edgeProb),
-      sampleAxisAngle(key, "y", lim.y, gridStep, edgeProb),
-      sampleAxisAngle(key, "z", lim.z, gridStep, edgeProb)
-    ];
-    const xyz = rawSamples.map((v, i) => v === null ? cur[i] : v); // 沒啟用的軸（null）維持原本角度
-    setTarget(key, xyz); // setTarget內部本身也會clamp，這裡等於雙重保險
-  }
-  setActiveBtn(-1);
-  updateSelectedBar();
-  updateJointLimitPanelAngles(true);
-
-  pushHistory();
+function generateRandomPose(...args){
+  return randomPoseGenerator.generateRandomPose(...args);
 }
 
 // ---- 律動模式：預設每個「可參與律動」關節的振盪參數（簡化版）----
@@ -258,31 +186,8 @@ function generateRandomPose(){
 // phase：相位偏移（0~1，同一時間點不同關節錯開，做出「一節一節跟著甩」的律動感）；
 // wave："bounce"＝單向彈跳（0→amp→0，像蹲下再彈起，適合膝蓋/骨盆/脊椎)，
 //       "sine"＝正弦來回擺（-amp→+amp，適合肩膀/頭部這類左右/前後擺動的部位）。
-const GROOVE_PRESETS = {
-  hips:      { axis:"x", amp:4, freq:1, phase:0.00, wave:"bounce" },
-  spine:     { axis:"x", amp:3, freq:1, phase:0.03, wave:"bounce" },
-  spine1:    { axis:"x", amp:4, freq:1, phase:0.06, wave:"bounce" },
-  spine2:    { axis:"x", amp:5, freq:1, phase:0.09, wave:"bounce" },
-  neck:      { axis:"x", amp:4, freq:1, phase:0.12, wave:"sine"   },
-  head:      { axis:"x", amp:5, freq:1, phase:0.15, wave:"sine"   },
-  rShoulder: { axis:"z", amp:3, freq:1, phase:0.50, wave:"sine"   },
-  lShoulder: { axis:"z", amp:3, freq:1, phase:0.00, wave:"sine"   },
-  rArm:      { axis:"z", amp:4, freq:1, phase:0.50, wave:"sine"   },
-  lArm:      { axis:"z", amp:4, freq:1, phase:0.00, wave:"sine"   },
-  // 手臂鏈往外延伸兩節：前臂（肘）與手掌（腕）。軸向刻意沿用上臂的 z，讓整條
-  // 肩胛→上臂→前臂→手掌 是同一個擺動方向、只差相位，看起來才是「一條手臂在甩」
-  // 而不是各節各轉各的；相位每往外一節 +0.04 拍（跟自動生成器 GROOVE_ARM_PAIRS 的
-  // lag 同一套結構），做出運動鏈由近端傳到遠端的延遲感。振幅則往外遞減（4→3→2），
-  // 因為遠端關節的角度會被上游整條手臂放大成很大的位移，等幅疊加會變成甩手而不是律動。
-  rForeArm:  { axis:"z", amp:3, freq:1, phase:0.54, wave:"sine"   },
-  lForeArm:  { axis:"z", amp:3, freq:1, phase:0.04, wave:"sine"   },
-  rHand:     { axis:"z", amp:2, freq:1, phase:0.58, wave:"sine"   },
-  lHand:     { axis:"z", amp:2, freq:1, phase:0.08, wave:"sine"   }
-  // rUpLeg/lUpLeg/rLeg/lLeg 刻意不放在這裡：腿是「腳掌貼地、膝蓋反算彎曲角度」的協同動作，
-  // 不是單一關節可以自己決定角度的自由度，改用下面的「蹲彈律動」系統（GROOVE_SQUAT_DEFAULT
-  // + applySquatGroove()），透過兩節IK＋腳踝世界旋轉鎖存來解，詳見該區塊上方註解。
-};
-const GROOVE_JOINT_KEYS = Object.keys(GROOVE_PRESETS);
+
+
 
 // ---- 蹲彈律動（雙腳同步）----
 // 跟上面「單關節各自振盪」的 GROOVE_PRESETS 不是同一套機制：真正的人體下肢律動是
@@ -294,35 +199,17 @@ const GROOVE_JOINT_KEYS = Object.keys(GROOVE_PRESETS);
 // 原地錨點；腳踝則用既有的 applyBoneWorldQuatLock()（從 applyFootLock 抽出的共用邏輯）
 // 鎖住腳掌世界旋轉＝貼地。實作見下方 applySquatGroove()。
 // vertAmp/lateralAmp 單位是「公分」（UI 顯示用），套用時會除以100換算成場景的公尺單位。
-const GROOVE_SQUAT_DEFAULT = {
-  vertAmp:5, lateralAmp:2,
-  freq:1, phase:0, wave:"bounce",              // 垂直：欄位名維持不變，向下相容舊存檔/舊律動庫項目
-  lateralFreq:1, lateralPhase:0, lateralWave:"sine" // 側向：新增獨立時鐘，預設值＝原本寫死的行為，不影響舊資料
-};
+
 let grooveSquatEnabled = false; // 預設關閉：這是全新機制，不希望舊使用者一開檔案就多一個沒設定過的位移效果
 let grooveSquatCustom = {};     // 使用者自訂覆寫（只存改過的欄位），跟 grooveCustomParams 同一套設計哲學
 
-function getGrooveSquatParams(){
-  return Object.assign({}, GROOVE_SQUAT_DEFAULT, grooveSquatCustom);
+function getGrooveSquatParams(...args){
+  return squatController.getGrooveSquatParams(...args);
 }
 
 // 讀檔容錯：過濾格式不對的自訂欄位，避免壞資料讓蹲彈算出 NaN 或非法波形。
-function sanitizeGrooveSquatCustomEntry(entry){
-  const out = {};
-  if (!entry || typeof entry !== "object") return out;
-  if (typeof entry.vertAmp === "number" && isFinite(entry.vertAmp)) out.vertAmp = entry.vertAmp;
-  if (typeof entry.lateralAmp === "number" && isFinite(entry.lateralAmp)) out.lateralAmp = entry.lateralAmp;
-  if (typeof entry.freq === "number" && isFinite(entry.freq) && entry.freq > 0) out.freq = entry.freq;
-  if (typeof entry.phase === "number" && isFinite(entry.phase)) out.phase = entry.phase;
-  // 蹲彈刻意「不」開放 ease:/easeBi: 合成波（跟單關節振盪不同）：蹲彈輸出的是 Hips 的實際位移量，
-  // 再由兩節 IK 反推腿部角度；Back/Elastic 這類會 overshoot 出 [0,1] 的波形會把身體推超出腿長可及範圍，
-  // IK 解不到就會出現腳掌脫離錨點/膝蓋反折。旋轉疊加沒有這個問題（角度超一點只是動作大一點），所以只在那邊開放。
-  if (entry.wave === "bounce" || entry.wave === "sine") out.wave = entry.wave;
-  // 側向：獨立的頻率/相位/波形，驗證規則跟垂直的對應欄位一致
-  if (typeof entry.lateralFreq === "number" && isFinite(entry.lateralFreq) && entry.lateralFreq > 0) out.lateralFreq = entry.lateralFreq;
-  if (typeof entry.lateralPhase === "number" && isFinite(entry.lateralPhase)) out.lateralPhase = entry.lateralPhase;
-  if (entry.lateralWave === "bounce" || entry.lateralWave === "sine") out.lateralWave = entry.lateralWave;
-  return out;
+function sanitizeGrooveSquatCustomEntry(...args){
+  return squatController.sanitizeGrooveSquatCustomEntry(...args);
 }
 
 // ---- 律動模式：使用者自訂覆寫 ----
@@ -333,24 +220,14 @@ let grooveCustomParams = {};
 // 取得某關節「目前實際生效」的律動參數＝預設值疊上使用者自訂覆寫（只覆寫有改過的欄位）。
 // UI 編輯面板／即時預覽／播放疊加(applyGroove) 三處全部只透過這個函式讀參數，
 // 避免各自讀不同來源，導致面板顯示的跟實際套用的對不起來。
-function getGrooveParams(key){
-  const base = GROOVE_PRESETS[key];
-  if (!base) return null;
-  const custom = grooveCustomParams[key];
-  return custom ? Object.assign({}, base, custom) : base;
+function getGrooveParams(...args){
+  return grooveController.getGrooveParams(...args);
 }
 
 // 匯入/還原自動存檔時，過濾掉格式不對的自訂欄位（例如手動改壞的 JSON），
 // 避免壞資料流進 grooveCustomParams 之後在 applyGroove() 算出 NaN 或非法軸向。
-function sanitizeGrooveCustomEntry(entry){
-  const out = {};
-  if (!entry || typeof entry !== "object") return out;
-  if (entry.axis === "x" || entry.axis === "y" || entry.axis === "z") out.axis = entry.axis;
-  if (isValidGrooveWave(entry.wave)) out.wave = entry.wave; // 含 "ease:"/"easeBi:" 合成波，見 grooveWaveValue
-  if (typeof entry.amp === "number" && isFinite(entry.amp)) out.amp = entry.amp;
-  if (typeof entry.freq === "number" && isFinite(entry.freq) && entry.freq > 0) out.freq = entry.freq;
-  if (typeof entry.phase === "number" && isFinite(entry.phase)) out.phase = entry.phase;
-  return out;
+function sanitizeGrooveCustomEntry(...args){
+  return grooveController.sanitizeGrooveCustomEntry(...args);
 }
 
 // ---- 波形系統（bounce / sine / Easing 合成波）----
@@ -364,14 +241,8 @@ function sanitizeGrooveCustomEntry(entry){
 // 好處：波形庫從 2 種一次擴到 60 幾種、跟時間軸的轉場曲線共用同一份曲線與同一套視覺語彙，
 // 而且 applyGroove/applySquatGroove 完全不用改——它們只呼叫這個函式拿係數。
 // 注意：EASINGS 宣告在本函式下方（約 2200 行），這裡只在「執行期」讀取，不是模組載入期，沒有 TDZ 問題。
-function grooveWarmupRamp(beatsElapsedTotal){
-  if (!grooveWarmupEnabled || grooveWarmupBeats <= 0) return 1;
-  if (beatsElapsedTotal >= grooveWarmupBeats) return 1;
-  if (beatsElapsedTotal <= 0) return 0;
-  const t = beatsElapsedTotal / grooveWarmupBeats;
-  if (grooveWarmupCurve === "easeIn") return t * t;              // 一開始很慢，後段加速貼齊滿幅
-  if (grooveWarmupCurve === "easeOut") return 1 - (1 - t) * (1 - t); // 一開始較快，後段緩和貼齊滿幅
-  return t; // linear
+function grooveWarmupRamp(...args){
+  return grooveController.grooveWarmupRamp(...args);
 }
 
 // ======================================================================
@@ -392,38 +263,27 @@ function grooveWarmupRamp(beatsElapsedTotal){
 // ======================================================================
 
 // 相位傳遞鏈：索引即鏈序，第 i 節的相位 = 起始相位 + i × segLag
-const GROOVE_CHAIN_ORDER = ["hips", "spine", "spine1", "spine2", "neck", "head"];
+
 // 左右成對的手臂關節；lag 是相對鏈條末端再往外傳的額外延遲（肩→上臂→前臂→手掌）。
 // distal:true 的那兩節（前臂/手掌）是「整組一起決定要不要參與」的遠端節——由原型的
 // distalProb 擲一次骰決定，不逐節各擲，否則會出現「手掌在動、前臂卻僵住」這種
 // 運動鏈斷掉的怪結果。ampScale 讓振幅沿鏈往外遞減，理由同 GROOVE_PRESETS 註解。
-const GROOVE_ARM_PAIRS = [
-  { r:"rShoulder", l:"lShoulder", lag:0.00 },
-  { r:"rArm",      l:"lArm",      lag:0.04 },
-  { r:"rForeArm",  l:"lForeArm",  lag:0.08, distal:true, ampScale:0.7 },
-  { r:"rHand",     l:"lHand",     lag:0.12, distal:true, ampScale:0.5 }
-];
+
 // 原型沒填 distalProb 時的保底值（例如手改過的設定物件），維持「偶爾才帶到手腕」的語意。
-const GROOVE_GEN_DISTAL_PROB_FALLBACK = 0.35;
+
 // 總能量預算：所有參與關節振幅絕對值的總和上限（度）。超過就整組等比例縮小——
 // 沒有這道閘門，隨機抽到的 8~10 個關節各自 5~6 度疊起來，看起來會像抽搐而不是律動。
-const GROOVE_GEN_ENERGY_BUDGET = 34;
+
 // 帶到前臂/手腕時額外放寬的預算：這個上限本來是照「軀幹鏈＋肩＋上臂」十個關節抓的，
 // 直接沿用會讓「有帶手腕的那幾組」整體被壓小約四分之一，聽起來像懲罰使用者多勾兩節。
 // 遠端兩節的振幅本身已經先乘過 ampScale 衰減，加這一點額度剛好抵銷它們佔用的份額，
 // 讓「有沒有帶到手腕」只改變動作的細節密度，不改變整段律動的力度。
-const GROOVE_GEN_DISTAL_ENERGY_BONUS = 8;
+
 
 // 可重現的偽隨機（mulberry32）：同一個 seed 必定生成同一組律動，
 // 所以 seed 可以存進律動庫項目、可以手動輸入重現、也可以分享給別人。
-function makeGrooveRng(seed){
-  let a = seed >>> 0;
-  return function(){
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function makeGrooveRng(...args){
+  return grooveGenerator.makeGrooveRng(...args);
 }
 
 // 依「關節限制」分頁的設定算出某關節某軸可用的最大振幅（度）。
@@ -432,108 +292,15 @@ function makeGrooveRng(seed){
 // 註：這道限制只作用在「生成階段」，不是在 applyGroove 裡夾——因為 JOINT_LIMITS 是相對
 // rest pose 的歐拉角，而律動是 post-multiply 疊在「已經擺好的姿勢」上，兩者座標基準不同，
 // 在播放期硬夾會夾錯東西。生成階段夾則語意正確：它限制的是「這組律動參數本身有多大」。
-function grooveAmpLimitFor(key, axis){
-  const lim = JOINT_LIMITS[key] && JOINT_LIMITS[key][axis];
-  if (!lim || !lim.enabled) return null;
-  return Math.max(0, Math.min(Math.abs(lim.min), Math.abs(lim.max)));
+function grooveAmpLimitFor(...args){
+  return grooveGenerator.grooveAmpLimitFor(...args);
 }
 
 // 風格原型：生成器的機率分佈來源。原型決定分佈，亂數只在分佈內取值——
 // 這樣「同風格重抽 10 次」得到的是同一種律動的 10 個變體，而不是 10 種不相干的東西。
 // 概念上等同「動作生成」的 Isolation 分組加權，只是加權的對象換成律動的結構參數。
-const GROOVE_ARCHETYPES = {
-  down: {
-    label:"Down（嘻哈基本）", short:"Down",
-    desc:"落點在正拍、核心主導的基本彈動。最泛用，適合當整段編舞的底。",
-    chainLen:[4,6], segLag:[0.02,0.05], chainAmp:[3,6],
-    chainProfile:[1.0,0.8,1.0,1.2,0.8,1.0],
-    chainAxisPool:["x"],
-    chainWavePool:["bounce","ease:easeOutQuad","ease:easeInOutSine"],
-    freqPool:[1], phaseOffsetPool:[0],
-    armProb:0.8, armAmp:[2,5], armAxisPool:["z"],
-    armWavePool:["sine","easeBi:easeInOutSine","easeBi:easeOutQuad"],
-    symmetryPool:["inPhase","antiPhase"],
-    distalProb:0.35,
-    squat:{ prob:0.9, vert:[4,8], lateral:[0,2], freqPool:[1], lateralFreqPool:[1],
-            wave:"bounce", lateralWave:"sine", phasePool:[0], lateralPhasePool:[0,0.25] }
-  },
-  up: {
-    label:"Up（反拍彈）", short:"Up",
-    desc:"彈在反拍：整體相位偏移半拍，身體是「往上提」而不是「往下沉」。",
-    chainLen:[4,6], segLag:[0.02,0.05], chainAmp:[3,6],
-    chainProfile:[1.0,0.8,1.0,1.2,0.8,1.0],
-    chainAxisPool:["x"],
-    chainWavePool:["bounce","ease:easeOutCubic","ease:easeOutBack"],
-    freqPool:[1], phaseOffsetPool:[0.5],
-    armProb:0.8, armAmp:[2,5], armAxisPool:["z"],
-    armWavePool:["sine","easeBi:easeOutQuad"],
-    symmetryPool:["inPhase","antiPhase"],
-    distalProb:0.35,
-    squat:{ prob:0.9, vert:[4,8], lateral:[0,2], freqPool:[1], lateralFreqPool:[1],
-            wave:"bounce", lateralWave:"sine", phasePool:[0.5], lateralPhasePool:[0.5,0.75] }
-  },
-  twostep: {
-    label:"Two-step（左右重心）", short:"2Step",
-    desc:"蹲兩次才側擺一次的左右重心轉移，肩膀反相交替。",
-    chainLen:[4,6], segLag:[0.03,0.07], chainAmp:[3,6],
-    chainProfile:[1.0,0.7,0.9,1.1,0.9,1.1],
-    chainAxisPool:["x","z"],
-    chainWavePool:["bounce","ease:easeInOutSine","easeBi:easeInOutSine"],
-    freqPool:[1], phaseOffsetPool:[0],
-    armProb:0.9, armAmp:[3,6], armAxisPool:["z"],
-    armWavePool:["sine","easeBi:easeInOutQuad"],
-    symmetryPool:["antiPhase"],
-    distalProb:0.4,
-    squat:{ prob:1.0, vert:[3,6], lateral:[4,9], freqPool:[1], lateralFreqPool:[0.5],
-            wave:"bounce", lateralWave:"sine", phasePool:[0], lateralPhasePool:[0,0.25] }
-  },
-  wave: {
-    label:"Wave（波浪傳遞）", short:"Wave",
-    desc:"鏈條延遲拉大到肉眼可見：動作像一道波從骨盆傳到頭頂。",
-    chainLen:[5,6], segLag:[0.10,0.17], chainAmp:[3,6],
-    chainProfile:[0.6,0.8,1.0,1.2,1.3,1.4],
-    chainAxisPool:["x"],
-    chainWavePool:["ease:easeInOutSine","ease:easeInOutQuad","easeBi:easeInOutSine"],
-    freqPool:[0.5], phaseOffsetPool:[0],
-    armProb:0.6, armAmp:[3,7], armAxisPool:["z"],
-    armWavePool:["easeBi:easeInOutSine"],
-    symmetryPool:["inPhase","free"],
-    distalProb:0.7,
-    squat:{ prob:0.5, vert:[2,5], lateral:[1,4], freqPool:[0.5], lateralFreqPool:[0.5],
-            wave:"sine", lateralWave:"sine", phasePool:[0], lateralPhasePool:[0.25] }
-  },
-  robot: {
-    label:"Robot（機械頓點）", short:"Robot",
-    desc:"tutting 專用：零傳遞延遲、可能雙倍頻、近方波，全身同一瞬間硬切到位。",
-    chainLen:[3,5], segLag:[0,0.01], chainAmp:[2,5],
-    chainProfile:[0.8,0.6,0.8,1.0,0.7,0.9],
-    chainAxisPool:["x","y"],
-    chainWavePool:["ease:easeInOutExpo","ease:easeInOutCirc","ease:easeInOutQuint"],
-    freqPool:[1,2], phaseOffsetPool:[0],
-    armProb:0.9, armAmp:[3,7], armAxisPool:["z","y"],
-    armWavePool:["easeBi:easeInOutExpo","easeBi:easeInOutCirc"],
-    symmetryPool:["inPhase"],
-    distalProb:0.25,
-    squat:{ prob:0.15, vert:[1,3], lateral:[0,1], freqPool:[1], lateralFreqPool:[1],
-            wave:"bounce", lateralWave:"sine", phasePool:[0], lateralPhasePool:[0] }
-  },
-  headLead: {
-    label:"Head-lead（點頭主導）", short:"Head",
-    desc:"骨盆幾乎不動、律動集中在頸/頭，適合疊在需要手部乾淨的 tutting 段落上。",
-    chainLen:[6,6], segLag:[0.01,0.04], chainAmp:[3,6],
-    chainProfile:[0.15,0.3,0.5,0.8,1.2,1.5],
-    chainAxisPool:["x"],
-    chainWavePool:["ease:easeOutBack","ease:easeOutCubic","bounce"],
-    freqPool:[1,2], phaseOffsetPool:[0],
-    armProb:0.3, armAmp:[1,3], armAxisPool:["z"],
-    armWavePool:["sine"],
-    symmetryPool:["inPhase"],
-    distalProb:0.15,
-    squat:{ prob:0.2, vert:[1,3], lateral:[0,1], freqPool:[1], lateralFreqPool:[1],
-            wave:"bounce", lateralWave:"sine", phasePool:[0], lateralPhasePool:[0] }
-  }
-};
-const GROOVE_ARCHETYPE_IDS = Object.keys(GROOVE_ARCHETYPES);
+
+
 
 // 生成出來（或從律動庫套用進來）的那組律動的來源資訊，供 UI 顯示 seed／存進律動庫項目。
 // 使用者一旦手動改過任何律動欄位就清成 null——meta 宣稱「這組等於 seed X 生成的結果」，
@@ -541,135 +308,13 @@ const GROOVE_ARCHETYPE_IDS = Object.keys(GROOVE_ARCHETYPES);
 let grooveLastGenMeta = null;
 
 // 依原型與 seed 生成一整組律動設定。回傳形狀＝captureCurrentGrooveConfig() + meta。
-function generateGrooveConfig(archetypeId, seed){
-  const arcId = GROOVE_ARCHETYPES[archetypeId] ? archetypeId : "down";
-  const arc = GROOVE_ARCHETYPES[arcId];
-  const usedSeed = Number.isFinite(seed) ? (seed >>> 0) : ((Math.random() * 0xFFFFFFFF) >>> 0);
-  const rnd = makeGrooveRng(usedSeed);
-
-  const rf = (a, b) => a + (b - a) * rnd();
-  const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
-  const qAmp = (v) => Math.round(v * 2) / 2;              // 對齊振幅滑桿的 step=0.5
-  const qPhase = (v) => {                                  // 對齊相位滑桿的 step=0.01，並摺回 [0,1)
-    let p = Math.round((v - Math.floor(v)) * 100) / 100;
-    if (p >= 1) p = 0;
-    return p;
-  };
-
-  const jointSet = [];
-  const customParams = {};
-
-  // ---- 鏈條（骨盆→頭）：共用一個頻率、一個軸、一個波形，相位沿鏈遞增 ----
-  const freq = pick(arc.freqPool);
-  const segLag = rf(arc.segLag[0], arc.segLag[1]);
-  const phaseBase = pick(arc.phaseOffsetPool);
-  const chainLen = Math.round(rf(arc.chainLen[0], arc.chainLen[1]));
-  const baseAmp = rf(arc.chainAmp[0], arc.chainAmp[1]);
-  const chainAxis = pick(arc.chainAxisPool);
-  const chainWave = pick(arc.chainWavePool);
-
-  for (let i = 0; i < chainLen; i++){
-    const key = GROOVE_CHAIN_ORDER[i];
-    if (!GROOVE_PRESETS[key]) continue;
-    let amp = baseAmp * arc.chainProfile[i] * rf(0.88, 1.12);
-    const cap = grooveAmpLimitFor(key, chainAxis);
-    if (cap !== null) amp = Math.min(amp, cap);
-    amp = qAmp(amp);
-    if (Math.abs(amp) < 0.5) continue; // 小到看不出來就不列入，免得 jointSet 裡都是有勾等於沒勾的關節
-    jointSet.push(key);
-    customParams[key] = { axis:chainAxis, wave:chainWave, amp, freq, phase: qPhase(phaseBase + i * segLag) };
-  }
-
-  // ---- 手臂：整組決定對稱模式，兩側共用振幅、只差相位 ----
-  let usedDistal = false; // 這組有沒有真的長出前臂/手掌，決定下面的能量預算要不要加額度
-  if (rnd() < arc.armProb){
-    const armAxis = pick(arc.armAxisPool);
-    const armWave = pick(arc.armWavePool);
-    const symmetry = pick(arc.symmetryPool);
-    const armBase = rf(arc.armAmp[0], arc.armAmp[1]);
-    // 反相＝左右交替（內建 preset 的 rShoulder 0.50 / lShoulder 0.00 就是這個）；
-    // free＝兩側各走各的，量化到 1/4 拍避免產生聽不出關係的怪異錯位。
-    const sideOffset = (symmetry === "antiPhase") ? 0.5
-                     : (symmetry === "free")      ? (Math.round(rnd() * 4) % 4) / 4
-                     : 0;
-    // 手臂接在鏈條末端之後，沿用同一條傳遞延遲繼續往外傳
-    const armPhaseBase = phaseBase + segLag * chainLen;
-    // 前臂/手掌要不要一起參與：整組擲一次骰，且刻意用「從同一個 seed 衍生出來的另一條
-    // 亂數流」而不是主流程的 rnd()——主流程多插一次 rnd() 會讓後面所有取值整個位移，
-    // 舊 seed 就再也重現不出原本那組律動了。衍生流保證主流程的呼叫順序一字未動，
-    // 因此舊 seed 產生的鏈條/上臂/蹲彈參數完全不變，差別只在「可能多長出前臂/手掌兩節」
-    // （以及多出來的振幅被下面的總能量預算等比例縮回去）。
-    const distalRnd = makeGrooveRng((usedSeed ^ 0x9E3779B9) >>> 0);
-    const distalRf = (a, b) => a + (b - a) * distalRnd();
-    const distalProb = Number.isFinite(arc.distalProb) ? arc.distalProb : GROOVE_GEN_DISTAL_PROB_FALLBACK;
-    const includeDistal = distalRnd() < distalProb;
-    usedDistal = includeDistal;
-
-    for (const pair of GROOVE_ARM_PAIRS){
-      if (pair.distal && !includeDistal) continue;
-      // 遠端兩節的抖動值同樣走衍生流：連「抽幾次 rnd()」都跟舊版一模一樣，
-      // 後面的蹲彈層才不會因為前面多抽兩次而整組偏掉。
-      const jitter = pair.distal ? distalRf(0.9, 1.1) : rf(0.9, 1.1);
-      for (const side of ["r", "l"]){
-        const key = pair[side];
-        if (!GROOVE_PRESETS[key]) continue;
-        let amp = armBase * jitter * (pair.ampScale || 1);
-        const cap = grooveAmpLimitFor(key, armAxis);
-        if (cap !== null) amp = Math.min(amp, cap);
-        amp = qAmp(amp);
-        if (Math.abs(amp) < 0.5) continue;
-        jointSet.push(key);
-        customParams[key] = {
-          axis: armAxis, wave: armWave, amp, freq,
-          phase: qPhase(armPhaseBase + pair.lag + (side === "r" ? sideOffset : 0))
-        };
-      }
-    }
-  }
-
-  // ---- 總能量預算：超標就整組等比例縮小 ----
-  const energyBudget = GROOVE_GEN_ENERGY_BUDGET + (usedDistal ? GROOVE_GEN_DISTAL_ENERGY_BONUS : 0);
-  let energy = jointSet.reduce((s, k) => s + Math.abs(customParams[k].amp), 0);
-  if (energy > energyBudget && energy > 0){
-    const scale = energyBudget / energy;
-    for (const k of jointSet){
-      const v = qAmp(customParams[k].amp * scale);
-      // 縮完之後不讓任何一個關節掉到 0（那等於偷偷把它從律動裡拿掉，跟 jointSet 說的不一致）
-      customParams[k].amp = (Math.abs(v) < 0.5) ? (customParams[k].amp >= 0 ? 0.5 : -0.5) : v;
-    }
-    energy = jointSet.reduce((s, k) => s + Math.abs(customParams[k].amp), 0);
-  }
-
-  // ---- 蹲彈層 ----
-  const squatEnabled = rnd() < arc.squat.prob;
-  const squatCustom = {};
-  if (squatEnabled){
-    squatCustom.vertAmp      = qAmp(rf(arc.squat.vert[0], arc.squat.vert[1]));
-    squatCustom.lateralAmp   = qAmp(rf(arc.squat.lateral[0], arc.squat.lateral[1]));
-    squatCustom.freq         = pick(arc.squat.freqPool);
-    squatCustom.phase        = pick(arc.squat.phasePool);
-    squatCustom.wave         = arc.squat.wave;
-    squatCustom.lateralFreq  = pick(arc.squat.lateralFreqPool);
-    squatCustom.lateralPhase = pick(arc.squat.lateralPhasePool);
-    squatCustom.lateralWave  = arc.squat.lateralWave;
-  }
-
-  // ---- 循環長度：所有頻率都取自 {0.5,1,2} 這種 2 的冪次比例，所以最長週期就是整組的循環長度 ----
-  const periods = [1 / freq];
-  if (squatEnabled){ periods.push(1 / squatCustom.freq, 1 / squatCustom.lateralFreq); }
-  const loopBeats = Math.max(...periods);
-
-  return {
-    jointSet, customParams, squatEnabled, squatCustom,
-    meta: { seed: usedSeed, archetype: arcId, loopBeats, energy: Math.round(energy * 10) / 10 }
-  };
+function generateGrooveConfig(...args){
+  return grooveGenerator.generateGrooveConfig(...args);
 }
 
 // 自動命名：帶上原型短名與 seed 的 base36 尾碼，庫裡一整排自動生成的項目才分得出誰是誰。
-function grooveGenAutoName(archetypeId, seed){
-  const arc = GROOVE_ARCHETYPES[archetypeId];
-  const short = arc ? arc.short : "Groove";
-  return "自動_" + short + "_" + (seed >>> 0).toString(36).slice(-4).toUpperCase();
+function grooveGenAutoName(...args){
+  return grooveGenerator.grooveGenAutoName(...args);
 }
 
 let ROOT_FOLLOW_LERP_T = ROOT_FOLLOW_LERP_T_DEFAULT;
@@ -931,691 +576,230 @@ const IDLE_POSE = { name:"待機", rArm:[0,0,0], rForeArm:[0,0,0], rHand:[0,0,0]
 
 
 let tgConfig=JSON.parse(JSON.stringify(TG_DEFAULT)),tgBase=null,tgCandidates=[],tgIndex=-1,tgPreview=null,tgSignature='';
-function tgConflict(){
-  if(!model)return '請等待角色載入';
-  if(kfPlaying||waveRun||laPathRun||groovePreviewEnabled||waveTrackActive)return '請先停止時間軸、Waving、律動及軌跡預覽；若剛拖曳 WAVING 游標，請先選取一個 POSE。';
-  if(Object.values(ikEnabled).some(Boolean)||spineIKEnabled||Object.values(fingerIKEnabled).some(Boolean)||Object.values(lookAtEnabled).some(Boolean)||footPlantEnabled)return '請先關閉 IK、LookAt 與腳底固定，再使用生成器。';
-  if(handCollisionEnabled||handHandCollisionEnabled)return '請先關閉手部碰撞回彈，以免生成姿勢被碰撞修正改寫。';
-  return '';
+function tgConflict(...args){
+  return tuttingController.tgConflict(...args);
 }
-function tgSay(s){const el=document.getElementById('tgStatus');if(el)el.textContent=s;}
-function tgDrawPose(p,body){if(!model)return;for(const k of ALL_JOINT_KEYS)if(bones[k]&&restQuat[k]&&p[k])bones[k].quaternion.copy(restQuat[k]).multiply(eulerToQuat(p[k]));if(body)applyBodyTransform(body);model.updateMatrixWorld(true);}
-function tgCancelPreview(){if(!tgPreview)return;const old=tgPreview;tgPreview=null;tgDrawPose(poseController.snapshotTarget(),old.body);tgUI();}
-function tgClear(){tgCancelPreview();tgCandidates=[];tgIndex=-1;tgSignature='';tgUI();}
-function tgRuleSignature(){return JSON.stringify({config:tgConfig,limits:JOINT_LIMITS,base:tgBase});}
-function tgCapture(){
-  const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
-  tgCancelPreview();pushHistory();tgBase={angles:poseController.snapshotTarget(),body:snapshotBodyTransform()};tgClear();pushHistory();scheduleAutoSave();tgUI();tgSay('已擷取基礎姿勢。未勾選部位保留局部角度，仍可能隨上游骨骼移動。');
+function tgSay(...args){
+  return tuttingController.tgSay(...args);
 }
-function tgGenerate(){
-  const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
-  if(!tgReadSettings())return;
-  if(!tgBase)tgCapture();if(!tgBase)return;
-  tgCancelPreview();const result=tgGenerateCandidates(tgBase.angles,tgConfig,TG_KEYS.filter(k=>bones[k]),clampJointAngles);
-  tgCandidates=result.results;tgIndex=tgCandidates.length?0:-1;tgSignature=tgRuleSignature();tgUI();
-  tgSay(tgCandidates.length?`產生 ${tgCandidates.length}／6 個不重複候選；依總角度變化由小到大排列。${tgCandidates.length<6?'在本次搜尋上限內未找到更多結果，可換種子或放寬條件。':''}`:'本次搜尋未找到符合條件的變化。請檢查活動軸、角度集合、變化上限與關節限制；不會自動放寬規則。');
-  if(tgIndex>=0)tgShow(0);
+function tgDrawPose(...args){
+  return tuttingController.tgDrawPose(...args);
 }
-function tgValidCandidate(){
-  if(tgIndex<0||!tgCandidates[tgIndex])return false;
-  if(tgSignature!==tgRuleSignature()){tgClear();tgSay('規則或基礎姿勢已變更，請重新生成。');return false;}return true;
+function tgCancelPreview(...args){
+  return tuttingController.tgCancelPreview(...args);
 }
-function tgShow(index){
-  const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
-  tgIndex=Math.max(0,Math.min(tgCandidates.length-1,index));if(!tgValidCandidate())return;
-  if(!tgPreview)tgPreview={body:snapshotBodyTransform()};tgDrawPose(tgCandidates[tgIndex].angles,tgBase.body);tgUI();
+function tgClear(...args){
+  return tuttingController.tgClear(...args);
 }
-function tgTick(){if(!tgPreview)return;const conflict=tgConflict();if(conflict||tgSignature!==tgRuleSignature()){tgCancelPreview();tgSay(conflict||'規則已變更，請重新生成。');return;}tgDrawPose(tgCandidates[tgIndex].angles,tgBase.body);}
-function tgCommit(toTimeline=false){
-  const conflict=tgConflict();if(conflict){tgSay(conflict);return false;}if(!tgValidCandidate())return false;
-  const p=tgCandidates[tgIndex];tgCancelPreview();pushHistory();
-  poseController.restoreTarget(p.angles, { clamp: false });
-  tgDrawPose(p.angles,tgBase.body);setActiveBtn(-1);updateSelectedBar();
-  if(toTimeline)addKeyframe();pushHistory();scheduleAutoSave();tgUI();tgSay(toTimeline?'已加入一個 POSE 拍點，可用 Undo 復原。':'已套用候選姿勢，可用 Undo 復原。');return true;
+function tgRuleSignature(...args){
+  return tuttingController.tgRuleSignature(...args);
 }
-function tgReadSettings(){
-  const input=document.getElementById('tgValues'),tokens=input.value.trim().split(/[,，、\s]+/).filter(Boolean),values=tokens.map(Number);
-  if(!values.length||values.length>24||values.some(v=>!Number.isFinite(v)||Math.abs(v)>180)){tgSay('請輸入 1～24 個 −180～180° 的數值，以逗號分隔。');return false;}
-  const axes={};for(const k of TG_KEYS)axes[k]=['x','y','z'].filter(a=>document.getElementById('tg_'+k+'_'+a).checked);
-  const maxDelta=Number(document.getElementById('tgMaxDelta').value),maxJoints=Number(document.getElementById('tgMaxJoints').value),seed=Number(document.getElementById('tgSeed').value);
-  if(!Number.isFinite(maxDelta)||maxDelta<1||maxDelta>180||!Number.isInteger(maxJoints)||maxJoints<1||maxJoints>8||!Number.isInteger(seed)||seed<0||seed>4294967295){tgSay('每軸上限需為 1～180°、最多關節數為 1～8，種子為 0～4294967295 的整數。');return false;}
-  const next=cleanTGConfig({mode:document.getElementById('tgMode').value,values,maxDelta,maxJoints,seed,axes});
-  if(JSON.stringify(next)!==JSON.stringify(tgConfig)){tgClear();pushHistory();tgConfig=next;pushHistory();scheduleAutoSave();}
-  return true;
+function tgCapture(...args){
+  return tuttingController.tgCapture(...args);
 }
-function tgUI(){
-  const el=document.getElementById('tgCandidateInfo');if(!el)return;
-  const candidate=tgCandidates[tgIndex];el.textContent=candidate?`候選 ${tgIndex+1}／${tgCandidates.length} · 改動：${candidate.changed.map(k=>LABEL_LOOKUP[k]).join('、')} · 最大每軸變化 ${candidate.maxDelta.toFixed(1)}° · TG-1 角度／部位規則符合${tgPreview?' · 預覽中（尚未套用）':''}`:'尚未產生候選';
-  for(const id of ['tgApply','tgAddPose','tgSavePose','tgPrev','tgNext','tgPreviewBtn'])document.getElementById(id).disabled=!candidate;
-  document.getElementById('tgPrev').disabled=!candidate||tgIndex<=0;document.getElementById('tgNext').disabled=!candidate||tgIndex>=tgCandidates.length-1;
-  document.getElementById('tgCancel').disabled=!tgPreview;
-  document.getElementById('tgBaseInfo').textContent=tgBase?'已有基礎姿勢；再次生成仍以此姿勢為起點。':'尚未擷取；首次生成會使用目前姿勢。';
+function tgGenerate(...args){
+  return tuttingController.tgGenerate(...args);
 }
-function tgConfigUI(){
-  if(!document.getElementById('tgMode'))return;
-  for(const [id,v]of Object.entries({tgMode:tgConfig.mode,tgValues:tgConfig.values.join(', '),tgMaxDelta:tgConfig.maxDelta,tgMaxJoints:tgConfig.maxJoints,tgSeed:tgConfig.seed}))document.getElementById(id).value=v;
-  for(const k of TG_KEYS)for(const a of ['x','y','z']){const el=document.getElementById('tg_'+k+'_'+a);if(el)el.checked=tgConfig.axes[k].includes(a);}tgUI();
+function tgValidCandidate(...args){
+  return tuttingController.tgValidCandidate(...args);
 }
-function snapshotTG(){return {config:tgCopy(tgConfig),base:tgCopy(tgBase)};}
-function restoreTG(data){
-  tgClear();tgConfig=cleanTGConfig(data?.config);tgBase=null;const b=data?.base;
-  const vec=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(Number.isFinite);
-  if(b?.angles&&ALL_JOINT_KEYS.every(k=>vec(b.angles[k],3))&&vec(b.body?.position,3)&&vec(b.body?.quaternion,4))tgBase=tgCopy(b);
-  tgConfigUI();
+function tgShow(...args){
+  return tuttingController.tgShow(...args);
 }
-function snapshotGenerationRules(){return {limits:tgCopy(JOINT_LIMITS),isolation:tgCopy(isolationSettings),gridStep:Number(document.getElementById('jlGridStepInput')?.value)||15,edgeProb:Number(document.getElementById('jlEdgeProbInput')?.value)||0};}
-function restoreGenerationRules(raw){
-  if(!raw)return;
-  const limits=defaultJointLimits();for(const k of JOINT_LIMIT_KEYS)for(const axis of ['x','y','z']){const v=raw.limits?.[k]?.[axis];if(v&&Number.isFinite(v.min)&&Number.isFinite(v.max))limits[k][axis]={enabled:v.enabled===true,min:Math.min(v.min,v.max),max:Math.max(v.min,v.max)};}JOINT_LIMITS=limits;
-  const iso=raw.isolation||{};isolationSettings={enabled:iso.enabled===true,minGroups:Math.max(1,Math.min(50,Math.round(Number(iso.minGroups)||1))),maxGroups:Math.max(1,Math.min(50,Math.round(Number(iso.maxGroups)||2))),weights:{},jointWeights:{}};
-  for(const [k,v]of Object.entries(iso.weights||{}))if(Number.isFinite(v)&&v>=0)isolationSettings.weights[k]=v;
-  for(const [k,v]of Object.entries(iso.jointWeights||{}))if(JOINT_LIMIT_KEYS.includes(k)&&Number.isFinite(v)&&v>=0&&v<=100)isolationSettings.jointWeights[k]=v;
-  document.getElementById('jlGridStepInput').value=Math.max(1,Math.min(360,Number(raw.gridStep)||15));document.getElementById('jlEdgeProbInput').value=Math.max(0,Math.min(100,Number(raw.edgeProb)||0));
-  saveJointLimits();saveIsolationSettings();if(model)buildJointLimitPanel();
+function tgTick(...args){
+  return tuttingController.tgTick(...args);
 }
-function bindTG(){
-  const host=document.getElementById('tgParts');for(const k of TG_KEYS){const row=document.createElement('div');row.className='tgPart';const label=document.createElement('strong');label.textContent=LABEL_LOOKUP[k];row.append(label);
-    for(const a of ['x','y','z']){const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.id='tg_'+k+'_'+a;l.append(c,a.toUpperCase());row.append(l);c.onchange=()=>tgReadSettings();}host.append(row);}
-  document.getElementById('tgCapture').onclick=tgCapture;document.getElementById('tgGenerate').onclick=tgGenerate;
-  document.getElementById('tgPrev').onclick=()=>tgShow(tgIndex-1);document.getElementById('tgNext').onclick=()=>tgShow(tgIndex+1);
-  document.getElementById('tgPreviewBtn').onclick=()=>tgShow(tgIndex);document.getElementById('tgCancel').onclick=tgCancelPreview;
-  document.getElementById('tgApply').onclick=()=>tgCommit();document.getElementById('tgAddPose').onclick=()=>tgCommit(true);
-  document.getElementById('tgSavePose').onclick=()=>{if(tgCommit()){poseLibCtrl.saveCurrent(document.getElementById('tgPoseName').value.trim()||'Tutting 候選');tgSay('已套用並存入姿勢庫；姿勢庫項目沿用既有獨立保存方式。');}};
-  document.getElementById('tgNewSeed').onclick=()=>{document.getElementById('tgSeed').value=(tgConfig.seed+1)>>>0;if(tgReadSettings())tgGenerate();};
-  for(const id of ['tgMode','tgValues','tgMaxDelta','tgMaxJoints','tgSeed'])document.getElementById(id).onchange=()=>tgReadSettings();
-  // Cancel transient preview before external UI mutations; camera orbit remains available.
-  document.addEventListener('pointerdown',e=>{if(tgPreview&&e.target.closest?.('#uiCommon, .floatablePanel'))tgCancelPreview();},true);
-  for(const id of ['jlGridStepInput','jlEdgeProbInput']){const el=document.getElementById(id);el.addEventListener('focus',()=>pushHistory());el.addEventListener('change',()=>{pushHistory();scheduleAutoSave();});}
-  tgConfigUI();
+function tgCommit(...args){
+  return tuttingController.tgCommit(...args);
+}
+function tgReadSettings(...args){
+  return tuttingController.tgReadSettings(...args);
+}
+function tgUI(...args){
+  return tuttingController.tgUI(...args);
+}
+function tgConfigUI(...args){
+  return tuttingController.tgConfigUI(...args);
+}
+function snapshotTG(...args){
+  return tuttingController.snapshotTG(...args);
+}
+function restoreTG(...args){
+  return tuttingController.restoreTG(...args);
+}
+function snapshotGenerationRules(...args){
+  return tuttingController.snapshotGenerationRules(...args);
+}
+function restoreGenerationRules(...args){
+  return tuttingController.restoreGenerationRules(...args);
+}
+function bindTG(...args){
+  return tuttingController.bindTG(...args);
 }
 
 // WAVING track: independent clips; sampled motion stays private to each clip.
 let waveClips = [], waveClipSelected = null;
 let waveTrackActive = false;
 const waveClone = value => JSON.parse(JSON.stringify(value));
-function syncWaveTrackTarget(k){
-  poseController.syncFromBone(k, { round: false });
+function syncWaveTrackTarget(...args){
+  return waveTrackController.syncWaveTrackTarget(...args);
 }
-function waveTrackEnd(){return waveClips.reduce((n,c)=>Math.max(n,c.start+c.beats),0);}
-function wavePlaybackEnd(){return Math.max(beatGridPoseTotalBeats(),waveTrackEnd());}
-function waveTrackMessage(s){document.getElementById('waveBakeStatus').textContent=s;document.getElementById('waveTrackNotice').textContent=s;}
-function waveClipOverlap(start,beats,except){return waveClips.some(c=>c.id!==except&&start<c.start+c.beats-1e-8&&start+beats>c.start+1e-8);}
-function waveSnap(v){const step=Number(BEAT_GRID_SNAP)||.25;return Math.max(0,Math.round(v/step)*step);}
-function waveClipWeight(c,beat){
-  const local=beat-c.start;if(local<=0||local>=c.beats)return 0;
-  const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-  const fadeIn=Math.min(c.fadeIn,c.beats/2),fadeOut=Math.min(c.fadeOut,c.beats/2);
-  return Math.min(smooth(local/fadeIn),smooth((c.beats-local)/fadeOut));
+function waveTrackEnd(...args){
+  return waveTrackController.waveTrackEnd(...args);
 }
-function cleanWaveClips(raw){
-  if(!Array.isArray(raw))return [];
-  const result=[];const ids=new Set();
-  const vec=(a,n)=>Array.isArray(a)&&a.length===n&&a.every(Number.isFinite);
-  for(const r of raw.slice(0,128).sort((a,b)=>(a?.start||0)-(b?.start||0))){
-    if(!r||!Number.isFinite(r.start)||r.start<0||!Number.isFinite(r.beats)||r.beats<.25||r.beats>1024||r.start>100000)continue;
-    if(!Array.isArray(r.frames)||r.frames.length<2||r.frames.length>4097)continue;
-    if(!r.frames.every(f=>f&&f.angles&&ALL_JOINT_KEYS.every(k=>vec(f.angles[k],3))&&f.body&&vec(f.body.position,3)&&vec(f.body.quaternion,4)))continue;
-    if(result.some(c=>r.start<c.start+c.beats-1e-8&&r.start+r.beats>c.start+1e-8))continue;
-    const id=typeof r.id==='string'&&!ids.has(r.id)?r.id:makeLibId();ids.add(id);
-    result.push({id,start:r.start,beats:r.beats,cycles:Math.max(1,Math.min(8,Math.round(Number(r.cycles)||1))),config:cleanWave(r.config),
-      fadeIn:Math.max(.05,Math.min(r.beats/2,Number(r.fadeIn)||.5)),fadeOut:Math.max(.05,Math.min(r.beats/2,Number(r.fadeOut)||.5)),
-      keys:Array.isArray(r.keys)?r.keys.filter(k=>ALL_JOINT_KEYS.includes(k)):ALL_JOINT_KEYS.slice(),
-      frames:waveClone(r.frames),feet:Array.isArray(r.feet)?waveClone(r.feet):null});
-  }
-  return result;
+function wavePlaybackEnd(...args){
+  return waveTrackController.wavePlaybackEnd(...args);
 }
-function waveBaseAtBeat(beat){
-  if(!keyframes.length){
-    const f=waveClips[0]?.frames[0];if(f){applyBodyTransform(f.body);for(const k of ALL_JOINT_KEYS)if(bones[k]&&restQuat[k])bones[k].quaternion.copy(restQuat[k]).multiply(eulerToQuat(f.angles[k]||[0,0,0]));model.updateMatrixWorld(true);}
-    return new Set();
-  }
-  const loc=locateKeyframeSegmentAtBeat(beat);kfIndex=loc.index;
-  if(keyframes.length===1){
-    const f=keyframes[0];applyBodyTransform(f.body);
-    for(const k of ALL_JOINT_KEYS)if(bones[k]&&restQuat[k])bones[k].quaternion.copy(restQuat[k]).multiply(eulerToQuat(f.angles[k]||[0,0,0]));
-    model.updateMatrixWorld(true);return new Set();
-  }
-  const a=keyframes[loc.index],b=keyframes[loc.index+1];
-  const t=Math.min(1,loc.localBeat/Math.max(.0001,a.beats||1));
-  return applyKeyframeFramePose(a,b,(EASINGS[a.easing]||EASINGS.linear)(t));
+function waveTrackMessage(...args){
+  return waveTrackController.waveTrackMessage(...args);
 }
-function applyWaveTrackAtBeat(beat){
-  waveTrackActive=false;
-  const c=waveClips.find(c=>beat>=c.start&&beat<c.start+c.beats);
-  document.querySelectorAll('#waveTrackList .waveClip').forEach(el=>el.classList.toggle('activeSeg',el.dataset.id===c?.id));
-  if(!c)return;
-  const weight=waveClipWeight(c,beat);if(weight<=0)return;
-  waveTrackActive=true;
-  const cursor=Math.max(0,Math.min(c.frames.length-1,(beat-c.start)/c.beats*(c.frames.length-1)));
-  const i=Math.min(c.frames.length-2,Math.floor(cursor)),t=cursor-i;
-  const a=c.frames[i],b=c.frames[i+1],base={},basePos=model.position.clone(),baseQuat=model.quaternion.clone();
-  // Snapshot the underlying POSE + Groove before temporarily solving the wave candidate.
-  for(const k of ALL_JOINT_KEYS)if(bones[k])base[k]=bones[k].quaternion.clone();
-  const body=waveHasBody(c.config),keys=body?ALL_JOINT_KEYS:c.keys;
-  const qa=new THREE.Quaternion(),qb=new THREE.Quaternion();
-  for(const k of keys){if(!bones[k]||!restQuat[k])continue;
-    eulerToQuat(a.angles[k],qa);eulerToQuat(b.angles[k],qb);
-    bones[k].quaternion.copy(restQuat[k]).multiply(qa.slerp(qb,t));
-  }
-  if(body){
-    model.position.fromArray(a.body.position).lerp(new THREE.Vector3().fromArray(b.body.position),t);
-    model.quaternion.fromArray(a.body.quaternion).slerp(new THREE.Quaternion().fromArray(b.body.quaternion),t);
-    model.updateMatrixWorld(true);
-    if(c.feet)applyBakedWaveFeet({waveBake:{feet:c.feet}});
-  }
-  // Blend the solved candidate, including leg compensation. Foot locks release continuously.
-  for(const k of keys)if(base[k])bones[k].quaternion.copy(base[k].slerp(bones[k].quaternion,weight));
-  if(body){model.position.lerpVectors(basePos,model.position.clone(),weight);model.quaternion.copy(baseQuat.slerp(model.quaternion,weight));}
-  model.updateMatrixWorld(true);
+function waveClipOverlap(...args){
+  return waveTrackController.waveClipOverlap(...args);
 }
-function updateWaveTrackPlayback(now){
-  const end=wavePlaybackEnd();let beat=Math.max(0,(now-grooveStartTime)*bpm/60000);
-  const range=beatGridRangeLoop&&hasBeatGridRange();
-  const left=range?Math.min(beatGridRangeStart,end):0,right=range?Math.min(beatGridRangeEnd,end):end;
-  if(beat>=right){
-    if((range||kfLoop)&&right>left){beat=left+(beat-left)%(right-left);seekRunningPlaybackToBeat(beat,now);}
-    else {waveBaseAtBeat(end);applyWaveTrackAtBeat(end);for(const k of ALL_JOINT_KEYS)syncWaveTrackTarget(k);stopKeyframePlayback();return;}
-  }
-  const blocked=waveBaseAtBeat(beat);
-  applyGroove(now,blocked);applySquatGroove(now,grooveStartTime,false,blocked);
-  applyWaveTrackAtBeat(beat);
-  const loc=locateKeyframeSegmentAtBeat(beat);kfStartTime=now-loc.localBeat*60000/bpm;
-  updatePlayingKeyframeHighlight();updateBeatGridPlaybackUI(now);
+function waveSnap(...args){
+  return waveTrackController.waveSnap(...args);
 }
-function selectWaveClip(id){
-  if(kfPlaying)return;waveClipSelected=id;kfEditingIndex=-1;grooveSeqSelectedIndex=-1;kfMultiSelected.clear();grooveMultiSelected.clear();
-  renderKeyframeChips();renderGrooveSeqChips();renderWaveTrack();
+function waveClipWeight(...args){
+  return waveTrackController.waveClipWeight(...args);
 }
-function editWaveClip(id,patch){
-  if(kfPlaying)return false;const c=waveClips.find(c=>c.id===id);if(!c)return false;
-  const next={...c,...patch};
-  if(!Number.isFinite(next.start)||next.start<0||next.start>100000||!Number.isFinite(next.beats)||next.beats<.25||next.beats>1024||waveClipOverlap(next.start,next.beats,id)){
-    waveTrackMessage('未修改：區塊不可重疊，長度需為 0.25～1024 拍。');renderWaveTrack();return false;
-  }
-  next.fadeIn=Math.max(.05,Math.min(next.beats/2,next.fadeIn));next.fadeOut=Math.max(.05,Math.min(next.beats/2,next.fadeOut));
-  pushHistory();Object.assign(c,next);waveClips.sort((a,b)=>a.start-b.start);pushHistory();scheduleAutoSave();renderKeyframeChips();return true;
+function cleanWaveClips(...args){
+  return waveTrackController.cleanWaveClips(...args);
 }
-function deleteWaveClip(){if(kfPlaying)return;pushHistory();waveClips=waveClips.filter(c=>c.id!==waveClipSelected);waveClipSelected=null;pushHistory();scheduleAutoSave();renderKeyframeChips();}
-function duplicateWaveClip(){
-  if(kfPlaying)return;if(waveClips.length>=128){waveTrackMessage('最多 128 個 WAVING 區塊');return;}const c=waveClips.find(c=>c.id===waveClipSelected);if(!c)return;
-  const copy=waveClone(c);copy.id=makeLibId();copy.start=c.start+c.beats;
-  while(waveClipOverlap(copy.start,copy.beats,null)){const blockers=waveClips.filter(x=>copy.start<x.start+x.beats&&copy.start+copy.beats>x.start);copy.start=Math.max(...blockers.map(x=>x.start+x.beats));}
-  pushHistory();waveClips.push(copy);waveClipSelected=copy.id;pushHistory();scheduleAutoSave();renderKeyframeChips();
+function waveBaseAtBeat(...args){
+  return waveTrackController.waveBaseAtBeat(...args);
 }
-function loadWaveClipSettings(){
-  if(kfPlaying)return;const c=waveClips.find(c=>c.id===waveClipSelected);if(!c)return;
-  stopWave();waveConfig=cleanWave(c.config);waveUI();
-  document.getElementById('waveBakeCycles').value=c.cycles;
-  document.getElementById('waveBakeBeats').value=c.beats/(c.cycles*(c.config.direction==='pingpong'?2:1));
-  document.querySelector('.tabBtn[data-tab="waving"]').click();document.getElementById('waveBakeSection').open=true;
-  waveTrackMessage('已載入選取區塊設定；調整後按「更新選取區塊」。');
+function applyWaveTrackAtBeat(...args){
+  return waveTrackController.applyWaveTrackAtBeat(...args);
 }
-function layoutWaveTrack(){
-  const host=document.getElementById('waveTrackList');if(!host)return;
-  host.style.width=Math.ceil(beatGridTimelineBeats()*BEAT_GRID_PX_PER_BEAT)+'px';
-  for(const el of host.querySelectorAll('.waveClip')){const c=waveClips.find(c=>c.id===el.dataset.id);if(c){el.style.left=c.start*BEAT_GRID_PX_PER_BEAT+'px';el.style.width=Math.max(8,c.beats*BEAT_GRID_PX_PER_BEAT)+'px';}}
+function updateWaveTrackPlayback(...args){
+  return waveTrackController.updateWaveTrackPlayback(...args);
 }
-function renderWaveTrack(){
-  const host=document.getElementById('waveTrackList');if(!host)return;host.replaceChildren();
-  if(!waveClips.length){const hint=document.createElement('span');hint.className='small';hint.textContent='尚未加入 Waving 區塊';host.append(hint);}
-  for(const c of waveClips){
-    const el=document.createElement('div');el.className='waveClip'+(c.id===waveClipSelected?' selected':'');el.dataset.id=c.id;el.tabIndex=0;el.setAttribute('role','button');
-    el.textContent='🌊 '+({both:'雙臂',left:'左手',right:'右手',custom:'局部',body:'身體',leftBody:'左手 → 身體',rightBody:'右手 → 身體'}[c.config.route])+' · '+Number(c.beats.toFixed(2))+' 拍';
-    el.title='起點 Beat '+(c.start+1)+'；拖曳移動，右緣調長度；雙擊編輯波形';
-    const handle=document.createElement('span');handle.className='waveResize';handle.title='拖曳調整長度';el.append(handle);
-    el.ondblclick=()=>{selectWaveClip(c.id);loadWaveClipSettings();};
-    el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectWaveClip(c.id);}};
-    el.onpointerdown=e=>{
-      if(kfPlaying||e.button!==0)return;e.preventDefault();e.stopPropagation();
-      const resize=e.target===handle,startX=e.clientX,scroll=document.getElementById('beatGridScroll'),startScroll=scroll.scrollLeft,originalStart=c.start,originalBeats=c.beats;
-      el.setPointerCapture(e.pointerId);let candidate=resize?originalBeats:originalStart;
-      el.onpointermove=ev=>{const delta=(ev.clientX-startX+scroll.scrollLeft-startScroll)/BEAT_GRID_PX_PER_BEAT;candidate=resize?Math.max(.25,waveSnap(originalBeats+delta)):waveSnap(originalStart+delta);el.style[resize?'width':'left']=candidate*BEAT_GRID_PX_PER_BEAT+'px';};
-      el.onpointerup=()=>{el.onpointermove=null;el.onpointerup=null;waveClipSelected=c.id;kfEditingIndex=-1;grooveSeqSelectedIndex=-1;
-        if(candidate!==(resize?originalBeats:originalStart))editWaveClip(c.id,resize?{beats:candidate}:{start:candidate});else selectWaveClip(c.id);};
-      el.onpointercancel=()=>{el.onpointermove=null;renderWaveTrack();};
-    };
-    host.append(el);
-  }
-  const c=waveClips.find(c=>c.id===waveClipSelected),panel=document.getElementById('waveClipInspector');panel.hidden=!c;
-  if(c){for(const [id,v]of Object.entries({waveClipStart:c.start+1,waveClipBeats:c.beats,waveClipFadeIn:c.fadeIn,waveClipFadeOut:c.fadeOut}))document.getElementById(id).value=v;}
-  document.getElementById('waveUpdateClip').disabled=!c||kfPlaying;
-  layoutWaveTrack();
+function selectWaveClip(...args){
+  return waveTrackController.selectWaveClip(...args);
 }
-function bindWaveTrack(){
-  document.getElementById('waveTrackAdd').onclick=()=>{document.querySelector('.tabBtn[data-tab="waving"]').click();document.getElementById('waveBakeSection').open=true;};
-  document.getElementById('waveClipDelete').onclick=deleteWaveClip;document.getElementById('waveClipDuplicate').onclick=duplicateWaveClip;
-  document.getElementById('waveClipEdit').onclick=loadWaveClipSettings;
-  document.getElementById('waveUpdateClip').onclick=()=>bakeWaveToTimeline(true);
-  for(const [id,key]of [['waveClipStart','start'],['waveClipBeats','beats'],['waveClipFadeIn','fadeIn'],['waveClipFadeOut','fadeOut']])document.getElementById(id).onchange=e=>{
-    const value=Number(e.target.value)-(key==='start'?1:0);if(!Number.isFinite(value)){renderWaveTrack();return;}editWaveClip(waveClipSelected,{[key]:value});};
-  renderWaveTrack();
+function editWaveClip(...args){
+  return waveTrackController.editWaveClip(...args);
+}
+function deleteWaveClip(...args){
+  return waveTrackController.deleteWaveClip(...args);
+}
+function duplicateWaveClip(...args){
+  return waveTrackController.duplicateWaveClip(...args);
+}
+function loadWaveClipSettings(...args){
+  return waveTrackController.loadWaveClipSettings(...args);
+}
+function layoutWaveTrack(...args){
+  return waveTrackController.layoutWaveTrack(...args);
+}
+function renderWaveTrack(...args){
+  return waveTrackController.renderWaveTrack(...args);
+}
+function bindWaveTrack(...args){
+  return waveTrackController.bindWaveTrack(...args);
 }
 
 // Arm Wave: deterministic travelling pulse, relative to a captured base pose.
-const WAVE_ROUTE_NODES=[['lFinger',0,'左手指'],['lWrist',.7,'左手腕'],['lElbow',1.6,'左手肘'],['lShoulder',3.6,'左肩'],['rShoulder',4.4,'右肩'],['rElbow',6.4,'右手肘'],['rWrist',7.3,'右手腕'],['rFinger',8,'右手指']];
-function waveIsRelay(c){return c.route==='leftBody'||c.route==='rightBody';}
-function waveHasBody(c){return c.route==='body'||waveIsRelay(c);}
-function waveBounds(c){
-  const a=WAVE_ROUTE_NODES.find(n=>n[0]===c.startNode)||WAVE_ROUTE_NODES[0];
-  const b=WAVE_ROUTE_NODES.find(n=>n[0]===c.endNode)||WAVE_ROUTE_NODES[7];
-  return {start:a[1],end:b[1],min:Math.min(a[1],b[1]),max:Math.max(a[1],b[1]),sign:b[1]>=a[1]?1:-1};
+
+function waveIsRelay(...args){
+  return waveController.waveIsRelay(...args);
 }
-function waveLocalIndex(c,side,offset){
-  const global=side==='l'?offset:8-offset;
-  if(c.route!=='custom')return c.route==='both'?global:offset;
-  const r=waveBounds(c);return global<r.min-1e-8||global>r.max+1e-8?null:(global-r.start)*r.sign;
+function waveHasBody(...args){
+  return waveController.waveHasBody(...args);
 }
-function waveSides(c){
-  if(c.route==='leftBody')return ['l'];
-  if(c.route==='rightBody')return ['r'];
-  if(c.route==='body')return [];
-  if(c.route==='custom'){const b=waveBounds(c);return ['l','r'].filter(side=>WAVE_ROUTE_NODES.some(n=>n[0][0]===side&&n[1]>=b.min&&n[1]<=b.max));}
-  return c.route==='left'?['l']:c.route==='right'?['r']:['l','r'];
+function waveBounds(...args){
+  return waveController.waveBounds(...args);
 }
-function waveRouteLength(c){if(waveIsRelay(c))return 7.6;if(c.route==='body')return 3;if(c.route==='custom'){const b=waveBounds(c);return b.max-b.min;}return c.route==='both'||!c.route?8:3.6;}
-function waveNodes(c){
-  if(waveIsRelay(c)){const side=c.route==='leftBody'?'左':'右';return [[0,side+'手指'],[.7,side+'手腕'],[1.6,side+'手肘'],[3.6,side+'肩'],[4.6,'胸口'],[5.6,'上腰'],[6.6,'下腰'],[7.6,'骨盆']];}
-  if(c.route==='body')return [[0,'胸口'],[1,'上腰'],[2,'下腰'],[3,'骨盆']];
-  if(c.route==='custom'){const b=waveBounds(c);return WAVE_ROUTE_NODES.filter(n=>n[1]>=b.min&&n[1]<=b.max).map(n=>[(n[1]-b.start)*b.sign,n[2]]).sort((a,b)=>a[0]-b[0]);}
-  const left=[[0,'左手指'],[.7,'左手腕'],[1.6,'左手肘'],[3.6,'左肩']];
-  if(c.route==='left')return left;
-  if(c.route==='right')return left.map(([p,n])=>[p,n.replace('左','右')]);
-  return [...left,[4.4,'右肩'],[6.4,'右手肘'],[7.3,'右手腕'],[8,'右手指']];
+function waveLocalIndex(...args){
+  return waveController.waveLocalIndex(...args);
 }
-function updateWaveRouteUI(position){
-  const c=waveRun?.config||waveConfig,nodes=waveNodes(c);
-  const isBody=c.route==='body';
-  document.getElementById('waveRelayNote').hidden=!waveIsRelay(c);
-  document.getElementById('waveBodySettings').hidden=!waveHasBody(c);
-  document.getElementById('waveArmSettings').hidden=isBody;
-  document.getElementById('waveCompensationSection').hidden=isBody;
-  document.getElementById('waveCustomRoute').hidden=c.route!=='custom';
-  for(const [id,key]of [['waveStartNode','startNode'],['waveEndNode','endNode']]){const el=document.getElementById(id);el.value=c[key];el.disabled=!!waveRun;}
-  document.getElementById('waveRouteHint').textContent='正向：'+nodes.map(n=>n[1]).join(' → ');
-  const el=document.getElementById('waveLocation');
-  if(!waveRun){el.textContent='尚未預覽';return;}
-  const p=position??wavePosition(waveRun.phase,c);
-  const locationLabel=c.mode==='bipolar'?'峰谷中心':'波峰';
-  if(p<0){el.textContent=locationLabel+'：起點外側';return;}
-  if(p>waveRouteLength(c)){el.textContent=locationLabel+'：終點外側';return;}
-  const nearest=nodes.reduce((best,n)=>Math.abs(n[0]-p)<Math.abs(best[0]-p)?n:best);
-  el.textContent=locationLabel+'附近：'+nearest[1]+(!c.fingers&&nearest[1].includes('手指')?'（手指未參與）':'');
+function waveSides(...args){
+  return waveController.waveSides(...args);
 }
-function waveDurationSeconds(config,tempo){return config.beats*60/(tempo*config.speed);}
-function updateWaveTiming(){
-  const c=waveRun?waveRun.config:waveConfig,el=document.getElementById('waveTiming');if(!el)return;
-  const seconds=waveDurationSeconds(c,bpm);
-  const text='BPM '+bpm+' · 單程 '+seconds.toFixed(2)+' 秒（'+(c.beats/c.speed).toFixed(2)+' 拍）'+(c.direction==='pingpong'?' · 完整往返 '+(seconds*2).toFixed(2)+' 秒':'');
-  if(el.textContent!==text)el.textContent=text;
+function waveRouteLength(...args){
+  return waveController.waveRouteLength(...args);
 }
-function setWaveSpeed(value,now=performance.now()){
-  // Advance elapsed time at the OLD speed first; never rescale accumulated phase.
-  if(waveRun)tickWave(now);
-  waveConfig=cleanWave({...waveConfig,speed:value});
-  if(waveRun)waveRun.config.speed=waveConfig.speed;
-  waveUI();scheduleAutoSave();
+function waveNodes(...args){
+  return waveController.waveNodes(...args);
 }
-const WAVE_GAIN_FIELDS={FingerGain:'fingerGain',WristGain:'wristGain',ElbowGain:'elbowGain',ShoulderGain:'shoulderGain',Compensation:'compensation',BodyChestGain:'bodyChestGain',BodyWaistGain:'bodyWaistGain',BodyHipGain:'bodyHipGain'};
-function seekWave(percent){
-  if(!waveRun)startWave();
-  const r=waveRun;if(!r)return;
-  const u=Math.max(0,Math.min(1,Number(percent)/100));if(!Number.isFinite(u))return;
-  const reverse=r.config.direction==='rl'||(r.config.direction==='pingpong'&&Math.floor(r.phase)%2===1);
-  const pass=r.config.direction==='pingpong'&&reverse?1:0;
-  r.phase=pass+Math.min(1-1e-9,reverse?1-u:u);r.playing=false;r.finished=false;r.last=performance.now();
-  tickWave(r.last);waveUI('波峰已停格 · 可調整各部位幅度或繼續播放');
+function updateWaveRouteUI(...args){
+  return waveController.updateWaveRouteUI(...args);
 }
-const WAVE_DEFAULT={mode:'unipolar',polarity:'positive',shape:'cosine',route:'both',startNode:'lFinger',endNode:'rFinger',direction:'lr',repeat:'loop',amplitude:25,width:1.4,beats:4,fingers:true,fingerGain:100,wristGain:100,elbowGain:100,shoulderGain:100,compensation:0,speed:1,bodyChestGain:100,bodyWaistGain:100,bodyHipGain:100};
+function waveDurationSeconds(...args){
+  return waveController.waveDurationSeconds(...args);
+}
+function updateWaveTiming(...args){
+  return waveController.updateWaveTiming(...args);
+}
+function setWaveSpeed(...args){
+  return waveController.setWaveSpeed(...args);
+}
+
+function seekWave(...args){
+  return waveController.seekWave(...args);
+}
+
 let waveConfig={...WAVE_DEFAULT},waveRun=null;
-function cleanWave(raw={}){
-  const v=raw&&typeof raw==='object'?raw:{};
-  const startNode=WAVE_ROUTE_NODES.some(n=>n[0]===v.startNode)?v.startNode:'lFinger';
-  let endNode=WAVE_ROUTE_NODES.some(n=>n[0]===v.endNode)?v.endNode:'rFinger';
-  if(endNode===startNode)endNode=WAVE_ROUTE_NODES[(WAVE_ROUTE_NODES.findIndex(n=>n[0]===startNode)+1)%8][0];
-  const num=(k,lo,hi)=>Number.isFinite(Number(v[k]))?Math.min(hi,Math.max(lo,Number(v[k]))):WAVE_DEFAULT[k];
-  return {mode:v.mode==='bipolar'?'bipolar':'unipolar',polarity:v.polarity==='negative'?'negative':'positive',shape:['cosine','gaussian','triangle','trapezoid'].includes(v.shape)?v.shape:'cosine',bodyChestGain:num('bodyChestGain',0,200),bodyWaistGain:num('bodyWaistGain',0,200),bodyHipGain:num('bodyHipGain',0,200),startNode,endNode,route:['both','left','right','custom','body','leftBody','rightBody'].includes(v.route)?v.route:'both',direction:['lr','rl','pingpong'].includes(v.direction)?v.direction:'lr',repeat:v.repeat==='once'?'once':'loop',amplitude:num('amplitude',0,60),width:num('width',.6,3),beats:num('beats',1,32),fingers:typeof v.fingers==='boolean'?v.fingers:true,fingerGain:num('fingerGain',0,200),wristGain:num('wristGain',0,200),elbowGain:num('elbowGain',0,200),shoulderGain:num('shoulderGain',0,200),compensation:num('compensation',0,100),speed:v.speed==null||v.speed===''?1:num('speed',.25,4)};
+function cleanWave(...args){
+  return waveController.cleanWave(...args);
 }
-const WAVE_SHAPE_HINTS={
-  cosine:'平滑抬起與回復，維持原版波浪質感。',
-  gaussian:'波峰較集中、兩側柔和消退；高斯曲線截尾並歸零，路線兩端回復原姿勢。',
-  triangle:'等速抬起與放下，峰頂轉折明顯，呈現機械稜角感。',
-  trapezoid:'抬起後短暫維持最大幅度，再等速放下，呈現停留感。'
-};
-function wavePulse(index,position,width,shape='cosine'){
-  if(!Number.isFinite(width)||width<=0)return 0;
-  const d=Math.abs(index-position)/width;
-  if(!Number.isFinite(d)||d>=1)return 0;
-  if(shape==='triangle')return 1-d;
-  if(shape==='trapezoid')return d<=.35?1:(1-d)/.65;
-  if(shape==='gaussian'){
-    const edge=Math.exp(-4.5);
-    return (Math.exp(-4.5*d*d)-edge)/(1-edge);
-  }
-  return .5+.5*Math.cos(Math.PI*d);
+
+function wavePulse(...args){
+  return waveController.wavePulse(...args);
 }
 // A bipolar packet fits both lobes into the original [-width, +width] support.
 // Orient by travel direction so polarity controls temporal order on either pass.
-function waveValue(index,position,c,phase){
-  if(c.mode!=='bipolar')return wavePulse(index,position,c.width,c.shape);
-  if(!Number.isFinite(c.width)||c.width<=0)return 0;
-  const reverse=c.direction==='rl'||(c.direction==='pingpong'&&Math.floor(phase)%2===1);
-  const d=(index-position)*(reverse?-1:1)/c.width;
-  return wavePulse(d,.5,.5,c.shape)-wavePulse(d,-.5,.5,c.shape);
+function waveValue(...args){
+  return waveController.waveValue(...args);
 }
-function wavePosition(phase,c){
-  const pass=Math.floor(phase),u=phase-pass;
-  const reverse=c.direction==='rl'||(c.direction==='pingpong'&&pass%2===1);
-  const length=waveRouteLength(c);const x=-c.width+u*(length+2*c.width);return reverse?length-x:x;
+function wavePosition(...args){
+  return waveController.wavePosition(...args);
 }
-function waveConflict(){
-  if(kfPlaying)return '請先停止時間軸播放';
-  if(groovePreviewEnabled)return '請先停止原有律動預覽';
-  if(laPathRun)return '請先停止 LookAt 軌跡預覽';
-  if(waveHasBody(waveRun?.config||waveConfig)){
-    if(footPlantEnabled)return 'Body Wave：請先關閉腳底固定';
-    if(Object.values(ikEnabled).some(Boolean)||FINGER_IDS.some(id=>fingerIKEnabled[id]))return 'Body Wave：請先關閉手腳及手指 IK';
-    if(Object.values(lookAtEnabled).some(Boolean))return 'Body Wave：請先關閉 LookAt';
-  }
-  const sides=waveSides(waveRun?.config||waveConfig);
-  if(sides.some(side=>ikEnabled[side+'Arm']))return '請先關閉路線內的手臂 IK';
-  if(sides.some(side=>lookAtEnabled[side+'Hand']))return '請先關閉路線內的手掌 LookAt';
-  if(FINGER_IDS.some(id=>sides.includes(id[0])&&fingerIKEnabled[id]))return '請先關閉路線內的手指 IK';
-  if(spineIKEnabled||lookAtEnabled.chest)return '請先關閉脊椎 IK／胸口 LookAt';
-  return '';
+function waveConflict(...args){
+  return waveController.waveConflict(...args);
 }
-function waveUI(message){
-  updateWaveRouteUI();
-  document.getElementById('waveSpeed').value=waveConfig.speed;
-  document.getElementById('waveSpeedValue').textContent=waveConfig.speed.toFixed(2)+'×';
-  updateWaveTiming();
-  const fields={Route:'route',Direction:'direction',Repeat:'repeat',Amplitude:'amplitude',Width:'width',Beats:'beats',Fingers:'fingers'};
-  fields.Shape='shape';
-  fields.Polarity='polarity';
-  fields.Mode='mode';
-  document.getElementById('waveShapeHint').textContent=WAVE_SHAPE_HINTS[waveConfig.shape]+' 套用整條所選路線；切換波形前請先停止預覽。';
-  for(const [id,key]of Object.entries(fields)){const e=document.getElementById('wave'+id);if(!e)continue;if(key==='fingers')e.checked=waveConfig[key];else e.value=waveConfig[key];e.disabled=!!waveRun;}
-  document.getElementById('waveFingers').disabled=!!waveRun||waveConfig.route==='body';
-  for(const [id,key]of Object.entries(WAVE_GAIN_FIELDS)){document.getElementById('wave'+id).value=waveConfig[key];document.getElementById('wave'+id+'Value').textContent=waveConfig[key]+'%';}
-  document.getElementById('wavePlay').disabled=!!waveRun?.playing;
-  document.getElementById('wavePlay').textContent=waveRun?(waveRun.finished?'▶ 重播':'▶ 繼續'):'▶ Waving 預覽';
-  document.getElementById('wavePause').disabled=!waveRun?.playing;
-  document.getElementById('waveStop').disabled=!waveRun;
-  if(message)document.getElementById('waveStatus').textContent=message;
+function waveUI(...args){
+  return waveController.waveUI(...args);
 }
 // Body Wave owns temporary leg compensation; manual IK settings remain untouched.
-function captureWaveFeet(){
-  const feet=[];
-  const forward=new THREE.Vector3(0,0,1).applyQuaternion(model.getWorldQuaternion(new THREE.Quaternion()));
-  for(const side of ['l','r']){
-    const keys=[side+'UpLeg',side+'Leg',side+'Foot'];
-    if(keys.some(k=>!bones[k]))return null;
-    const [root,mid,end]=keys.map(k=>bones[k]);
-    const a=root.getWorldPosition(new THREE.Vector3()),b=mid.getWorldPosition(new THREE.Vector3()),c=end.getWorldPosition(new THREE.Vector3());
-    const upper=a.distanceTo(b),lower=b.distanceTo(c);
-    if(upper<.001||lower<.001)return null;
-    const axis=c.clone().sub(a).normalize();
-    const bend=b.clone().sub(a).addScaledVector(axis,-b.clone().sub(a).dot(axis));
-    if(bend.lengthSq()<1e-7)bend.copy(forward);
-    feet.push({keys,position:c,quaternion:end.getWorldQuaternion(new THREE.Quaternion()),pole:b.clone().add(bend.normalize().multiplyScalar(upper)),min:Math.abs(upper-lower)+.0002,max:upper+lower-.0002});
-  }
-  return {feet,position:model.position.clone()};
+function captureWaveFeet(...args){
+  return waveController.captureWaveFeet(...args);
 }
-function solveWaveFeet(r,onFailure=message=>stopWave(message)){
-  const g=r.ground;if(!g)return;
-  model.updateMatrixWorld(true);
-  const offsets=g.feet.map(f=>bones[f.keys[0]].getWorldPosition(new THREE.Vector3()).sub(model.position));
-  const candidate=g.position.clone();
-  // Keep both ankle targets reachable, with a small bend reserve at full extension.
-  for(let pass=0;pass<100;pass++){
-    let error=0;
-    g.feet.forEach((f,i)=>{
-      const d=candidate.clone().add(offsets[i]).sub(f.position),length=d.length();
-      const wanted=Math.max(f.min,Math.min(f.max,length));error=Math.max(error,Math.abs(length-wanted));
-      if(Math.abs(length-wanted)<1e-8)return;
-      if(length<1e-9)d.set(0,1,0);else d.divideScalar(length);
-      candidate.copy(f.position).addScaledVector(d,wanted).sub(offsets[i]);
-    });
-    if(error<1e-8)break;
-  }
-  const feasible=g.feet.every((f,i)=>{const d=candidate.clone().add(offsets[i]).distanceTo(f.position);return d>=f.min-1e-6&&d<=f.max+1e-6;});
-  if(!feasible){onFailure('已停止：目前幅度無法維持雙腳固定，請降低骨盆幅度');return false;}
-  model.position.copy(candidate);model.updateMatrixWorld(true);
-  for(const f of g.feet){solveTwoBoneIK(...f.keys.map(k=>bones[k]),f.position,f.pole);applyBoneWorldQuatLock(bones[f.keys[2]],f.quaternion);}
-  model.updateMatrixWorld(true);
-  if(g.feet.some(f=>bones[f.keys[2]].getWorldPosition(new THREE.Vector3()).distanceTo(f.position)>.001)){onFailure('已停止：腿部無法維持腳掌位置，請降低幅度');return false;}
-  return true;
+function solveWaveFeet(...args){
+  return waveController.solveWaveFeet(...args);
 }
-function stopWave(message='已停止，回到基礎姿勢'){
-  const r=waveRun;waveRun=null;
-  if(r?.ground)model.position.copy(r.ground.position);
-  if(r){for(const [k,v]of Object.entries(r.base)){if(!bones[k])continue;bones[k].quaternion.copy(v.q);poseController.setJointState(k, v.target, v.current);}model?.updateMatrixWorld(true);}
-  if(document.getElementById('wavePlay')){document.getElementById('waveProgress').value=0;document.getElementById('waveSeek').value=0;document.getElementById('waveSeekValue').textContent='0%';waveUI(message);}
+function stopWave(...args){
+  return waveController.stopWave(...args);
 }
-function startWave(){
-  tgCancelPreview();
-  waveTrackActive=false;
-  const conflict=waveConflict();if(conflict){waveUI(conflict);return;}
-  if(!model||waveSides(waveConfig).some(side=>!bones[side+'Hand'])){waveUI('請等待角色載入');return;}
-  if(waveHasBody(waveConfig)&&['hips','spine','spine1','spine2'].some(k=>!bones[k]||!restQuat[k])){waveUI('Body Wave 需要骨盆及完整三節脊椎骨骼');return;}
-  if(waveRun){if(waveRun.finished){waveRun.phase=0;waveRun.finished=false;}waveRun.playing=true;waveRun.last=performance.now();waveUI('播放中');return;}
-  deselectJoint();model.updateMatrixWorld(true);
-  const ground=waveHasBody(waveConfig)?captureWaveFeet():null;
-  if(waveHasBody(waveConfig)&&!ground){waveUI('Body Wave 腳掌固定需要完整雙腿骨骼');return;}
-  const base={},entries=[];
-  // Capture local bend axes from current bone directions and character up.
-  const up=new THREE.Vector3(0,1,0).applyQuaternion(model.getWorldQuaternion(new THREE.Quaternion()));
-  if(waveHasBody(waveConfig)){
-    // Capture sagittal pitch axes in local coordinates; solve parent before child.
-    const pitch=new THREE.Vector3(1,0,0).applyQuaternion(model.getWorldQuaternion(new THREE.Quaternion()));
-    for(const [k,index,gain,group]of [['hips',3,-.30,'bodyHipGain'],['spine',2,.45,'bodyWaistGain'],['spine1',1,.45,'bodyWaistGain'],['spine2',0,.55,'bodyChestGain']]){
-      const axis=pitch.clone().applyQuaternion(bones[k].getWorldQuaternion(new THREE.Quaternion()).invert()).normalize();
-      entries.push({k,index:index+(waveIsRelay(waveConfig)?4.6:0),gain,group,axis});
-    }
-  }
-  for(const side of waveSides(waveConfig)){
-    const stages=[['Shoulder','Arm',3.6,.35],['Arm','ForeArm',2.6,.65],['ForeArm','Hand',1.6,1],['Hand','Middle1',.7,1.15]];
-    for(const [part,next,offset,gain]of stages){
-      const k=side+part,b=bones[k],n=bones[side+next];if(!b||!n)continue;
-      const d=n.getWorldPosition(new THREE.Vector3()).sub(b.getWorldPosition(new THREE.Vector3())).normalize();
-      const axis=new THREE.Vector3().crossVectors(d,up);
-      if(axis.lengthSq()<1e-8)axis.set(0,0,1);axis.normalize().applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
-      const index=waveLocalIndex(waveConfig,side,offset);if(index===null)continue;
-      entries.push({k,index,gain,axis,group:part==='Hand'?'wristGain':part==='ForeArm'?'elbowGain':'shoulderGain'});
-    }
-    if(waveConfig.fingers&&waveLocalIndex(waveConfig,side,0)!==null)for(const finger of ['Index','Middle','Ring','Pinky'])for(let j=1;j<=3;j++){
-      const k=side+finger+j,b=bones[k];if(!b)continue;
-      const n=b.children.find(child=>child.isBone);if(!n)continue;
-      const d=n.getWorldPosition(new THREE.Vector3()).sub(b.getWorldPosition(new THREE.Vector3())).normalize();
-      const axis=new THREE.Vector3().crossVectors(d,up);if(axis.lengthSq()<1e-8)continue;
-      axis.normalize().applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
-      entries.push({k,index:waveLocalIndex(waveConfig,side,0),gain:.35,axis,group:'fingerGain'});
-    }
-  }
-  for(const {k}of entries)base[k]={parentInModel:model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bones[k].parent.getWorldQuaternion(new THREE.Quaternion())),q:bones[k].quaternion.clone(),target:(poseController.getTarget(k)||[0,0,0]).slice(),current:(poseController.getCurrent(k)||[0,0,0]).slice()};
-  if(waveIsRelay(waveConfig))for(const {k}of entries)if(k[0]==='l'||k[0]==='r')base[k].parentInChest=bones.spine2.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bones[k].parent.getWorldQuaternion(new THREE.Quaternion()));
-  if(ground)for(const f of ground.feet)for(const k of f.keys)base[k]={q:bones[k].quaternion.clone(),target:(poseController.getTarget(k)||[0,0,0]).slice(),current:(poseController.getCurrent(k)||[0,0,0]).slice()};
-  waveRun={base,entries,ground,config:{...waveConfig},phase:0,last:performance.now(),playing:true};waveUI('播放中 · 波峰沿所選路線傳遞');
+function startWave(...args){
+  return waveController.startWave(...args);
 }
-function tickWave(now){
-  updateWaveTiming();
-  const r=waveRun;if(!r)return;
-  const conflict=waveConflict();if(conflict){stopWave('預覽停止：'+conflict);return;}
-  if(r.playing){r.phase+=Math.max(0,now-r.last)*bpm*r.config.speed/(60000*r.config.beats);}
-  r.last=now;
-  const end=r.config.direction==='pingpong'?2:1;
-  if(r.config.repeat==='once'&&r.phase>=end){r.phase=end;r.playing=false;r.finished=true;waveUI('單次完成 · 可重播或停止還原');}
-  const pos=wavePosition(r.phase,r.config);
-  if(r.ground){
-    model.position.copy(r.ground.position);
-    for(const f of r.ground.feet)for(const k of f.keys)bones[k].quaternion.copy(r.base[k].q);
-    model.updateMatrixWorld(true);
-  }
-  for(const e of r.entries){
-    const b=bones[e.k];const q=r.base[e.k].q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(e.axis,THREE.MathUtils.degToRad((r.config.polarity==='negative'?-1:1)*r.config.amplitude*e.gain*(r.config[e.group]/100)*waveValue(e.index,pos,r.config,r.phase))));
-    // Solve proximal to distal. Preserve own wave, cancel inherited orientation only.
-    if(r.config.compensation>0&&(e.group==='elbowGain'||e.group==='wristGain')){
-      const referenceParent=r.base[e.k].parentInChest
-        ?bones.spine2.getWorldQuaternion(new THREE.Quaternion()).multiply(r.base[e.k].parentInChest)
-        :model.getWorldQuaternion(new THREE.Quaternion()).multiply(r.base[e.k].parentInModel);
-      const desiredWorld=referenceParent.multiply(q);
-      const corrected=b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(desiredWorld);
-      q.slerp(corrected,r.config.compensation/100).normalize();
-    }
-    // Respect existing per-joint limits, without writing preview back to saved targets.
-    const rel=restQuat[e.k].clone().invert().multiply(q),eu=new THREE.Euler().setFromQuaternion(rel,'XYZ');
-    const a=clampJointAngles(e.k,[R(eu.x),R(eu.y),R(eu.z)]);
-    b.quaternion.copy(restQuat[e.k]).multiply(eulerToQuat(a));
-    b.updateWorldMatrix(true,true);
-  }
-  model.updateMatrixWorld(true);
-  solveWaveFeet(r);if(waveRun!==r)return;
-  document.getElementById('waveProgress').value=r.finished?1:r.phase%1;
-  const percent=Math.max(0,Math.min(100,(pos+r.config.width)/(waveRouteLength(r.config)+2*r.config.width)*100));
-  document.getElementById('waveSeek').value=percent;
-  document.getElementById('waveSeekValue').textContent=percent.toFixed(1)+'%';
-  updateWaveRouteUI(pos);
+function tickWave(...args){
+  return waveController.tickWave(...args);
 }
 // Bake actual bone rotations (preview deliberately does not write target/current).
-function captureWaveTimelinePose(){
-  const angles={};
-  for(const k of ALL_JOINT_KEYS){
-    if(bones[k]&&restQuat[k]){
-      const e=new THREE.Euler().setFromQuaternion(restQuat[k].clone().invert().multiply(bones[k].quaternion),'XYZ');
-      angles[k]=[R(e.x),R(e.y),R(e.z)];
-    }else angles[k]=(poseController.getTarget(k)||[0,0,0]).slice();
-  }
-  return {angles,body:snapshotBodyTransform()};
+function captureWaveTimelinePose(...args){
+  return waveController.captureWaveTimelinePose(...args);
 }
-function waveBakePlan(config,beats,cycles){
-  beats=Number(beats);cycles=Number(cycles);
-  if(!Number.isFinite(beats)||beats<.25||beats>64||!Number.isInteger(cycles)||cycles<1||cycles>8)
-    throw new Error('單程拍數需介於 0.25～64，次數需為 1～8 的整數');
-  const passes=(config.direction==='pingpong'?2:1)*cycles;
-  const samplesPerPass=Math.ceil(Math.max(32,(waveRouteLength(config)+2*config.width)/config.width*(config.mode==='bipolar'?16:8)));
-  if(samplesPerPass*passes>4096)throw new Error('拍點過多，請減少次數或增加波浪寬度');
-  return {passes,samplesPerPass,count:samplesPerPass*passes,totalBeats:beats*passes,stepBeats:beats/samplesPerPass};
+function waveBakePlan(...args){
+  return waveController.waveBakePlan(...args);
 }
-function bakeWaveToTimeline(updateSelected=false){
-  updateSelected=updateSelected===true;
-  const replacing=updateSelected?waveClips.find(c=>c.id===waveClipSelected):null;
-  const status=document.getElementById('waveBakeStatus');
-  const say=message=>status.textContent=message;
-  if(kfPlaying){say('請先停止時間軸播放');return;}
-  if(waveRun){say('請先停止 Waving 預覽，再加入時間軸');return;}
-  const conflict=waveConflict();if(conflict){say(conflict);return;}
-  if(!model){say('請等待角色載入');return;}
-  if(!updateSelected&&waveClips.length>=128){say('最多 128 個 WAVING 區塊');return;}
-  if(updateSelected&&!replacing){say('請先選取 WAVING 區塊');return;}
-  const selected=!replacing&&document.getElementById('waveBakePlacement').value==='selected';
-  if(selected&&!(kfEditingIndex>=0&&kfEditingIndex<keyframes.length)){say('請先在時間軸選取一個拍點');return;}
-  let plan;
-  try{plan=waveBakePlan(waveConfig,document.getElementById('waveBakeBeats').value,document.getElementById('waveBakeCycles').value);}
-  catch(e){say(e.message);return;}
-  const index=keyframes.length?(selected?kfEditingIndex:keyframes.length-1):-1;
-  const startBeat=replacing?replacing.start:(selected?keyframeStartBeat(index):Math.max(beatGridPoseTotalBeats(),waveTrackEnd()));
-  if(waveClipOverlap(startBeat,plan.totalBeats,replacing?.id)){say('此位置已有 WAVING 區塊，請移動原區塊或選擇尾端加入');return;}
-  const oldFrame=index>=0?JSON.parse(JSON.stringify(keyframes[index])):null;
-  const saved={body:snapshotBodyTransform(),bones:{},...poseController.snapshotState()};
-  for(const k of ALL_JOINT_KEYS)if(bones[k])saved.bones[k]=bones[k].quaternion.clone();
-  const frames=[];let error=null,clipKeys=[],clipFeet=null;
-  const savedKfIndex=kfIndex;
-  try{
-    if(keyframes.length)waveBaseAtBeat(startBeat);
-    startWave();const run=waveRun;
-    if(!run)throw new Error(document.getElementById('waveStatus').textContent||'無法建立 Waving');
-    run.playing=false;run.config.repeat='loop';
-    clipKeys=Object.keys(run.base);
-    const metadata={id:'wave_'+Date.now()+'_'+Math.random().toString(36).slice(2),config:cleanWave(waveConfig)};
-    if(run.ground)metadata.feet=run.ground.feet.map(f=>({keys:f.keys.slice(),position:f.position.toArray(),quaternion:f.quaternion.toArray(),pole:f.pole.toArray(),min:f.min,max:f.max}));
-    clipFeet=metadata.feet||null;
-    for(let i=0;i<=plan.count;i++){
-      run.phase=i/plan.samplesPerPass;tickWave(performance.now());
-      if(waveRun!==run)throw new Error(document.getElementById('waveStatus').textContent||'腳掌固定失敗');
-      const frame=captureWaveTimelinePose();
-      frame.beats=plan.stepBeats;frame.easing='linear';
-      if(i<plan.count)frame.waveBake=metadata;
-      if(i===0)frame.label=oldFrame?.label||'🌊 Waving';
-      frames.push(frame);
-    }
-  }catch(e){error=e;}
-  finally{
-    stopWave();applyBodyTransform(saved.body);
-    for(const [k,q]of Object.entries(saved.bones))bones[k].quaternion.copy(q);
-    poseController.restoreState(saved);
-    model.updateMatrixWorld(true);kfIndex=savedKfIndex;
-  }
-  if(error){say('未加入：'+error.message);return;}
-  const clip={id:replacing?.id||makeLibId(),start:startBeat,beats:plan.totalBeats,
-    cycles:Number(document.getElementById('waveBakeCycles').value),config:cleanWave(waveConfig),
-    fadeIn:Math.min(replacing?.fadeIn||.5,plan.totalBeats/2),fadeOut:Math.min(replacing?.fadeOut||.5,plan.totalBeats/2),
-    keys:clipKeys,feet:clipFeet,frames:frames.map(f=>({angles:f.angles,body:f.body}))};
-  pushHistory();
-  if(!keyframes.length)keyframes.push({angles:waveClone(frames[0].angles),body:waveClone(frames[0].body),beats:1,easing:'linear',label:'Waving 基礎姿勢'});
-  if(replacing)waveClips[waveClips.indexOf(replacing)]=clip;else waveClips.push(clip);
-  waveClips.sort((a,b)=>a.start-b.start);waveClipSelected=clip.id;
-  kfEditingIndex=-1;kfMultiSelected.clear();grooveMultiSelected.clear();grooveSeqSelectedIndex=-1;
-  renderKeyframeChips();pushHistory();scheduleAutoSave();
-  waveTrackMessage((replacing?'已更新':'已加入')+' WAVING 區塊：'+plan.totalBeats+' 拍，起點 Beat '+(startBeat+1)+'。');
+function bakeWaveToTimeline(...args){
+  return waveController.bakeWaveToTimeline(...args);
 }
 
-function applyBakedWaveFeet(frame){
-  const raw=frame.waveBake?.feet;
-  if(!Array.isArray(raw)||raw.length!==2)return;
-  const feet=[];
-  for(const f of raw){
-    if(!Array.isArray(f.keys)||f.keys.length!==3||!f.keys.every(k=>bones[k]))return;
-    if(![f.position,f.pole].every(a=>Array.isArray(a)&&a.length===3&&a.every(Number.isFinite))||!Array.isArray(f.quaternion)||f.quaternion.length!==4||!f.quaternion.every(Number.isFinite)||!Number.isFinite(f.min)||!Number.isFinite(f.max))return;
-    feet.push({...f,position:new THREE.Vector3().fromArray(f.position),pole:new THREE.Vector3().fromArray(f.pole),quaternion:new THREE.Quaternion().fromArray(f.quaternion)});
-  }
-  solveWaveFeet({ground:{feet,position:model.position.clone()}},()=>{});
+function applyBakedWaveFeet(...args){
+  return waveController.applyBakedWaveFeet(...args);
 }
-function isBakedWavePlaying(){return waveTrackActive||(kfPlaying&&!!keyframes[kfIndex]?.waveBake);}
+function isBakedWavePlaying(...args){
+  return waveController.isBakedWavePlaying(...args);
+}
 
-function restoreWave(value){stopWave();waveConfig=cleanWave(value);waveUI('就緒 · 設定已還原');}
-function bindWave(){
-  bindWaveTrack();
-  document.getElementById('waveBakeBtn').onclick=bakeWaveToTimeline;
-  document.getElementById('waveBakeUseTiming').onclick=()=>{
-    document.getElementById('waveBakeBeats').value=Math.max(.25,Math.min(64,waveConfig.beats/waveConfig.speed));
-  };
-  document.getElementById('waveBakeOpenTimeline').onclick=()=>document.querySelector('.tabBtn[data-tab="keyframe"]').click();
-  for(const [id,key]of [['waveStartNode','startNode'],['waveEndNode','endNode']]){
-    const el=document.getElementById(id);
-    for(const [value,,label]of WAVE_ROUTE_NODES){const option=document.createElement('option');option.value=value;option.textContent=label;el.appendChild(option);}
-    el.onchange=e=>{
-      if(waveRun){waveUI();return;}
-      const other=key==='startNode'?'endNode':'startNode';
-      if(e.target.value===waveConfig[other]){waveUI('起點與終點不可相同，請選另一個節點');return;}
-      pushHistory();waveConfig=cleanWave({...waveConfig,[key]:e.target.value});waveUI();pushHistory();scheduleAutoSave();
-    };
-  }
-  const speedSlider=document.getElementById('waveSpeed');let speedEditing=false;
-  speedSlider.oninput=e=>{
-    if(!speedEditing){pushHistory();speedEditing=true;}
-    setWaveSpeed(e.target.value);
-  };
-  const commitSpeed=()=>{if(speedEditing){pushHistory();speedEditing=false;}};
-  speedSlider.onchange=commitSpeed;speedSlider.onblur=commitSpeed;
-  document.getElementById('waveSpeedReset').onclick=()=>{commitSpeed();pushHistory();setWaveSpeed(1);pushHistory();};
-  document.getElementById('waveSeek').oninput=e=>seekWave(e.target.value);
-  for(const [id,key]of Object.entries(WAVE_GAIN_FIELDS)){
-    const el=document.getElementById('wave'+id);let editing=false;
-    el.oninput=e=>{
-      if(!editing){pushHistory();editing=true;}
-      waveConfig=cleanWave({...waveConfig,[key]:Number(e.target.value)});
-      if(waveRun){waveRun.config[key]=waveConfig[key];tickWave(performance.now());}
-      waveUI();scheduleAutoSave();
-    };
-    const commit=()=>{if(editing){pushHistory();editing=false;}};
-    el.onchange=commit;el.onblur=commit;
-  }
-
-  for(const [id,key]of Object.entries({Mode:'mode',Polarity:'polarity',Shape:'shape',Route:'route',Direction:'direction',Repeat:'repeat',Amplitude:'amplitude',Width:'width',Beats:'beats',Fingers:'fingers'})){
-    document.getElementById('wave'+id).onchange=e=>{if(waveRun)return;pushHistory();waveConfig=cleanWave({...waveConfig,[key]:key==='fingers'?e.target.checked:e.target.value});waveUI();pushHistory();scheduleAutoSave();};
-  }
-  document.getElementById('wavePlay').onclick=startWave;
-  document.getElementById('wavePause').onclick=()=>{tickWave(performance.now());if(waveRun)waveRun.playing=false;waveUI('已暫停 · 可繼續或停止還原');};
-  document.getElementById('waveStop').onclick=()=>stopWave();waveUI();
+function restoreWave(...args){
+  return waveController.restoreWave(...args);
+}
+function bindWave(...args){
+  return waveController.bindWave(...args);
 }
 
 
@@ -1823,56 +1007,19 @@ function loadModel(){
 
 // 必須在套用任何姿勢之前（緊接在 restQuat 算完之後）就複製，這樣殘影骨架的初始本地旋轉
 // 才會等於真正的 bind pose，之後直接沿用主模型的 restQuat 幫殘影套姿勢即可，不用另外存一份。
-function buildOnionGhosts(){
-  const configs = [
-    { key:"prev", color:0x33ccff }, // 上一拍：青色
-    { key:"next", color:0xff44cc }  // 下一拍：洋紅
-  ];
-  for (const cfg of configs){
-    const ghost = skeletonClone(model);
-    ghost.traverse(o => {
-      if (o.isMesh){
-        o.frustumCulled = false;
-        o.material = new THREE.MeshBasicMaterial({
-          color: cfg.color, transparent:true, opacity:0.26,
-          depthWrite:false, side:THREE.DoubleSide
-        });
-        o.renderOrder = 500;
-      }
-    });
-    for (const key of ALL_JOINT_KEYS){
-      const b = findBone(ghost, BONE_SUFFIXES[key]);
-      if (b) ghostBones[cfg.key][key] = b;
-    }
-    ghost.visible = false;
-    scene.add(ghost);
-    if (cfg.key === "prev") ghostPrev = ghost; else ghostNext = ghost;
-  }
+function buildOnionGhosts(...args){
+  return onionSkinController.buildOnionGhosts(...args);
 }
 
 // 把某份殘影骨架套成某個拍點(kf)記錄的角度＋身體位置
-function poseGhostFromKeyframe(which, kf){
-  const ghost = which === "prev" ? ghostPrev : ghostNext;
-  const gb = ghostBones[which];
-  if (!ghost || !kf) return;
-  for (const key of ALL_JOINT_KEYS){
-    const bone = gb[key];
-    if (!bone || !restQuat[key]) continue;
-    const angles = kf.angles[key] || [0,0,0];
-    bone.quaternion.copy(restQuat[key]).multiply(eulerToQuat(angles));
-  }
-  if (kf.body){
-    ghost.position.fromArray(kf.body.position);
-    ghost.quaternion.fromArray(kf.body.quaternion);
-  }
-  ghost.updateMatrixWorld(true);
+function poseGhostFromKeyframe(...args){
+  return onionSkinController.poseGhostFromKeyframe(...args);
 }
 
 // 是否目前正在看「時間軸」分頁——只有在這個分頁殘影才有意義，切到別的分頁（例如手腳IK）
 // 顯示兩層半透明殘影反而會干擾操作，所以離開時自動隱藏。
-function isKeyframeTabActive(){
-  const panel = document.getElementById("tabKeyframe");
-  return !!(panel && panel.classList.contains("active"));
+function isKeyframeTabActive(...args){
+  return onionSkinController.isKeyframeTabActive(...args);
 }
 
 // 決定殘影目前該不該顯示、顯示哪個拍點的姿勢。呼叫時機：拍點清單重繪時（見
@@ -1880,43 +1027,16 @@ function isKeyframeTabActive(){
 // Undo/Redo、自動存檔還原、拍點播放開始/結束等幾乎所有會影響「目前選取拍點」的情況；
 // 播放中則額外由 updateKeyframePlayback() 在每次換到下一個過渡區段時呼叫一次（見該函式），
 // 不是每幀都呼叫——播放中殘影姿勢只在「跨到下一拍」那一刻才會變，沒必要逐幀重算。
-function updateOnionSkins(){
-  if (!ghostPrev || !ghostNext) return;
-  if (kfPlaying){
-    updateOnionSkinsForPlayback();
-    return;
-  }
-  const show = onionSkinEnabled && isKeyframeTabActive() && kfEditingIndex >= 0 && keyframes.length > 1;
-  if (!show){
-    ghostPrev.visible = false;
-    ghostNext.visible = false;
-    return;
-  }
-  const prevKf = keyframes[kfEditingIndex - 1];
-  const nextKf = keyframes[kfEditingIndex + 1];
-  if (prevKf){ poseGhostFromKeyframe("prev", prevKf); ghostPrev.visible = true; }
-  else ghostPrev.visible = false;
-  if (nextKf){ poseGhostFromKeyframe("next", nextKf); ghostNext.visible = true; }
-  else ghostNext.visible = false;
+function updateOnionSkins(...args){
+  return onionSkinController.updateOnionSkins(...args);
 }
 
 // 播放模式下的殘影：此時主模型本身正在 frameA(=keyframes[kfIndex]) → frameB(=keyframes[kfIndex+1])
 // 之間即時補間，這兩拍不需要殘影（模型正在顯示它們之間的過渡姿勢），所以殘影改往「再更外一層」
 // 顯示：prev＝過渡起點的前一拍、next＝過渡終點的後一拍，讓使用者能預先看到動作接下來會往哪個
 // 方向甩，形成一段可視化的動作軌跡，而不是編輯模式那種「單一拍點的前後對照」。
-function updateOnionSkinsForPlayback(){
-  const show = onionSkinEnabled && isKeyframeTabActive() && keyframes.length > 1;
-  if (!show){
-    ghostPrev.visible = false;
-    ghostNext.visible = false;
-    return;
-  }
-  const prevKf = keyframes[kfIndex - 1];
-  const nextKf = keyframes[kfIndex + 2];
-  if (prevKf){ poseGhostFromKeyframe("prev", prevKf); ghostPrev.visible = true; }
-  else ghostPrev.visible = false;
-  if (nextKf){ poseGhostFromKeyframe("next", nextKf); ghostNext.visible = true; }
-  else ghostNext.visible = false;
+function updateOnionSkinsForPlayback(...args){
+  return onionSkinController.updateOnionSkinsForPlayback(...args);
 }
 
 // ---- 關節球（直接掛在骨骼上的可點擊 marker） ----
@@ -3254,56 +2374,27 @@ function createLibraryController(opts){
 }
 
 // -- 動作姿勢庫：只讀寫身體關節（BODY_LIB_JOINT_KEYS），完全不碰手指 --
-function captureCurrentBodyPose(){
-  const data = {};
-  for (const k of BODY_LIB_JOINT_KEYS) data[k] = (poseController.getTarget(k) || [0,0,0]).map(v => Math.round(v*10)/10);
-  return data;
+function captureCurrentBodyPose(...args){
+  return libraryDomainController.captureCurrentBodyPose(...args);
 }
-function applyBodyPoseData(data){
-  for (const k of BODY_LIB_JOINT_KEYS){
-    if (Array.isArray(data[k]) && data[k].length === 3) setTarget(k, data[k]);
-  }
-  setActiveBtn(-1);
-  updateSelectedBar();
+function applyBodyPoseData(...args){
+  return libraryDomainController.applyBodyPoseData(...args);
 }
 
 // -- 掌指手勢庫：只讀寫30個手指指節（FINGER_JOINT_KEYS），完全不碰身體 --
-function captureCurrentGesture(){
-  const data = {};
-  for (const k of FINGER_JOINT_KEYS) data[k] = (poseController.getTarget(k) || [0,0,0]).map(v => Math.round(v*10)/10);
-  return data;
+function captureCurrentGesture(...args){
+  return libraryDomainController.captureCurrentGesture(...args);
 }
-function applyGestureData(data){
-  if(waveRun)stopWave();
-  for (const k of FINGER_JOINT_KEYS){
-    if (Array.isArray(data[k]) && data[k].length === 3) setTarget(k, data[k]);
-  }
-  updateSelectedBar();
+function applyGestureData(...args){
+  return libraryDomainController.applyGestureData(...args);
 }
 
 // -- 招式庫清單的輔助顯示：拍數／預估秒數／儲存時間，讓使用者不用點開就知道這招大概是什麼 --
-function formatRelativeSavedTime(ts){
-  if (!ts) return "";
-  const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (diffSec < 60) return "剛剛";
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return diffMin + "分鐘前";
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return diffHr + "小時前";
-  const diffDay = Math.round(diffHr / 24);
-  if (diffDay < 30) return diffDay + "天前";
-  const d = new Date(ts);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+function formatRelativeSavedTime(...args){
+  return libraryDomainController.formatRelativeSavedTime(...args);
 }
-function moveLibSubtitle(item){
-  const frames = (item.data && Array.isArray(item.data.frames)) ? item.data.frames : [];
-  const frameCount = frames.length;
-  const totalBeats = frames.reduce((s, f) => s + (f && f.beats ? f.beats : 1), 0);
-  // 用目前的 BPM 換算預估秒數；如果之後 BPM 改了，實際套用時長度會跟著新 BPM 走，這裡只是抓個大概。
-  const ms = Math.round((60000 / bpm) * totalBeats);
-  const sec = (ms / 1000).toFixed(1);
-  const when = formatRelativeSavedTime(item.savedAt);
-  return `${frameCount}拍・約${sec}秒${when ? "・" + when : ""}`;
+function moveLibSubtitle(...args){
+  return libraryDomainController.moveLibSubtitle(...args);
 }
 
 // -- 招式庫：存「時間軸上一小段連續拍點」（一組動作組合），套用方式是「插入」而非「覆蓋」--
@@ -3311,42 +2402,18 @@ const MOVE_LIB_KEY = "tuttingMoveLibrary_v1";
 
 // 讀「起始拍／結束拍」輸入框（1-based，對應畫面上的 F1、F2……），擷取那段拍點深拷貝存起來，
 // 之後即使原本時間軸被編輯，已存的招式也不會被連動改到。
-function captureSelectedMove(){
-  const total = keyframes.length;
-  if (total === 0){ alert("目前時間軸沒有任何拍點，請先到「拍點」分頁排好動作。"); return null; }
-  const startEl = document.getElementById("moveLibStartInput");
-  const endEl = document.getElementById("moveLibEndInput");
-  let a = parseInt(startEl.value, 10);
-  let b = parseInt(endEl.value, 10);
-  if (!Number.isFinite(a) || !Number.isFinite(b)){
-    alert("請輸入有效的起始拍與結束拍（例如 1、4）。"); return null;
-  }
-  if (a > b) { const t = a; a = b; b = t; }
-  a = Math.max(1, Math.min(a, total));
-  b = Math.max(1, Math.min(b, total));
-  const frames = JSON.parse(JSON.stringify(keyframes.slice(a - 1, b)));
-  if (frames.length === 0) return null;
-  return { frames };
+function captureSelectedMove(...args){
+  return libraryDomainController.captureSelectedMove(...args);
 }
 
 // 插入到「目前選取拍點」之後；若沒有選取任何拍點，就接在整份編舞最尾端（方便依序把招式串成一整支舞）。
 // 每次插入都重新深拷貝一份，避免同一招式插入兩次時，兩處拍點共用同一個物件參考。
-function insertMoveData(data){
-  if (!data || !Array.isArray(data.frames) || data.frames.length === 0){
-    alert("這個招式資料格式錯誤或是空的。"); return;
-  }
-  const cloned = JSON.parse(JSON.stringify(data.frames));
-  const insertAt = (kfEditingIndex >= 0 && kfEditingIndex < keyframes.length) ? kfEditingIndex + 1 : keyframes.length;
-  keyframes.splice(insertAt, 0, ...cloned);
-  kfEditingIndex = insertAt + cloned.length - 1;
-  syncEasingControlsFromSelection();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function insertMoveData(...args){
+  return libraryDomainController.insertMoveData(...args);
 }
 
-function updateMoveLibRangeHint(){
-  const hint = document.getElementById("moveLibRangeHint");
-  if (hint) hint.textContent = `（目前時間軸共 ${keyframes.length} 拍）`;
+function updateMoveLibRangeHint(...args){
+  return libraryDomainController.updateMoveLibRangeHint(...args);
 }
 
 // -- 律動庫：把「目前所有律動設定」（參與律動的關節＋各自振盪參數＋蹲彈律動開關與參數）整組
@@ -3355,142 +2422,42 @@ function updateMoveLibRangeHint(){
 // 對象換成律動系統的幾個全域變數而已，互動邏輯（存/套用/刪除/重新命名/匯出入）完全不用重寫。
 const GROOVE_LIB_KEY = "tuttingGrooveLibrary_v1";
 
-function captureCurrentGrooveConfig(){
-  const out = {
-    jointSet: Array.from(grooveJointSet),
-    customParams: JSON.parse(JSON.stringify(grooveCustomParams)),
-    squatEnabled: grooveSquatEnabled,
-    squatCustom: JSON.parse(JSON.stringify(grooveSquatCustom))
-  };
-  // 若目前這組律動是自動生成出來、且之後沒被手動改過，就把來源（原型＋seed）一起存進去，
-  // 之後才能「這組不錯，但我想再抖一點」——從同一個 seed 重現後微調，而不是整組重抽。
-  if (grooveLastGenMeta) out.meta = JSON.parse(JSON.stringify(grooveLastGenMeta));
-  return out;
+function captureCurrentGrooveConfig(...args){
+  return libraryDomainController.captureCurrentGrooveConfig(...args);
 }
 
 // 讀檔容錯：過濾格式不對的欄位，避免壞資料（例如手動改壞的匯入JSON、或來自不同版本的檔案）
 // 讓律動庫項目在套用/序列播放時算出 NaN 或非法波形。跟 restoreTimelineData 同一套防呆原則。
-function sanitizeGrooveLibConfigData(data){
-  const out = { jointSet: [], customParams: {}, squatEnabled: false, squatCustom: {} };
-  if (!data || typeof data !== "object") return out;
-  if (Array.isArray(data.jointSet)) out.jointSet = data.jointSet.filter(k => GROOVE_PRESETS[k]);
-  if (data.customParams && typeof data.customParams === "object"){
-    for (const key of Object.keys(data.customParams)){
-      if (!GROOVE_PRESETS[key]) continue;
-      const cleaned = sanitizeGrooveCustomEntry(data.customParams[key]);
-      if (Object.keys(cleaned).length > 0) out.customParams[key] = cleaned;
-    }
-  }
-  out.squatEnabled = !!data.squatEnabled;
-  out.squatCustom = sanitizeGrooveSquatCustomEntry(data.squatCustom);
-  // 自動生成來源（原型＋seed）：白名單放行，否則會跟其他未知欄位一起被濾掉，
-  // 導致存進律動庫的自動生成項目一讀回來就失去「可重現」這個唯一好處。
-  if (data.meta && typeof data.meta === "object"){
-    const m = {};
-    if (Number.isFinite(data.meta.seed)) m.seed = data.meta.seed >>> 0;
-    if (typeof data.meta.archetype === "string" && GROOVE_ARCHETYPES[data.meta.archetype]) m.archetype = data.meta.archetype;
-    if (Number.isFinite(data.meta.loopBeats) && data.meta.loopBeats > 0) m.loopBeats = data.meta.loopBeats;
-    if (Number.isFinite(data.meta.energy)) m.energy = data.meta.energy;
-    if (m.seed !== undefined && m.archetype !== undefined) out.meta = m; // 兩者缺一就無法重現，不留半套資料
-  }
-  return out;
+function sanitizeGrooveLibConfigData(...args){
+  return libraryDomainController.sanitizeGrooveLibConfigData(...args);
 }
 
 // 「套用」一個律動庫項目＝把它整組寫回目前的手動全域設定（grooveJointSet 等），
 // 效果等同使用者自己重新勾選/調整一次。只在「手動/舊版單一設定」模式下有意義；
 // 若已經建立「律動序列」，播放時序列會直接讀庫項目資料本身，不透過這幾個全域變數。
-function applyGrooveConfigData(rawData){
-  const data = sanitizeGrooveLibConfigData(rawData);
-  grooveJointSet = new Set(data.jointSet);
-  grooveCustomParams = data.customParams;
-  grooveSquatEnabled = data.squatEnabled;
-  grooveSquatCustom = data.squatCustom;
-  grooveLastGenMeta = data.meta || null; // 套用非自動生成的項目時會被清成 null，正確：那組確實沒有 seed 可重現
-  refreshGrooveJointUI();
-  renderGrooveSquatUI();
-  scheduleAutoSave();
+function applyGrooveConfigData(...args){
+  return libraryDomainController.applyGrooveConfigData(...args);
 }
 
 // 律動庫清單 chip 副標題：一眼看出這組律動包含幾個關節、蹲彈律動有沒有開，不用點開才知道內容。
-function grooveLibSubtitle(item){
-  const data = item.data || {};
-  const jointCount = Array.isArray(data.jointSet) ? data.jointSet.length : 0;
-  const squatTag = data.squatEnabled ? "蹲彈開" : "蹲彈關";
-  const when = formatRelativeSavedTime(item.savedAt);
-  // 自動生成的項目標上原型名稱：庫裡混了手調與自動生成時，一眼看得出哪些是機器抽的
-  const m = data.meta;
-  const genTag = (m && GROOVE_ARCHETYPES[m.archetype]) ? ("🤖" + GROOVE_ARCHETYPES[m.archetype].short + "・") : "";
-  return `${genTag}${jointCount}個關節・${squatTag}${when ? "・" + when : ""}`;
+function grooveLibSubtitle(...args){
+  return libraryDomainController.grooveLibSubtitle(...args);
 }
 
 // 直接把一組拍點推到時間軸最尾端（批次生成排舞用，不動 kfEditingIndex，效能較好，最後統一 render 一次）。
-function appendMoveFrames(frames){
-  const cloned = JSON.parse(JSON.stringify(frames));
-  keyframes.push(...cloned);
+function appendMoveFrames(...args){
+  return choreographyGenerator.appendMoveFrames(...args);
 }
 
 // 從招式庫隨機抽 N 個招式接龍成一份排舞。replace=true 會先清空目前時間軸，false 則接在尾端繼續往後長。
-function generateChoreographyFromMoves(replace){
-  const items = moveLibCtrl.getItems();
-  if (items.length === 0){ alert("招式庫目前是空的，請先在上面儲存至少一個招式。"); return; }
-
-  const countEl = document.getElementById("moveGenCountInput");
-  let count = parseInt(countEl.value, 10);
-  if (!Number.isFinite(count) || count < 1) count = 1;
-  count = Math.min(count, 50);
-  const allowRepeat = document.getElementById("moveGenAllowRepeatChk").checked;
-
-  if (replace){
-    if (keyframes.length > 0 && !confirm("這會清空目前時間軸上所有拍點，改用招式庫隨機生成一份新的，確定嗎？")) return;
-    keyframes = [];
-  }
-
-  let lastId = null;
-  for (let i = 0; i < count; i++){
-    let pick;
-    if (items.length === 1 || allowRepeat){
-      pick = items[Math.floor(Math.random() * items.length)];
-    } else {
-      const pool = items.filter(x => x.id !== lastId); // 避免連續兩段選到同一招式
-      pick = pool[Math.floor(Math.random() * pool.length)];
-    }
-    lastId = pick.id;
-    if (pick.data && Array.isArray(pick.data.frames) && pick.data.frames.length > 0){
-      appendMoveFrames(pick.data.frames);
-    }
-  }
-
-  kfEditingIndex = keyframes.length - 1;
-  stopKeyframePlayback();
-  syncEasingControlsFromSelection();
-  renderKeyframeChips();
-  scheduleAutoSave();
-  pushHistory();
+function generateChoreographyFromMoves(...args){
+  return choreographyGenerator.generateChoreographyFromMoves(...args);
 }
 
 // 自動生成招式：連續呼叫 N 次既有的「動作生成」（沿用關節限制範圍／Isolation分組／機率設定），
 // 每呼叫一次就記錄一格拍點快照，串成一個多拍的招式；只存進招式庫，不會動到目前時間軸上的內容。
-function autoGenerateMove(frameCount){
-  const eligibleKeys = JOINT_LIMIT_KEYS.filter(key => {
-    if (!bones[key]) return false;
-    const lim = JOINT_LIMITS[key];
-    return lim.x.enabled || lim.y.enabled || lim.z.enabled;
-  });
-  if (eligibleKeys.length === 0){
-    alert("目前沒有任何關節啟用限制範圍，請先到「關節限制」分頁至少設定一個關節的角度限制，才有範圍可以自動生成。");
-    return null;
-  }
-  const frames = [];
-  for (let i = 0; i < frameCount; i++){
-    generateRandomPose(); // 沿用關節限制/Isolation設定隨機擺一個姿勢
-    frames.push({
-      angles: snapshotCurrentAngles(),
-      body: snapshotBodyTransform(),
-      easing: kfPendingEasing,
-      beats: kfPendingBeats
-    });
-  }
-  return frames;
+function autoGenerateMove(...args){
+  return choreographyGenerator.autoGenerateMove(...args);
 }
 
 let poseLibCtrl = null;
@@ -3498,95 +2465,8 @@ let gestureLibCtrl = null;
 let moveLibCtrl = null;
 let grooveLibCtrl = null;
 
-function bindLibraryUI(){
-  poseLibCtrl = createLibraryController({
-    storageKey: POSE_LIB_KEY, captureFn: captureCurrentBodyPose, applyFn: applyBodyPoseData,
-    listElId: "poseLibList", emptyElId: "poseLibEmpty", filePrefix: "姿勢", itemLabel: "姿勢"
-  });
-  gestureLibCtrl = createLibraryController({
-    storageKey: GESTURE_LIB_KEY, captureFn: captureCurrentGesture, applyFn: applyGestureData,
-    listElId: "gestureLibList", emptyElId: "gestureLibEmpty", filePrefix: "手勢", itemLabel: "手勢"
-  });
-
-  const poseNameInput = document.getElementById("poseLibNameInput");
-  document.getElementById("poseLibSaveBtn").onclick = () => {
-    poseLibCtrl.saveCurrent(poseNameInput.value);
-    poseNameInput.value = "";
-  };
-  poseNameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("poseLibSaveBtn").click(); });
-  document.getElementById("poseLibExportAllBtn").onclick = () => poseLibCtrl.exportAll();
-  document.getElementById("poseLibImportAllBtn").onclick = () => document.getElementById("poseLibImportAllFile").click();
-  document.getElementById("poseLibImportAllFile").onchange = (e) => { poseLibCtrl.importAll(e.target.files[0]); e.target.value = ""; };
-  document.getElementById("poseLibImportOneBtn").onclick = () => document.getElementById("poseLibImportOneFile").click();
-  document.getElementById("poseLibImportOneFile").onchange = (e) => { poseLibCtrl.importOne(e.target.files[0]); e.target.value = ""; };
-
-  const gestureNameInput = document.getElementById("gestureLibNameInput");
-  document.getElementById("gestureLibSaveBtn").onclick = () => {
-    gestureLibCtrl.saveCurrent(gestureNameInput.value);
-    gestureNameInput.value = "";
-  };
-  gestureNameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("gestureLibSaveBtn").click(); });
-  document.getElementById("gestureLibExportAllBtn").onclick = () => gestureLibCtrl.exportAll();
-  document.getElementById("gestureLibImportAllBtn").onclick = () => document.getElementById("gestureLibImportAllFile").click();
-  document.getElementById("gestureLibImportAllFile").onchange = (e) => { gestureLibCtrl.importAll(e.target.files[0]); e.target.value = ""; };
-  document.getElementById("gestureLibImportOneBtn").onclick = () => document.getElementById("gestureLibImportOneFile").click();
-  document.getElementById("gestureLibImportOneFile").onchange = (e) => { gestureLibCtrl.importOne(e.target.files[0]); e.target.value = ""; };
-
-  moveLibCtrl = createLibraryController({
-    storageKey: MOVE_LIB_KEY, captureFn: captureSelectedMove, applyFn: insertMoveData,
-    listElId: "moveLibList", emptyElId: "moveLibEmpty", filePrefix: "招式", itemLabel: "招式",
-    subtitleFn: moveLibSubtitle,
-    onRender: (count) => {
-      const badge = document.getElementById("moveLibCount");
-      if (badge) badge.textContent = count;
-    }
-  });
-  const moveSearchInput = document.getElementById("moveLibSearchInput");
-  if (moveSearchInput) moveSearchInput.addEventListener("input", () => moveLibCtrl.setFilter(moveSearchInput.value));
-
-  const moveNameInput = document.getElementById("moveLibNameInput");
-  document.getElementById("moveLibSaveBtn").onclick = () => {
-    moveLibCtrl.saveCurrent(moveNameInput.value);
-    moveNameInput.value = "";
-  };
-  moveNameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("moveLibSaveBtn").click(); });
-  document.getElementById("moveLibExportAllBtn").onclick = () => moveLibCtrl.exportAll();
-  document.getElementById("moveLibImportAllBtn").onclick = () => document.getElementById("moveLibImportAllFile").click();
-  document.getElementById("moveLibImportAllFile").onchange = (e) => { moveLibCtrl.importAll(e.target.files[0]); e.target.value = ""; };
-  document.getElementById("moveLibImportOneBtn").onclick = () => document.getElementById("moveLibImportOneFile").click();
-  document.getElementById("moveLibImportOneFile").onchange = (e) => { moveLibCtrl.importOne(e.target.files[0]); e.target.value = ""; };
-
-  document.getElementById("moveLibUseCurAsStartBtn").onclick = () => {
-    if (kfEditingIndex < 0){ alert("請先到「拍點」分頁點選一個拍點。"); return; }
-    document.getElementById("moveLibStartInput").value = kfEditingIndex + 1;
-  };
-  document.getElementById("moveLibUseCurAsEndBtn").onclick = () => {
-    if (kfEditingIndex < 0){ alert("請先到「拍點」分頁點選一個拍點。"); return; }
-    document.getElementById("moveLibEndInput").value = kfEditingIndex + 1;
-  };
-
-  updateMoveLibRangeHint();
-  document.getElementById("moveGenAppendBtn").onclick = () => generateChoreographyFromMoves(false);
-  document.getElementById("moveGenReplaceBtn").onclick = () => generateChoreographyFromMoves(true);
-
-  document.getElementById("moveAutoGenBtn").onclick = () => {
-    const countEl = document.getElementById("moveAutoGenFrameCountInput");
-    let n = parseInt(countEl.value, 10);
-    if (!Number.isFinite(n) || n < 2) n = 2;
-    n = Math.min(n, 12);
-    const frames = autoGenerateMove(n);
-    if (!frames) return;
-    const nameEl = document.getElementById("moveAutoGenNameInput");
-    const name = (nameEl.value || "").trim() || `自動招式_${moveLibCtrl.getItems().length + 1}`;
-    moveLibCtrl.saveData(name, { frames });
-    nameEl.value = "";
-    updateSelectedBar();
-  };
-
-  poseLibCtrl.render();
-  gestureLibCtrl.render();
-  moveLibCtrl.render();
-  renderStorageUsageIndicator();
+function bindLibraryUI(...args){
+  return libraryDomainController.bindLibraryUI(...args);
 }
 
 // ---- 鏡像（左右對稱姿勢）----
@@ -3982,62 +2862,32 @@ function applyBodyTransform(bodyData){
 // 沒有選取（例如剛清空、或使用者按了 Esc 取消選取）則加到最尾端。
 // 依序連續新增時，每次新增後 kfEditingIndex 都會指向剛新增的那個（也就是最後一個），
 // 所以下一次新增仍然等同「加到最尾端」，原本的操作習慣不會被打斷。
-function addKeyframe(){
-  const newKf = { angles: snapshotCurrentAngles(), body: snapshotBodyTransform(), easing: kfPendingEasing, beats: kfPendingBeats };
-  kfEditingIndex = insertKeyframe(keyframes, newKf, kfEditingIndex);
-  renderKeyframeChips();
-  scheduleAutoSave();
+function addKeyframe(...args){
+  return poseEditorController.addKeyframe(...args);
 }
 
 // 複製第 i 個拍點（含角度、身體位置、Easing/拍數、軌跡資料），插入緊接在它後面。
 // 用深拷貝，複製出來的拍點之後各自修改不會互相影響。
-function duplicateKeyframe(i){
-  const index = duplicateKeyframeData(keyframes, i);
-  if (index === null) return;
-  kfEditingIndex = index;
-  renderKeyframeChips();
-  scheduleAutoSave();
+function duplicateKeyframe(...args){
+  return poseEditorController.duplicateKeyframe(...args);
 }
 
 // 拖曳排序：把 from 移到 to 的位置。跟著調整 kfEditingIndex，讓選取狀態黏著在
 // 「同一個邏輯拍點」上，而不是黏著在原本的數字位置上（否則拖曳完選取會跳到別的拍點去）。
-function reorderKeyframe(from, to){
-  const index = reorderKeyframeData(keyframes, from, to, kfEditingIndex);
-  if (index === null) return;
-  kfEditingIndex = index;
-  renderKeyframeChips();
-  scheduleAutoSave();
+function reorderKeyframe(...args){
+  return poseEditorController.reorderKeyframe(...args);
 }
 
 // 拍點備註：用 prompt() 編輯，跟既有的「姿勢庫／手勢庫」重新命名同一套互動方式。
 // 留空即清除備註（chip 上改顯示 ✎ 提示可以新增）。長度限制24字，避免橫向清單被一則超長備註撐爆。
-function renameKeyframeLabel(i){
-  if (!keyframes[i]) return;
-  const current = keyframes[i].label || "";
-  const next = prompt("拍點備註（例如「插腰」「收拍」），留空即可清除：", current);
-  if (next === null) return; // 使用者按取消，不變動
-  const trimmed = next.trim().slice(0, 24);
-  if (trimmed) keyframes[i].label = trimmed; else delete keyframes[i].label;
-  renderKeyframeChips();
-  scheduleAutoSave();
+function renameKeyframeLabel(...args){
+  return poseEditorController.renameKeyframeLabel(...args);
 }
 
 // 拍點清單標題旁的總時長：只加總「有下一段轉場」的拍點（最後一拍沒有輸出轉場，不計入），
 // 算法跟 updateBeatMsHint() 單一拍點的算法一致，這裡是整份時間軸的加總。
-function updateKfTotalDurationLabel(){
-  const el = document.getElementById("kfTotalDuration");
-  if (!el) return;
-  if(waveClips.length){const total=wavePlaybackEnd();el.textContent=`${keyframes.length} 個姿勢・${waveClips.length} 個 Waving・${total.toFixed(2)} beats・約 ${(total*60/bpm).toFixed(1)} 秒`;return;}
-  if (keyframes.length < 2){ el.textContent = keyframes.length === 1 ? "1 個姿勢・0 beat" : ""; return; }
-  let totalMs = 0;
-  let totalBeats = 0;
-  for (let i = 0; i < keyframes.length - 1; i++){
-    const beats = Number(keyframes[i].beats || 1);
-    totalBeats += beats;
-    totalMs += (60000 / bpm) * beats;
-  }
-  el.textContent = `${keyframes.length} 個姿勢・${totalBeats} beats・約 ${(totalMs / 1000).toFixed(1)} 秒（${bpm} BPM）`;
-  updateGrooveSeqTotalLabel(); // 編舞總拍數變了，下面「律動序列」的總拍數比對文字要跟著重算
+function updateKfTotalDurationLabel(...args){
+  return timelineInspectorController.updateKfTotalDurationLabel(...args);
 }
 
 // 編舞（拍點清單）的真實總拍數：加總每段轉場各自的「拍數」設定，跟 updateKfTotalDurationLabel()
@@ -4095,123 +2945,50 @@ function pasteTimelineClipboard(){
   return timelineSelection.pasteTimelineClipboard();
 }
 
-function updateKeyframe(){
-  if (kfEditingIndex < 0 || !keyframes[kfEditingIndex]) return;
-  keyframes[kfEditingIndex].angles = snapshotCurrentAngles();
-  keyframes[kfEditingIndex].body = snapshotBodyTransform();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function updateKeyframe(...args){
+  return poseEditorController.updateKeyframe(...args);
 }
 
 // 選取拍點的轉場 Easing / 拍數即時編輯（不需按「更新選取拍點」，因為不影響角度資料）
-function setKeyframeEasing(name){
-  kfPendingEasing = name;
-  if (kfEditingIndex >= 0 && keyframes[kfEditingIndex]) keyframes[kfEditingIndex].easing = name;
-  updateEasingPreview();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function setKeyframeEasing(...args){
+  return poseEditorController.setKeyframeEasing(...args);
 }
 
-function setKeyframeBeats(val){
-  const snapped = snapTimelineBeats(val);
-  kfPendingBeats = snapped;
-  if (kfEditingIndex >= 0 && keyframes[kfEditingIndex]) keyframes[kfEditingIndex].beats = snapped;
-  updateBeatMsHint();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function setKeyframeBeats(...args){
+  return poseEditorController.setKeyframeBeats(...args);
 }
 
 // 把 Easing / 拍數控制項同步成目前選取拍點的值（沒選取時維持上一次的預設值）
-function updateBeatGridPoseInspector(){
-  const mode = document.getElementById("kfInspectorMode");
-  const updateBtn = document.getElementById("kfUpdateBtn");
-  const hasSelection = kfEditingIndex >= 0 && !!keyframes[kfEditingIndex] && !kfMultiSelectMode;
-  if (mode){
-    if (hasSelection){
-      const isEnd = kfEditingIndex === keyframes.length - 1;
-      mode.textContent = `F${kfEditingIndex + 1} ${isEnd ? "終點／下一段預設" : "轉場"}`;
-      mode.setAttribute("data-tooltip", isEnd
-        ? "最後一個 POSE 目前沒有下一段；Easing／拍數會保存在此拍點，之後若在後方新增 POSE 就會成為轉場設定。"
-        : `正在編輯 F${kfEditingIndex + 1} → F${kfEditingIndex + 2} 的轉場設定`);
-    } else {
-      mode.textContent = kfMultiSelectMode ? "POSE 多選" : "新增預設";
-      mode.setAttribute("data-tooltip", kfMultiSelectMode
-        ? "多選模式中不顯示單一 POSE 的更新控制。"
-        : "未選取 POSE；目前 Easing／拍數會作為下一個新增拍點的預設值。" );
-    }
-  }
-  if (updateBtn) updateBtn.style.display = hasSelection ? "inline-flex" : "none";
+function updateBeatGridPoseInspector(...args){
+  return timelineInspectorController.updateBeatGridPoseInspector(...args);
 }
 
-function syncEasingControlsFromSelection(){
-  const kf = kfEditingIndex >= 0 ? keyframes[kfEditingIndex] : null;
-  kfPendingEasing = kf ? (kf.easing || "easeInOutQuad") : kfPendingEasing;
-  kfPendingBeats = kf ? (kf.beats || 1) : kfPendingBeats;
-  const easeSel = document.getElementById("kfEasingSelect");
-  const beatsSel = document.getElementById("kfBeatsSelect");
-  if (easeSel) easeSel.value = kfPendingEasing;
-  if (beatsSel) syncBeatSelectValue(beatsSel, kfPendingBeats);
-  updateEasingPreview();
-  updateBeatMsHint();
-  updateBeatGridPoseInspector();
+function syncEasingControlsFromSelection(...args){
+  return timelineInspectorController.syncEasingControlsFromSelection(...args);
 }
 
-function updateEasingPreview(){
-  const host = document.getElementById("kfEasingPreview");
-  if (host) host.innerHTML = buildEasingSVG(kfPendingEasing, 64, 34);
+function updateEasingPreview(...args){
+  return timelineInspectorController.updateEasingPreview(...args);
 }
 
-function updateBeatMsHint(){
-  const hint = document.getElementById("kfBeatMsHint");
-  if (!hint) return;
-  const ms = Math.round((60000/bpm) * kfPendingBeats);
-  const sec = (ms / 1000).toFixed(ms >= 1000 ? 2 : 3).replace(/0+$/, "").replace(/\.$/, "");
-  hint.textContent = `${sec}s · ${bpm} BPM`;
-  hint.setAttribute("data-tooltip", `${kfPendingBeats} 拍 = ${ms} ms（${bpm} BPM）`);
+function updateBeatMsHint(...args){
+  return timelineInspectorController.updateBeatMsHint(...args);
 }
 
-function deleteKeyframe(i){
-  keyframes.splice(i, 1);
-  // 選取的拍點被刪了：改選同一個位置的下一個（沒有的話往前一個）；
-  // 選取的拍點還在但排在被刪除的後面：索引要跟著往前移一格，否則選取會跳到別的拍點身上。
-  if (kfEditingIndex === i) kfEditingIndex = Math.min(i, keyframes.length - 1);
-  else if (kfEditingIndex > i) kfEditingIndex -= 1;
-  if (kfPlaying && keyframes.length < 2) stopKeyframePlayback();
-  syncEasingControlsFromSelection();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function deleteKeyframe(...args){
+  return poseEditorController.deleteKeyframe(...args);
 }
 
-function clearKeyframes(){
-  keyframes = [];
-  kfEditingIndex = -1;
-  stopKeyframePlayback();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function clearKeyframes(...args){
+  return poseEditorController.clearKeyframes(...args);
 }
 
-function selectKeyframeStateOnly(i){
-  waveClipSelected=null;renderWaveTrack();
-  if (i < 0 || i >= keyframes.length) return;
-  kfEditingIndex = i;
-  grooveSeqSelectedIndex = -1;
-  if (!kfMultiSelectMode) grooveMultiSelected.clear();
-  for (const el of grooveSeqChipEls) if (el) el.classList.remove("selected");
-  for (let n = 0; n < kfChipEls.length; n++){
-    const el = kfChipEls[n];
-    if (el) el.classList.toggle("active", !kfMultiSelectMode && n === i);
-  }
-  applyPose(keyframes[i].angles);
-  setActiveBtn(-1);
-  syncEasingControlsFromSelection();
-  updateOnionSkins();
+function selectKeyframeStateOnly(...args){
+  return poseEditorController.selectKeyframeStateOnly(...args);
 }
 
-function selectKeyframe(i){
-  waveTrackActive=false;waveClipSelected=null;renderWaveTrack();
-  if(waveRun)stopWave();
-  selectKeyframeStateOnly(i);
-  renderKeyframeChips();
+function selectKeyframe(...args){
+  return poseEditorController.selectKeyframe(...args);
 }
 
 // 建立/重建整份拍點清單的 DOM（結構性變動才呼叫：新增、刪除、清空、選取、Easing/拍數變更……）。
@@ -4225,124 +3002,44 @@ let BEAT_GRID_SNAP = 0.25;
 const BEAT_GRID_LABEL_W = 96;
 const BEAT_GRID_ZOOM_LEVELS = [36, 54, 72, 108, 144];
 
-function nearestBeatGridZoomLevel(px){
-  return BEAT_GRID_ZOOM_LEVELS.reduce((best, v) => Math.abs(v - px) < Math.abs(best - px) ? v : best, BEAT_GRID_ZOOM_LEVELS[0]);
+function nearestBeatGridZoomLevel(...args){
+  return beatGridController.nearestBeatGridZoomLevel(...args);
 }
 
-function refreshBeatGridZoomLayout(){
-  // Resize / scrub / ruler / waveform 全部讀同一個 BEAT_GRID_PX_PER_BEAT；
-  // 這裡只做幾何重排，不改 keyframes / grooveSequence 的任何時間資料。
-  updateKeyframeClipLayoutOnly();
-  updateGrooveClipLayoutOnly();
-  drawKfWaveform();
-  if (kfPlaying) updateBeatGridPlaybackUI(performance.now());
-  else updateBeatGridMusicPreviewPlayhead();
+function refreshBeatGridZoomLayout(...args){
+  return beatGridController.refreshBeatGridZoomLayout(...args);
 }
 
-function setBeatGridZoomPx(nextPx, anchorViewportX = null){
-  const scroller = document.getElementById("beatGridScroll");
-  const select = document.getElementById("beatGridZoomSelect");
-  const oldPx = BEAT_GRID_PX_PER_BEAT;
-  const newPx = nearestBeatGridZoomLevel(Number(nextPx) || oldPx);
-  if (!scroller){
-    BEAT_GRID_PX_PER_BEAT = newPx;
-    if (select) syncBeatGridZoomSelect(newPx);
-    refreshBeatGridZoomLayout();
-    return;
-  }
-
-  const viewportX = anchorViewportX == null
-    ? scroller.clientWidth * 0.5
-    : Math.max(BEAT_GRID_LABEL_W, Math.min(scroller.clientWidth, anchorViewportX));
-  const anchorBeat = Math.max(0, (scroller.scrollLeft + viewportX - BEAT_GRID_LABEL_W) / Math.max(1, oldPx));
-
-  BEAT_GRID_PX_PER_BEAT = newPx;
-  if (select) syncBeatGridZoomSelect(newPx);
-  refreshBeatGridZoomLayout();
-
-  // 讓縮放前位於視窗中心（或滑鼠下方）的 Beat，縮放後仍留在同一螢幕位置，
-  // 避免每次放大都被拉回時間軸左端。
-  const desired = BEAT_GRID_LABEL_W + anchorBeat * newPx - viewportX;
-  const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-  scroller.scrollLeft = Math.max(0, Math.min(maxScroll, desired));
+function setBeatGridZoomPx(...args){
+  return beatGridController.setBeatGridZoomPx(...args);
 }
 
-function stepBeatGridZoom(direction, anchorViewportX = null){
-  const current = nearestBeatGridZoomLevel(BEAT_GRID_PX_PER_BEAT);
-  let idx = BEAT_GRID_ZOOM_LEVELS.indexOf(current);
-  if (idx < 0) idx = 2;
-  idx = Math.max(0, Math.min(BEAT_GRID_ZOOM_LEVELS.length - 1, idx + (direction > 0 ? 1 : -1)));
-  setBeatGridZoomPx(BEAT_GRID_ZOOM_LEVELS[idx], anchorViewportX);
+function stepBeatGridZoom(...args){
+  return beatGridController.stepBeatGridZoom(...args);
 }
 
 function keyframeStartBeat(index){
   return timelineStartBeat(keyframes, index);
 }
 
-function grooveSegmentStartBeat(index){
-  let beat = 0;
-  for (let i = 0; i < index; i++) beat += Math.max(0, Number(grooveSequence[i].beats) || 0);
-  return beat;
+function grooveSegmentStartBeat(...args){
+  return beatGridController.grooveSegmentStartBeat(...args);
 }
 
-function beatGridPoseTotalBeats(){
-  if (keyframes.length < 2) return 0;
-  let total = 0;
-  for (let i = 0; i < keyframes.length - 1; i++) total += Number(keyframes[i].beats || 1);
-  return total;
+function beatGridPoseTotalBeats(...args){
+  return beatGridController.beatGridPoseTotalBeats(...args);
 }
 
-function beatGridAudioTotalBeats(){
-  if (!(waveform.duration > 0)) return 0;
-  const offsetEl = document.getElementById("kfMusicOffset");
-  const offset = offsetEl ? (parseFloat(offsetEl.value) || 0) : 0;
-  const remainSec = Math.max(0, waveform.duration - offset);
-  return remainSec * bpm / 60;
+function beatGridAudioTotalBeats(...args){
+  return beatGridController.beatGridAudioTotalBeats(...args);
 }
 
-function beatGridTimelineBeats(){
-  return Math.max(4, beatGridPoseTotalBeats(), waveTrackEnd(), grooveSeqTotalBeats(), beatGridAudioTotalBeats());
+function beatGridTimelineBeats(...args){
+  return beatGridController.beatGridTimelineBeats(...args);
 }
 
-function updateBeatGridGeometry(){
-  const inner = document.getElementById("beatGridInner");
-  const ruler = document.getElementById("beatGridRuler");
-  const kfHost = document.getElementById("kfList");
-  const grooveHost = document.getElementById("grooveSeqList");
-  const waveformTrack = document.getElementById("beatGridWaveformTrack");
-  const waveformCanvas = document.getElementById("kfWaveformCanvas");
-  if (!inner || !ruler || !kfHost || !grooveHost) return;
-  const totalBeats = beatGridTimelineBeats();
-  const timelinePx = Math.ceil(totalBeats * BEAT_GRID_PX_PER_BEAT);
-  inner.style.width = `${BEAT_GRID_LABEL_W + timelinePx}px`;
-  kfHost.style.width = `${timelinePx}px`;
-  grooveHost.style.width = `${timelinePx}px`;
-  if (waveformTrack) waveformTrack.style.width = `${timelinePx}px`;
-  if (waveformCanvas) waveformCanvas.style.width = `${timelinePx}px`;
-
-  ruler.innerHTML = "";
-  ruler.style.marginLeft = `${BEAT_GRID_LABEL_W}px`;
-  ruler.style.width = `${timelinePx}px`;
-  const steps = Math.ceil(totalBeats / BEAT_GRID_SUBDIV);
-  for (let s = 0; s <= steps; s++){
-    const beat = s * BEAT_GRID_SUBDIV;
-    const x = beat * BEAT_GRID_PX_PER_BEAT;
-    const tick = document.createElement("span");
-    const isMajor = Math.abs(beat - Math.round(beat)) < 1e-6;
-    const isHalf = !isMajor && Math.abs((beat * 2) - Math.round(beat * 2)) < 1e-6;
-    tick.className = "beatGridTick" + (isMajor ? " major" : (isHalf ? " half" : ""));
-    tick.style.left = `${x}px`;
-    ruler.appendChild(tick);
-    if (isMajor && beat < totalBeats + 1e-6){
-      const label = document.createElement("span");
-      label.className = "beatGridTickLabel";
-      label.style.left = `${x}px`;
-      label.textContent = String(Math.round(beat) + 1);
-      ruler.appendChild(label);
-    }
-  }
-  updateBeatGridRangeUI();
-  layoutWaveTrack();
+function updateBeatGridGeometry(...args){
+  return beatGridController.updateBeatGridGeometry(...args);
 }
 
 function hasBeatGridRange(){
@@ -4407,348 +3104,111 @@ function setBeatGridRangeLoop(on){
   return rangeEditor.setBeatGridRangeLoop(on);
 }
 
-function beatGridClientXToBeat(clientX){
-  const ruler = document.getElementById("beatGridRuler");
-  if (!ruler) return 0;
-  const rect = ruler.getBoundingClientRect();
-  return clampNum((clientX - rect.left) / BEAT_GRID_PX_PER_BEAT, 0, beatGridTimelineBeats());
+function beatGridClientXToBeat(...args){
+  return beatGridController.beatGridClientXToBeat(...args);
 }
 
-function bindBeatGridRangeSelection(){
-  const ruler = document.getElementById("beatGridRuler");
-  if (!ruler) return;
-  ruler.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    if (kfPlaying) stopKeyframePlayback();
-    const raw = beatGridClientXToBeat(e.clientX);
-    const [start] = normalizeBeatGridRange(raw, raw);
-    beatGridRangeDrag = { anchor:start, pointerId:e.pointerId };
-    beatGridRangeStart = start;
-    beatGridRangeEnd = start;
-    setBeatGridRangeLoop(false);
-    ruler.classList.add("rangeDragging");
-    try { ruler.setPointerCapture(e.pointerId); } catch (_) {}
-    updateBeatGridRangeUI();
-    e.preventDefault();
-  });
-  ruler.addEventListener("pointermove", (e) => {
-    if (!beatGridRangeDrag) return;
-    const raw = beatGridClientXToBeat(e.clientX);
-    const [a,b] = normalizeBeatGridRange(beatGridRangeDrag.anchor, raw);
-    beatGridRangeStart = a;
-    beatGridRangeEnd = b;
-    updateBeatGridRangeUI();
-  });
-  const finish = (e) => {
-    if (!beatGridRangeDrag) return;
-    const raw = beatGridClientXToBeat(e.clientX);
-    let [a,b] = normalizeBeatGridRange(beatGridRangeDrag.anchor, raw);
-    const minSpan = Number(BEAT_GRID_SNAP) > 0 ? Number(BEAT_GRID_SNAP) : 0.01;
-    if (b - a < minSpan - 1e-8){
-      // 單擊 Ruler 不建立幾乎零寬的 Range；改成一般導航/預覽。
-      const target = clampNum(raw, 0, beatGridTimelineBeats());
-      beatGridRangeStart = beatGridRangeEnd = null;
-      beatGridRangeLoop = false;
-      navigateBeatGridToBeat(target);
-    } else {
-      beatGridRangeStart = a;
-      beatGridRangeEnd = b;
-    }
-    beatGridRangeDrag = null;
-    ruler.classList.remove("rangeDragging");
-    try { if (ruler.hasPointerCapture(e.pointerId)) ruler.releasePointerCapture(e.pointerId); } catch (_) {}
-    updateBeatGridRangeUI();
-  };
-  ruler.addEventListener("pointerup", finish);
-  ruler.addEventListener("pointercancel", (e) => {
-    beatGridRangeDrag = null;
-    ruler.classList.remove("rangeDragging");
-    try { if (ruler.hasPointerCapture(e.pointerId)) ruler.releasePointerCapture(e.pointerId); } catch (_) {}
-    updateBeatGridRangeUI();
-  });
+function bindBeatGridRangeSelection(...args){
+  return beatGridController.bindBeatGridRangeSelection(...args);
 }
 
 function locateKeyframeSegmentAtBeat(beat){
   return locateTimelineSegment(keyframes, beat, beatGridPoseTotalBeats());
 }
 
-function seekRunningPlaybackToBeat(beat, now = performance.now()){
-  if (keyframes.length < 2 && !waveClips.length) return;
-  const target = clampNum(Number(beat) || 0, 0, waveClips.length?wavePlaybackEnd():beatGridPoseTotalBeats());
-  const loc = locateKeyframeSegmentAtBeat(target);
-  kfIndex = loc.index;
-  kfStartTime = now - loc.localBeat * (60000 / bpm);
-  grooveStartTime = now - target * (60000 / bpm);
-  grooveSquatAnchored = false;
-  resetGrooveXfadeState();
-  resetSquatXfadeState();
-  const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && audioEl.src && waveform.duration > 0){
-    try {
-      audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, waveform.duration);
-      if (audioEl.paused) audioEl.play().catch(() => {});
-    } catch (_) {}
-  }
-  updateOnionSkins();
-  updatePlayingKeyframeHighlight();
-  beatGridLastPreviewBeat = target;
+function seekRunningPlaybackToBeat(...args){
+  return timelineTransportController.seekRunningPlaybackToBeat(...args);
 }
 
-function renderGrooveLoopGhosts(){
-  const host = document.getElementById("grooveSeqList");
-  if (!host || grooveSequence.length === 0) return;
-  host.querySelectorAll(".beatGridGhost").forEach(el => el.remove());
-  const seqTotal = grooveSeqTotalBeats();
-  const total = beatGridPoseTotalBeats();
-  if (!(seqTotal > 0 && total > seqTotal)) return;
-  const libItems = grooveLibCtrl ? grooveLibCtrl.getItems() : [];
-  for (let cycleStart = seqTotal; cycleStart < total; cycleStart += seqTotal){
-    let local = 0;
-    grooveSequence.forEach((entry) => {
-      const dur = Math.max(0, Number(entry.beats) || 0);
-      if (dur <= 0 || cycleStart + local >= total) { local += dur; return; }
-      const visibleDur = Math.min(dur, total - (cycleStart + local));
-      const ghost = document.createElement("div");
-      ghost.className = "beatGridGhost";
-      ghost.dataset.grooveIndex = String(grooveSequence.indexOf(entry));
-      ghost.dataset.startBeat = String(cycleStart + local);
-      ghost.dataset.endBeat = String(cycleStart + local + visibleDur);
-      ghost.style.left = `${(cycleStart + local) * BEAT_GRID_PX_PER_BEAT}px`;
-      ghost.style.width = `${Math.max(2, visibleDur * BEAT_GRID_PX_PER_BEAT - 2)}px`;
-      const item = libItems.find(it => it.id === entry.libId);
-      ghost.textContent = item ? `↻ ${item.name}` : "↻ ⚠";
-      host.appendChild(ghost);
-      local += dur;
-    });
-  }
+function renderGrooveLoopGhosts(...args){
+  return beatGridController.renderGrooveLoopGhosts(...args);
 }
 
-function scrollKfChipIntoView(i){
-  const chip = kfChipEls[i];
-  if (chip) chip.scrollIntoView({ behavior:"smooth", inline:"nearest", block:"nearest" });
+function scrollKfChipIntoView(...args){
+  return beatGridController.scrollKfChipIntoView(...args);
 }
 
 // BG-3.2：POSE / GROOVE 共用拖曳排序 UX。
 // 拖曳期間只顯示「預計插入位置」，真正陣列 reorder 只在 drop 時執行，因此不會邊拖邊重建 DOM。
 let timelineReorderDrag = null; // BG-6: supports single item or selected group
-function timelineReorderItems(kind){ return kind === "pose" ? keyframes : grooveSequence; }
-function timelineReorderChips(kind){ return kind === "pose" ? kfChipEls : grooveSeqChipEls; }
-function timelineReorderLabel(kind){ return kind === "pose" ? "POSE" : "GROOVE"; }
-function timelineSelectedSet(kind){ return kind === "pose" ? kfMultiSelected : grooveMultiSelected; }
-function ensureTimelineDropIndicator(host){
-  let el = host.querySelector(":scope > .timelineDropIndicator");
-  if (!el){ el=document.createElement("div"); el.className="timelineDropIndicator"; host.appendChild(el); }
-  return el;
+function timelineReorderItems(...args){
+  return timelineReorderController.timelineReorderItems(...args);
 }
-function clearTimelineReorderVisuals(){
-  document.querySelectorAll(".timelineDropIndicator").forEach(el=>el.remove());
-  document.querySelectorAll(".kfChip.dragOver, .grooveSeqChip.dragOver").forEach(el=>el.classList.remove("dragOver"));
-  document.querySelectorAll(".kfChip.groupDragging, .grooveSeqChip.groupDragging").forEach(el=>el.classList.remove("groupDragging"));
-  const hud=document.getElementById("timelineDragHud"); if (hud) hud.style.display="none";
+function timelineReorderChips(...args){
+  return timelineReorderController.timelineReorderChips(...args);
 }
-function beginTimelineReorderDrag(kind, sourceIndex, chip, ev){
-  if (kfPlaying){ ev.preventDefault(); return false; }
-  const host=document.getElementById(kind === "pose" ? "kfList" : "grooveSeqList");
-  if (!host) return false;
-  let sourceIndices=[sourceIndex];
-  if (kfMultiSelectMode){
-    const set=timelineSelectedSet(kind);
-    if (!set.has(sourceIndex)){ ev.preventDefault(); return false; }
-    sourceIndices=Array.from(set).filter(i=>timelineReorderItems(kind)[i]).sort((a,b)=>a-b);
-    if (!sourceIndices.length){ ev.preventDefault(); return false; }
-  }
-  timelineReorderDrag={kind, sourceIndex, sourceIndices, boundary:sourceIndex, finalIndex:sourceIndex, chip, host};
-  sourceIndices.forEach(i=>{ const el=timelineReorderChips(kind)[i]; if(el) el.classList.add("groupDragging"); });
-  chip.classList.add("dragging");
-  ev.dataTransfer.effectAllowed="move";
-  try{ ev.dataTransfer.setData("text/plain", `${kind}:${sourceIndices.join(",")}`); }catch(_){}
-  return true;
+function timelineReorderLabel(...args){
+  return timelineReorderController.timelineReorderLabel(...args);
 }
-function calcTimelineReorderTarget(kind, clientX, host){
-  const items=timelineReorderItems(kind), chips=timelineReorderChips(kind), rect=host.getBoundingClientRect();
-  const x=clientX-rect.left;
-  let boundary=items.length;
-  for(let i=0;i<items.length;i++){
-    const chip=chips[i]; if(!chip) continue;
-    const left=parseFloat(chip.style.left)||0, width=parseFloat(chip.style.width)||chip.offsetWidth||0;
-    if(x < left + width/2){ boundary=i; break; }
-  }
-  const srcs=timelineReorderDrag?.sourceIndices || [timelineReorderDrag?.sourceIndex ?? -1];
-  const removedBefore=srcs.filter(i=>i<boundary).length;
-  const remainingCount=Math.max(0, items.length-srcs.length);
-  let finalIndex=Math.max(0, Math.min(remainingCount, boundary-removedBefore));
-  let indicatorX=0;
-  if(boundary<items.length && chips[boundary]) indicatorX=parseFloat(chips[boundary].style.left)||0;
-  else if(items.length && chips[items.length-1]){
-    const last=chips[items.length-1]; indicatorX=(parseFloat(last.style.left)||0)+(parseFloat(last.style.width)||last.offsetWidth||0);
-  }
-  return {boundary, finalIndex, indicatorX};
+function timelineSelectedSet(...args){
+  return timelineReorderController.timelineSelectedSet(...args);
 }
-function isGroupMoveNoop(sourceIndices, finalIndex){
-  if(!sourceIndices.length) return true;
-  const sorted=sourceIndices.slice().sort((a,b)=>a-b);
-  if(!sorted.every((v,i)=>v===sorted[0]+i)) return false;
-  return finalIndex===sorted[0];
+function ensureTimelineDropIndicator(...args){
+  return timelineReorderController.ensureTimelineDropIndicator(...args);
 }
-function updateTimelineReorderDrag(kind, ev, host){
-  if(!timelineReorderDrag || timelineReorderDrag.kind!==kind) return;
-  ev.preventDefault(); ev.dataTransfer.dropEffect="move";
-  const t=calcTimelineReorderTarget(kind,ev.clientX,host);
-  timelineReorderDrag.boundary=t.boundary; timelineReorderDrag.finalIndex=t.finalIndex;
-  ensureTimelineDropIndicator(host).style.left=`${t.indicatorX}px`;
-  const chips=timelineReorderChips(kind); chips.forEach(el=>{if(el)el.classList.remove("dragOver")});
-  const markIndex=t.boundary<chips.length?t.boundary:chips.length-1;
-  if(markIndex>=0 && chips[markIndex] && !(timelineReorderDrag.sourceIndices||[]).includes(markIndex)) chips[markIndex].classList.add("dragOver");
-  const hud=document.getElementById("timelineDragHud");
-  if(hud){
-    const items=timelineReorderItems(kind), count=timelineReorderDrag.sourceIndices.length;
-    let where=t.boundary>=items.length?"插入尾端":`插入 ${kind==="pose"?`F${t.boundary+1}`:`第${t.boundary+1}段`} 前`;
-    const moved=!isGroupMoveNoop(timelineReorderDrag.sourceIndices,t.finalIndex);
-    hud.textContent=`${timelineReorderLabel(kind)}${count>1?` ×${count}`:""} · ${where} · ${moved?`→ 第${t.finalIndex+1}格`:"保持原位"}`;
-    hud.style.left=`${Math.min(window.innerWidth-280,ev.clientX+12)}px`; hud.style.top=`${Math.max(6,ev.clientY-30)}px`; hud.style.display="block";
-  }
+function clearTimelineReorderVisuals(...args){
+  return timelineReorderController.clearTimelineReorderVisuals(...args);
 }
-function moveTimelineGroup(kind, sourceIndices, finalIndex){
-  const items=timelineReorderItems(kind), sorted=sourceIndices.slice().sort((a,b)=>a-b);
-  if(!sorted.length || isGroupMoveNoop(sorted,finalIndex)) return false;
-  const selectedSet=new Set(sorted), moved=sorted.map(i=>items[i]), remaining=items.filter((_,i)=>!selectedSet.has(i));
-  const at=Math.max(0,Math.min(remaining.length,finalIndex));
-  const next=[...remaining.slice(0,at),...moved,...remaining.slice(at)];
-  if(kind==="pose") keyframes=next; else grooveSequence=next;
-  const newSet=new Set(moved.map((_,j)=>at+j));
-  if(kind==="pose"){
-    kfMultiSelected=newSet; kfEditingIndex=-1; renderKeyframeChips();
-  }else{
-    grooveMultiSelected=newSet; grooveSeqSelectedIndex=-1; renderGrooveSeqChips(); renderKeyframeChips();
-  }
-  updateKfMultiSelectBar(); scheduleAutoSave(); return true;
+function beginTimelineReorderDrag(...args){
+  return timelineReorderController.beginTimelineReorderDrag(...args);
 }
-function dropTimelineReorder(kind,ev,host){
-  if(!timelineReorderDrag || timelineReorderDrag.kind!==kind) return;
-  ev.preventDefault();
-  const t=calcTimelineReorderTarget(kind,ev.clientX,host), srcs=timelineReorderDrag.sourceIndices.slice();
-  const draggedChip=timelineReorderDrag.chip; if(draggedChip)draggedChip.classList.remove("dragging");
-  clearTimelineReorderVisuals(); timelineReorderDrag=null;
-  let changed=false;
-  if(srcs.length>1 || kfMultiSelectMode) changed=moveTimelineGroup(kind,srcs,t.finalIndex);
-  else{
-    const from=srcs[0], to=t.finalIndex;
-    if(from!==to){ if(kind==="pose") reorderKeyframe(from,to); else reorderGrooveSeqEntry(from,to); changed=true; }
-  }
-  if(changed) pushHistory();
+function calcTimelineReorderTarget(...args){
+  return timelineReorderController.calcTimelineReorderTarget(...args);
 }
-function endTimelineReorderDrag(kind){
-  if(!timelineReorderDrag || timelineReorderDrag.kind!==kind) return;
-  const chip=timelineReorderDrag.chip; if(chip)chip.classList.remove("dragging");
-  clearTimelineReorderVisuals(); timelineReorderDrag=null;
+function isGroupMoveNoop(...args){
+  return timelineReorderController.isGroupMoveNoop(...args);
 }
-function bindTimelineReorderHost(kind,host){
-  if(!host)return; host.ondragover=(ev)=>updateTimelineReorderDrag(kind,ev,host); host.ondrop=(ev)=>dropTimelineReorder(kind,ev,host);
+function updateTimelineReorderDrag(...args){
+  return timelineReorderController.updateTimelineReorderDrag(...args);
+}
+function moveTimelineGroup(...args){
+  return timelineReorderController.moveTimelineGroup(...args);
+}
+function dropTimelineReorder(...args){
+  return timelineReorderController.dropTimelineReorder(...args);
+}
+function endTimelineReorderDrag(...args){
+  return timelineReorderController.endTimelineReorderDrag(...args);
+}
+function bindTimelineReorderHost(...args){
+  return timelineReorderController.bindTimelineReorderHost(...args);
 }
 
-function renderKeyframeChips(){
-  timelineEditor.render();
+function renderKeyframeChips(...args){
+  return beatGridController.renderKeyframeChips(...args);
 }
 
 // 播放時每幀呼叫：只切換既有 chip 節點的 "playing" class，不重建 DOM、不重新產生 SVG。
 // 跟 highlightOverviewRows() 是同一種「結構只建一次、逐幀只動 class」的做法。
-function updatePlayingKeyframeHighlight(){
-  timelineEditor.updateHighlight();
+function updatePlayingKeyframeHighlight(...args){
+  return beatGridController.updatePlayingKeyframeHighlight(...args);
 }
 
 // BG-2：目前 Pose 在共用 Beat 軸上的連續位置。
 // 不使用 grooveStartTime 反推，因為 Pose 每一段可以有不同 beats；直接沿用播放核心的 kfIndex/kfStartTime，
 // 保證 Playhead 與畫面正在 Slerp 的姿勢是同一個進度。
-function getBeatGridPosePlayheadBeat(now){
-  if(kfPlaying&&waveClips.length)return Math.min(wavePlaybackEnd(),Math.max(0,(now-grooveStartTime)*bpm/60000));
-  if (!kfPlaying || keyframes.length < 2) return 0;
-  const frame = keyframes[kfIndex];
-  if (!frame) return 0;
-  const segBeats = Math.max(0.0001, Number(frame.beats || 1));
-  const segMs = (60000 / bpm) * segBeats;
-  const progress = Math.max(0, Math.min(1, (now - kfStartTime) / segMs));
-  return keyframeStartBeat(kfIndex) + segBeats * progress;
+function getBeatGridPosePlayheadBeat(...args){
+  return beatGridController.getBeatGridPosePlayheadBeat(...args);
 }
 
-function getBeatGridGroovePlaybackInfo(now){
-  if (!kfPlaying || grooveSequence.length === 0) return null;
-  const beatMs = 60000 / bpm;
-  const beatsElapsedTotal = Math.max(0, (now - grooveStartTime) / beatMs);
-  const seg = getGrooveActiveSegment(beatsElapsedTotal);
-  if (!seg) return null;
-  return { beatsElapsedTotal, seg };
+function getBeatGridGroovePlaybackInfo(...args){
+  return beatGridController.getBeatGridGroovePlaybackInfo(...args);
 }
 
-function updateBeatGridGrooveHighlight(now, poseBeat){
-  const info = getBeatGridGroovePlaybackInfo(now);
-  const activeIndex = info ? info.seg.segIndex : -1;
-  for (let i = 0; i < grooveSeqChipEls.length; i++){
-    const chip = grooveSeqChipEls[i];
-    if (chip) chip.classList.toggle("activeSeg", kfPlaying && i === activeIndex);
-  }
-
-  // Ghost 代表第一輪之後在「本次 Pose 時間軸」上的重複區段。
-  // 只高亮 Playhead 當下實際穿過的那一個 ghost，避免同一律動在整條軌上全部一起發亮。
-  const host = document.getElementById("grooveSeqList");
-  if (!host) return;
-  host.querySelectorAll(".beatGridGhost").forEach(ghost => {
-    const idx = Number(ghost.dataset.grooveIndex);
-    const a = Number(ghost.dataset.startBeat);
-    const b = Number(ghost.dataset.endBeat);
-    const underPlayhead = poseBeat >= a - 1e-6 && poseBeat < b - 1e-6;
-    ghost.classList.toggle("activeSeg", kfPlaying && idx === activeIndex && underPlayhead);
-  });
+function updateBeatGridGrooveHighlight(...args){
+  return beatGridController.updateBeatGridGrooveHighlight(...args);
 }
 
-function autoScrollBeatGridToPlayhead(playheadX){
-  const scroller = document.getElementById("beatGridScroll");
-  if (!scroller || scroller.clientWidth <= 0) return;
-  const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-  if (maxScroll <= 0) return;
-
-  // Sticky 軌道標籤會佔掉左側固定標籤欄；把 Playhead 維持在可編輯區約 20%~78% 之間。
-  const safeLeft = scroller.scrollLeft + BEAT_GRID_LABEL_W + Math.min(70, scroller.clientWidth * 0.12);
-  const safeRight = scroller.scrollLeft + scroller.clientWidth - Math.min(120, scroller.clientWidth * 0.22);
-  let next = scroller.scrollLeft;
-  if (playheadX > safeRight){
-    next = playheadX - scroller.clientWidth * 0.72;
-  } else if (playheadX < safeLeft){
-    next = playheadX - BEAT_GRID_LABEL_W - scroller.clientWidth * 0.12;
-  }
-  next = Math.max(0, Math.min(maxScroll, next));
-  if (Math.abs(next - scroller.scrollLeft) > 0.5) scroller.scrollLeft = next;
+function autoScrollBeatGridToPlayhead(...args){
+  return beatGridController.autoScrollBeatGridToPlayhead(...args);
 }
 
-function updateBeatGridPlaybackUI(now){
-  const playhead = document.getElementById("beatGridPlayhead");
-  const label = document.getElementById("beatGridPlayheadLabel");
-  const scroller = document.getElementById("beatGridScroll");
-  if (!playhead) return;
-  if (!kfPlaying){
-    playhead.classList.remove("visible");
-    if (scroller) scroller.classList.remove("playing");
-    updateBeatGridGrooveHighlight(now || performance.now(), -1);
-    return;
-  }
-
-  const poseBeat = getBeatGridPosePlayheadBeat(now);
-  const x = BEAT_GRID_LABEL_W + poseBeat * BEAT_GRID_PX_PER_BEAT;
-  playhead.style.left = `${x}px`;
-  playhead.classList.add("visible");
-  if (label) label.textContent = `Beat ${(poseBeat + 1).toFixed(2)}`;
-  if (scroller) scroller.classList.add("playing");
-  updateBeatGridGrooveHighlight(now, poseBeat);
-  autoScrollBeatGridToPlayhead(x);
+function updateBeatGridPlaybackUI(...args){
+  return beatGridController.updateBeatGridPlaybackUI(...args);
 }
 
-function resetBeatGridPlaybackUI(){
-  const playhead = document.getElementById("beatGridPlayhead");
-  const scroller = document.getElementById("beatGridScroll");
-  if (playhead){ playhead.classList.remove("visible"); playhead.style.left = `${BEAT_GRID_LABEL_W}px`; }
-  if (scroller) scroller.classList.remove("playing");
-  for (const chip of grooveSeqChipEls) if (chip) chip.classList.remove("activeSeg");
-  const host = document.getElementById("grooveSeqList");
-  if (host) host.querySelectorAll(".beatGridGhost.activeSeg").forEach(el => el.classList.remove("activeSeg"));
+function resetBeatGridPlaybackUI(...args){
+  return beatGridController.resetBeatGridPlaybackUI(...args);
 }
 
 // 拍點清單改成單列橫向排列後，一般滑鼠的垂直滾輪天生滾不動橫向內容（要按住 Shift 才行，
@@ -4756,198 +3216,47 @@ function resetBeatGridPlaybackUI(){
 // 觸控板本來就常支援直接橫向滑動（deltaX），那種情況交給瀏覽器原生處理，不要搶著轉換。
 let beatGridLastPreviewBeat = 0;
 
-function getBeatGridCurrentNavigationBeat(){
-  if (kfPlaying) return getBeatGridPosePlayheadBeat(performance.now());
-  const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && audioEl.src && Number.isFinite(audioEl.currentTime)) return clampNum(audioTimeToTimelineBeat(audioEl.currentTime), 0, beatGridTimelineBeats());
-  return clampNum(beatGridLastPreviewBeat || 0, 0, beatGridTimelineBeats());
+function getBeatGridCurrentNavigationBeat(...args){
+  return beatGridController.getBeatGridCurrentNavigationBeat(...args);
 }
 
-function scrollBeatGridBeatToCenter(beat){
-  const scroller = document.getElementById("beatGridScroll");
-  if (!scroller) return;
-  const x = BEAT_GRID_LABEL_W + clampNum(beat, 0, beatGridTimelineBeats()) * BEAT_GRID_PX_PER_BEAT;
-  const desired = x - scroller.clientWidth * 0.5;
-  const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-  scroller.scrollLeft = clampNum(desired, 0, maxScroll);
+function scrollBeatGridBeatToCenter(...args){
+  return beatGridController.scrollBeatGridBeatToCenter(...args);
 }
 
-function navigateBeatGridToBeat(beat){
-  if (kfPlaying) return;
-  const target = clampNum(beat, 0, beatGridTimelineBeats());
-  beatGridLastPreviewBeat = target;
-  applyTimelinePreviewAtElapsed(target * 60000 / bpm);
-  const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl && audioEl.src && waveform.duration > 0){
-    try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(target), 0, waveform.duration); } catch (_) {}
-  }
-  showBeatGridScrubPlayhead(target);
-  scrollBeatGridBeatToCenter(target);
+function navigateBeatGridToBeat(...args){
+  return beatGridController.navigateBeatGridToBeat(...args);
 }
 
-function centerBeatGridPlayhead(){
-  scrollBeatGridBeatToCenter(getBeatGridCurrentNavigationBeat());
+function centerBeatGridPlayhead(...args){
+  return beatGridController.centerBeatGridPlayhead(...args);
 }
 
-function fitBeatGridTimeline(){
-  const scroller = document.getElementById("beatGridScroll");
-  if (!scroller) return;
-  const beats = Math.max(0.25, beatGridTimelineBeats());
-  const usable = Math.max(120, scroller.clientWidth - BEAT_GRID_LABEL_W - 8);
-  const px = clampNum(usable / beats, 18, 144);
-  const old = BEAT_GRID_PX_PER_BEAT;
-  BEAT_GRID_PX_PER_BEAT = px;
-  syncBeatGridZoomSelect(px, true);
-  refreshBeatGridZoomLayout();
-  scroller.scrollLeft = 0;
+function fitBeatGridTimeline(...args){
+  return beatGridController.fitBeatGridTimeline(...args);
 }
 
-function syncBeatGridZoomSelect(px = BEAT_GRID_PX_PER_BEAT, custom = false){
-  const select = document.getElementById("beatGridZoomSelect");
-  if (!select) return;
-  select.querySelectorAll('option[data-custom-zoom="1"]').forEach(o => o.remove());
-  const exact = Array.from(select.options).find(o => Math.abs(Number(o.value) - px) < 0.01);
-  if (exact){ select.value = exact.value; return; }
-  const opt = document.createElement("option");
-  opt.dataset.customZoom = "1";
-  opt.value = String(px);
-  opt.textContent = custom ? `Fit ${Math.round(px / 72 * 100)}%` : `${Math.round(px / 72 * 100)}%`;
-  select.appendChild(opt);
-  select.value = opt.value;
+function syncBeatGridZoomSelect(...args){
+  return beatGridController.syncBeatGridZoomSelect(...args);
 }
 
-function initKfListWheelScroll(){
-  const list = document.getElementById("beatGridScroll");
-  if (!list) return;
-  list.addEventListener("wheel", (e) => {
-    // BG-4.2：Ctrl/Cmd + 滾輪縮放整條時間軸，並以滑鼠所在 Beat 當縮放錨點。
-    if (e.ctrlKey || e.metaKey){
-      const rect = list.getBoundingClientRect();
-      const anchorX = e.clientX - rect.left;
-      stepBeatGridZoom(e.deltaY < 0 ? 1 : -1, anchorX);
-      e.preventDefault();
-      return;
-    }
-    if (e.shiftKey){
-      list.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      e.preventDefault();
-      return;
-    }
-    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-    list.scrollLeft += e.deltaY;
-    e.preventDefault();
-  }, { passive:false });
+function initKfListWheelScroll(...args){
+  return beatGridController.initKfListWheelScroll(...args);
 }
 
 // 拍點清單鍵盤快捷鍵：只在「時間軸」分頁作用中、且沒有正在某個輸入框打字時生效，
 // 避免跟其他分頁操作或打字輸入互相搶按鍵。播放中也不接管，避免跟播放狀態衝突。
 // ←/→：切換選取上一拍/下一拍　Delete/Backspace：刪除目前選取的 POSE 或 GROOVE　Ctrl/Cmd+D：複製選取中的拍點
-function bindKfKeyboardShortcuts(){
-  window.addEventListener("keydown", (e) => {
-    const t = e.target;
-    const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
-    if (typing || !isKeyframeTabActive()) return;
-    if (e.key === "Escape" && hasBeatGridRange()){ e.preventDefault(); clearBeatGridRange(); return; }
-    if (!kfPlaying && e.key === "Home"){ e.preventDefault(); navigateBeatGridToBeat(0); return; }
-    if (!kfPlaying && e.key === "End"){ e.preventDefault(); navigateBeatGridToBeat(beatGridTimelineBeats()); return; }
-    if (!kfPlaying && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "f"){ e.preventDefault(); fitBeatGridTimeline(); return; }
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "c"){ e.preventDefault(); centerBeatGridPlayhead(); return; }
-    if (kfPlaying) return;
-    if(waveClipSelected){
-      if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteWaveClip();return;}
-      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){e.preventDefault();duplicateWaveClip();return;}
-    }
-
-    // 多選模式下，←/→切換選取跟 Ctrl+D複製都沒有明確意義（多選沒有「唯一選取中」的拍點），
-    // 只保留 Delete/Backspace，行為改成刪除目前已勾選的全部拍點。
-    if (kfMultiSelectMode){
-      if (e.key === "Delete" || e.key === "Backspace"){
-        if (kfMultiSelected.size === 0 && grooveMultiSelected.size === 0) return;
-        e.preventDefault();
-        deleteTimelineSelection({confirmDelete:false, push:true});
-      }
-      return;
-    }
-
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
-      if (keyframes.length === 0) return;
-      e.preventDefault();
-      let next = kfEditingIndex < 0 ? 0 : kfEditingIndex + (e.key === "ArrowRight" ? 1 : -1);
-      next = Math.max(0, Math.min(keyframes.length - 1, next));
-      selectKeyframe(next);
-    } else if (e.key === "Delete" || e.key === "Backspace"){
-      if (grooveSeqSelectedIndex >= 0){
-        e.preventDefault();
-        removeGrooveSeqEntry(grooveSeqSelectedIndex);
-        pushHistory();
-        return;
-      }
-      if (kfEditingIndex < 0) return;
-      e.preventDefault();
-      deleteKeyframe(kfEditingIndex);
-      pushHistory();
-    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d"){
-      if (kfEditingIndex < 0) return;
-      e.preventDefault();
-      duplicateKeyframe(kfEditingIndex);
-      pushHistory();
-    }
-  });
+function bindKfKeyboardShortcuts(...args){
+  return timelineToolbarController.bindKfKeyboardShortcuts(...args);
 }
 
-function toggleKeyframePlayback(){
-  tgCancelPreview();
-  stopWave();
-  stopLAPath();
-  if (kfPlaying){ stopKeyframePlayback(); return; }
-  if (keyframes.length < 2 && !waveClips.length){
-    alert("至少需要 2 個拍點才能播放（目前只有 " + keyframes.length + " 個）");
-    return;
-  }
-  // (預設循環功能已移除，原本這裡用來避免跟拍點播放同時搶骨骼的判斷已不再需要)
-  deselectJoint();
-  transformControls.enabled = false;
-  kfPlaying = true;
-  const playStartBeat = beatGridRangeLoop && hasBeatGridRange() ? beatGridRangeStart : 0;
-  const playStartNow = performance.now();
-  const startLoc = locateKeyframeSegmentAtBeat(playStartBeat);
-  kfIndex = startLoc.index;
-  kfStartTime = playStartNow - startLoc.localBeat * (60000 / bpm);
-  grooveStartTime = playStartNow - playStartBeat * (60000 / bpm); // Range Loop 從中段開始時，Groove 相位仍與全域 Beat 軸一致
-  grooveSquatAnchored = false;   // 重新對齊蹲彈的腳掌原地錨點，避免沿用上次播放結束時的舊姿勢
-  resetGrooveXfadeState();       // 清掉上次播放殘留的段落切換狀態，避免這次重新開始時誤觸一次不該有的交叉淡化
-  resetSquatXfadeState();
-  if (playStartBeat > 0){
-    const audioEl = document.getElementById("kfAudioEl");
-    if (audioEl && audioEl.src){
-      try { audioEl.currentTime = clampNum(timelineBeatToAudioTime(playStartBeat), 0, waveform.duration || Number.MAX_SAFE_INTEGER); } catch (_) {}
-      audioEl.play().catch((e) => console.warn("音樂播放失敗（可能需要先跟頁面互動一次）：", e));
-    }
-  } else {
-    playKfMusicIfLoaded();
-  }
-  document.getElementById("kfPlayBtn").classList.add("playing");
-  document.getElementById("kfPlayBtn").textContent = "■ 停止";
-  updateOnionSkins(); // 立刻依 kfIndex=0 顯示第一段過渡的殘影，不用等到跨到下一拍才出現
-  const beatGridScroll = document.getElementById("beatGridScroll");
-  if (beatGridScroll){
-    if (playStartBeat > 0) scrollBeatGridBeatToCenter(playStartBeat);
-    else beatGridScroll.scrollLeft = 0;
-  }
-  updatePlayingKeyframeHighlight();
-  updateBeatGridPlaybackUI(kfStartTime);
+function toggleKeyframePlayback(...args){
+  return timelineTransportController.toggleKeyframePlayback(...args);
 }
 
-function stopKeyframePlayback(){
-  if(waveClips.length){for(const k of ALL_JOINT_KEYS)if(bones[k])syncWaveTrackTarget(k);}
-  waveTrackActive=false;
-  kfPlaying = false;
-  transformControls.enabled = true;
-  pauseKfMusic();
-  document.getElementById("kfPlayBtn").classList.remove("playing");
-  document.getElementById("kfPlayBtn").textContent = "▶ 播放";
-  renderKeyframeChips();
-  resetBeatGridPlaybackUI();
+function stopKeyframePlayback(...args){
+  return timelineTransportController.stopKeyframePlayback(...args);
 }
 
 // ---- 時間軸配樂（音樂試聽）----
@@ -5064,93 +3373,24 @@ function drawKfWaveform(){
   waveformView.draw();
 }
 
-function applyTimelinePreviewAtElapsed(elapsedMs){
-  if(waveClips.length){
-    if(waveRun)stopWave();
-    const oldIndex=kfIndex,beat=Math.max(0,elapsedMs*bpm/60000);
-    waveBaseAtBeat(beat);applyWaveTrackAtBeat(beat);
-    for(const k of ALL_JOINT_KEYS)syncWaveTrackTarget(k);
-    kfIndex=oldIndex;return;
-  }
-  if(waveRun)stopWave();
-  if (keyframes.length === 0) return;
-  if (keyframes.length === 1 || elapsedMs <= 0){
-    applyPose(keyframes[0].angles);
-    applyBodyTransform(keyframes[0].body);
-    return;
-  }
-  let acc = 0;
-  for (let i = 0; i < keyframes.length - 1; i++){
-    const beats = keyframes[i].beats || 1;
-    const segMs = (60000 / bpm) * beats;
-    const isLast = i === keyframes.length - 2;
-    if (elapsedMs <= acc + segMs || isLast){
-      const rawT = segMs > 0 ? (elapsedMs - acc) / segMs : 1;
-      const t = clampNum(rawT, 0, 1);
-      const easeFn = EASINGS[keyframes[i].easing] || EASINGS.linear;
-      applyKeyframeFramePose(keyframes[i], keyframes[i + 1], easeFn(t));
-      if(keyframes[i].waveBake){for(const k of ALL_JOINT_KEYS)syncWaveTrackTarget(k);}
-      return;
-    }
-    acc += segMs;
-  }
+function applyTimelinePreviewAtElapsed(...args){
+  return timelineTransportController.applyTimelinePreviewAtElapsed(...args);
 }
 
-function showBeatGridScrubPlayhead(beat){
-  beatGridLastPreviewBeat = clampNum(beat, 0, beatGridTimelineBeats());
-  const playhead = document.getElementById("beatGridPlayhead");
-  const label = document.getElementById("beatGridPlayheadLabel");
-  if (!playhead) return;
-  const x = BEAT_GRID_LABEL_W + beat * BEAT_GRID_PX_PER_BEAT;
-  playhead.style.left = `${x}px`;
-  playhead.classList.add("visible");
-  if (label) label.textContent = `Beat ${(beat + 1).toFixed(2)}`;
-  autoScrollBeatGridToPlayhead(x);
+function showBeatGridScrubPlayhead(...args){
+  return timelineTransportController.showBeatGridScrubPlayhead(...args);
 }
 
-function seekKfTimelineFromClientX(clientX){
-  const track = document.getElementById("beatGridWaveformTrack");
-  if (!track || !(waveform.duration > 0)) return;
-  const rect = track.getBoundingClientRect();
-  const beat = clampNum((clientX - rect.left) / BEAT_GRID_PX_PER_BEAT, 0, beatGridTimelineBeats());
-  const newTime = clampNum(timelineBeatToAudioTime(beat), 0, waveform.duration);
-  const audioEl = document.getElementById("kfAudioEl");
-  if (audioEl) audioEl.currentTime = newTime;
-  applyTimelinePreviewAtElapsed(beat * 60000 / bpm);
-  showBeatGridScrubPlayhead(beat);
+function seekKfTimelineFromClientX(...args){
+  return timelineTransportController.seekKfTimelineFromClientX(...args);
 }
 
-function bindKfWaveformScrubbing(){
-  const canvas = document.getElementById("kfWaveformCanvas");
-  if (!canvas) return;
-  canvas.addEventListener("pointerdown", (e) => {
-    if (!(waveform.duration > 0)) return;
-    if (kfPlaying) stopKeyframePlayback();
-    kfScrubDragging = true;
-    canvas.setPointerCapture(e.pointerId);
-    seekKfTimelineFromClientX(e.clientX);
-    e.preventDefault();
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (!kfScrubDragging) return;
-    seekKfTimelineFromClientX(e.clientX);
-  });
-  const endDrag = (e) => {
-    if (!kfScrubDragging) return;
-    kfScrubDragging = false;
-    try { if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-  };
-  canvas.addEventListener("pointerup", endDrag);
-  canvas.addEventListener("pointercancel", endDrag);
+function bindKfWaveformScrubbing(...args){
+  return timelineTransportController.bindKfWaveformScrubbing(...args);
 }
 
-function updateBeatGridMusicPreviewPlayhead(){
-  if (kfPlaying || kfScrubDragging) return;
-  const audioEl = document.getElementById("kfAudioEl");
-  if (!audioEl || !audioEl.src) return;
-  const beat = audioTimeToTimelineBeat(audioEl.currentTime || 0);
-  if (beat < 0 || beat > beatGridTimelineBeats()) return;
-  if (!audioEl.paused) showBeatGridScrubPlayhead(beat);
+function updateBeatGridMusicPreviewPlayhead(...args){
+  return timelineTransportController.updateBeatGridMusicPreviewPlayhead(...args);
 }
 
 // ---- 軌跡播放時即時覆蓋（階段二：曲線播放時真的平滑，不是靠取樣點密度逼近）----
@@ -5181,63 +3421,26 @@ function applyTrajOverridesDuringPlayback(...args){
 
 // 拍點播放時最熱的路徑：每幀都要跑過全部關節key（body+finger共約50個），逐key slerp。
 // qa/qb 需要同時存在才能做 slerp，所以要用兩個獨立的暫存 Quaternion（不能共用同一個）。
-const _kfQA = new THREE.Quaternion();
-const _kfQB = new THREE.Quaternion();
-const _kfQResult = new THREE.Quaternion();
-const _kfBodyPosA = new THREE.Vector3();
-const _kfBodyPosB = new THREE.Vector3();
-const _kfBodyQA = new THREE.Quaternion();
-const _kfBodyQB = new THREE.Quaternion();
+
+
+
+
+
+
+
 // 純套用函式：把 frameA→frameB 之間、進度 et（已套過 easing）的內插姿勢套到骨架上。
 // 不碰 kfIndex/kfStartTime 這些「播放狀態」，所以拍點播放（updateKeyframePlayback）跟
 // 拖曳波形游標預覽（applyTimelinePreviewAtElapsed）可以共用同一套內插邏輯，不用寫兩次。
-function applyKeyframeFramePose(frameA, frameB, et){
-  // 這兩個limb的root/mid骨骼改由軌跡即時IK接管，下面的一般角度slerp迴圈要跳過它們
-  const { overrideLimbs, overrideKeys } = collectTrajOverrideKeys(frameA, frameB);
-
-  for (const key of ALL_JOINT_KEYS){
-    if (overrideKeys.has(key)) continue;
-    const bone = bones[key];
-    if (!bone || !restQuat[key]) continue;
-    const anglesA = frameA.angles[key] || [0,0,0];
-    const anglesB = frameB.angles[key] || anglesA;
-    // qa/qb 兩個結果需要同時存在（下面slerp要同時讀兩者），所以各自用獨立的暫存Quaternion，
-    // 不能共用同一個（會互相覆寫）；qResult 再用第三個暫存物件裝 slerp 後的結果。
-    eulerToQuat(anglesA, _kfQA);
-    eulerToQuat(anglesB, _kfQB);
-    const q = _kfQResult.copy(_kfQA).slerp(_kfQB, et); // 四元數球面線性插值：最短路徑、依 Easing 曲線變速
-    bone.quaternion.copy(restQuat[key]).multiply(q);
-  }
-
-  // 身體位置/朝向內插：舊拍點沒有 body 欄位時容錯跳過，身體維持原地不動
-  if (frameA.body && frameB.body){
-    _kfBodyPosA.fromArray(frameA.body.position);
-    _kfBodyPosB.fromArray(frameB.body.position);
-    model.position.lerpVectors(_kfBodyPosA, _kfBodyPosB, et);
-    _kfBodyQA.fromArray(frameA.body.quaternion);
-    _kfBodyQB.fromArray(frameB.body.quaternion);
-    model.quaternion.copy(_kfBodyQA).slerp(_kfBodyQB, et);
-  }
-
-  // ⚠️ 關鍵坑：three.js只在renderer.render()才會重算matrixWorld，上面剛套用的軀幹/身體姿勢
-  // 這時候读 bone.getWorldPosition() 拿到的還是「上一幀」的舊值。若不在這裡手動刷新一次，
-  // 底下算軌跡目標點用的root世界座標會跟這一幀的軀幹動作對不上，產生一幀的滯後感。
-  model.updateMatrixWorld(true);
-
-  if (overrideLimbs.length > 0){
-    applyTrajOverridesDuringPlayback(overrideLimbs, frameA, frameB, et);
-  }
-
-  if(frameA.waveBake){applyBakedWaveFeet(frameA);return new Set(ALL_JOINT_KEYS);}
-  return overrideKeys; // 供呼叫端疊加律動時避開這幾個被軌跡IK接管的關節（見 applyGroove）
+function applyKeyframeFramePose(...args){
+  return poseInterpolatorController.applyKeyframeFramePose(...args);
 }
 
 // 律動模式：在拍點播放的姿勢之上，額外疊加一層隨 BPM 持續振盪的旋轉偏移。
 // 用「post-multiply」的方式疊在 applyKeyframeFramePose 剛算完的 bone.quaternion 之後，
 // 不動 frameA/frameB 存的角度資料本身，所以律動不會被誤存進拍點、也不影響編輯模式。
 // overrideKeys：跳過目前被軌跡IK接管的關節，避免律動的旋轉偏移跟軌跡算出來的姿勢互相打架。
-const _grooveEuler = [0, 0, 0];
-const _grooveQuat = new THREE.Quaternion();
+
+
 
 // ---- 律動序列段落切換的交叉淡化（crossfade）----
 // 段落切換時 localBeats 歸零，若新舊段落對同一關節用不同振幅/軸向/波形，交界處會硬接跳動；
@@ -5245,19 +3448,17 @@ const _grooveQuat = new THREE.Quaternion();
 // 從頭算的值」，用 Slerp 依時間比例混合，過了這段時間就恢復成只算新段落，不佔額外效能。
 // 用四元數 Slerp 而不是直接內插角度數值，是因為新舊兩段可能對同一關節用不同軸向，直接內插
 // 數值在這種情況下沒有意義，Slerp 對任意兩個朝向都能給出平滑的中間路徑。
-const GROOVE_XFADE_BEATS = 0.3; // 交叉淡化視窗長度（拍）：太短看不出效果、太長會讓段落轉換顯得拖泥帶水
-const _grooveXfadeOldQuat = new THREE.Quaternion();
-const _grooveXfadeNewQuat = new THREE.Quaternion();
+ // 交叉淡化視窗長度（拍）：太短看不出效果、太長會讓段落轉換顯得拖泥帶水
+
+
 let grooveLastSegIndex = -1;      // 上一幀算出來是序列的第幾段，用來偵測「這一幀是不是剛切換到新段落」
 let grooveLastSegSnapshot = null; // { keys, paramsFor, localBeats }：切換前那一幀的資料，當作舊段落淡出的起點
 let grooveXfade = null;           // 目前是否處於交叉淡化視窗內：{ switchElapsed, fromKeys, fromParamsFor, fromLocalBeatsAtSwitch }
 
 // 播放/預覽重新開始時呼叫，清掉上面這些跨幀狀態，避免用到「上一次播放到一半」殘留的舊段落資料
 // 導致重新開始的第一瞬間出現一次不該有的交叉淡化（見 toggleKeyframePlayback／律動預覽開關）。
-function resetGrooveXfadeState(){
-  grooveLastSegIndex = -1;
-  grooveLastSegSnapshot = null;
-  grooveXfade = null;
+function resetGrooveXfadeState(...args){
+  return grooveController.resetGrooveXfadeState(...args);
 }
 // startTime 預設用播放拍點的 grooveStartTime；即時預覽呼叫時會傳自己的 groovePreviewStartTime，
 // 兩條時鐘互相獨立，不會因為切換播放/預覽而互相干擾或跳拍。
@@ -5270,141 +3471,19 @@ function resetGrooveXfadeState(){
 // 「律動預覽」呼叫時會傳 false，讓預覽固定只看「節奏與律動」分頁目前手動勾選/調整的設定，不會被
 // 序列蓋掉。理由：預覽的用途是「邊調參數邊看手感」，調的正是這些手動設定，若序列存在時被序列蓋掉，
 // 使用者調滑桿會完全沒有反應（看起來像是壞掉），詳見這個參數新增時修的那個回報。
-function applyGroove(now, overrideKeys, startTime = grooveStartTime, useSequence = true){
-  const beatMs = 60000 / bpm; // 律動節拍固定跟目前 BPM 走，不受個別拍點自訂「拍數」影響，維持一致的律動感
-  const beatsElapsedTotal = (now - startTime) / beatMs;
-  const warmupRamp = grooveWarmupRamp(beatsElapsedTotal); // 只在整段律動剛開始的頭幾拍<1，之後恆為1，見 grooveWarmupRamp 上方註解
-
-  let activeJointKeys, paramsFor, phaseClock;
-  if (useSequence && grooveSequence.length > 0){
-    const seg = getGrooveActiveSegment(beatsElapsedTotal);
-    if (!seg) return; // 序列存在但總拍數算出來是0（理論上不會發生，拍數輸入框最小值是1），防呆保留
-    let resolvedItem = seg.item;
-    if (resolvedItem){
-      lastValidGrooveSeqItem = resolvedItem; // 記住這次成功解析到的項目，供後面段落萬一查無項目時沿用
-    } else {
-      resolvedItem = lastValidGrooveSeqItem; // 這段引用的律動庫項目已被刪除：沿用上一個有效段落的設定，避免播放中途動作瞬間僵直
-    }
-    if (!resolvedItem) return; // 連前面都沒有任何有效段落可沿用（例如序列第一段就是壞的），只好先不套用
-    const data = resolvedItem.data || {};
-    activeJointKeys = Array.isArray(data.jointSet) ? data.jointSet : [];
-    paramsFor = (key) => {
-      const base = GROOVE_PRESETS[key];
-      if (!base) return null;
-      const custom = data.customParams && data.customParams[key];
-      return custom ? Object.assign({}, base, custom) : base;
-    };
-    phaseClock = seg.localBeats; // 拍子相位仍用「目前這一段自己」的 localBeats，只有動作參數沿用舊項目，節奏不會跟著斷掉
-
-    // 偵測是否剛切換到新段落：跟上一幀記的 segIndex 不一樣就代表換了。即使序列循環繞回同一個
-    // libId 也算切換（見 getGrooveActiveSegment 上方註解），因為 localBeats 一樣會歸零。
-    if (grooveLastSegIndex !== -1 && grooveLastSegIndex !== seg.segIndex && grooveLastSegSnapshot){
-      grooveXfade = {
-        switchElapsed: beatsElapsedTotal,
-        fromKeys: grooveLastSegSnapshot.keys,
-        fromParamsFor: grooveLastSegSnapshot.paramsFor,
-        fromLocalBeatsAtSwitch: grooveLastSegSnapshot.localBeats
-      };
-    }
-    grooveLastSegIndex = seg.segIndex;
-    grooveLastSegSnapshot = { keys: activeJointKeys, paramsFor, localBeats: phaseClock };
-  } else {
-    if (grooveJointSet.size === 0) return;
-    activeJointKeys = grooveJointSet;
-    paramsFor = getGrooveParams; // 合併預設值+使用者自訂覆寫（見 getGrooveParams）
-    phaseClock = beatsElapsedTotal;
-    resetGrooveXfadeState(); // 沒有序列、或 useSequence=false（律動預覽）時都沒有「段落」這個概念，不需要交叉淡化，順便清掉殘留狀態
-  }
-
-  // 若正處於交叉淡化視窗內，算出「舊段落淡出權重」與舊段落自己延續下去的拍子時鐘；
-  // 視窗結束後清掉狀態，之後單純只算新段落，跟沒有交叉淡化時完全一樣，不佔額外效能。
-  let xfadeWeight = 0, fromKeys = null, fromParamsFor = null, fromPhaseClock = 0;
-  if (grooveXfade){
-    const elapsedSinceSwitch = beatsElapsedTotal - grooveXfade.switchElapsed;
-    if (elapsedSinceSwitch >= GROOVE_XFADE_BEATS || elapsedSinceSwitch < 0){
-      grooveXfade = null; // elapsedSinceSwitch<0 理論上不會發生（時間不會倒流），防呆順便清掉避免卡住
-    } else {
-      xfadeWeight = 1 - (elapsedSinceSwitch / GROOVE_XFADE_BEATS); // 1→0：舊段落的貢獻度隨時間線性淡出
-      fromKeys = grooveXfade.fromKeys;
-      fromParamsFor = grooveXfade.fromParamsFor;
-      // 延續時鐘：假裝舊段落沒被打斷，讓它的相位順著原本節奏繼續走，這樣「舊段落這一側」完全
-      // 不會有跳動，混合結束時貢獻度自然淡到0，不需要額外處理收尾。
-      fromPhaseClock = grooveXfade.fromLocalBeatsAtSwitch + elapsedSinceSwitch;
-    }
-  }
-
-  const hasFromKeys = xfadeWeight > 0 && fromKeys;
-  const keysToProcess = hasFromKeys ? new Set([...activeJointKeys, ...fromKeys]) : activeJointKeys;
-
-  for (const key of keysToProcess){
-    if (overrideKeys && overrideKeys.has(key)) continue;
-    const bone = bones[key];
-    if (!bone) continue;
-
-    const inNew = Array.isArray(activeJointKeys) ? activeJointKeys.includes(key) : activeJointKeys.has(key);
-    const newPreset = inNew ? paramsFor(key) : null;
-
-    if (!hasFromKeys){
-      // 沒有交叉淡化：完全比照原本行為，單一段落直接算、直接套用。
-      if (!newPreset) continue;
-      const v = grooveWaveValue(newPreset.wave, phaseClock * newPreset.freq + newPreset.phase) * newPreset.amp * warmupRamp;
-      _grooveEuler[0] = newPreset.axis === "x" ? v : 0;
-      _grooveEuler[1] = newPreset.axis === "y" ? v : 0;
-      _grooveEuler[2] = newPreset.axis === "z" ? v : 0;
-      bone.quaternion.multiply(eulerToQuat(_grooveEuler, _grooveQuat));
-      continue;
-    }
-
-    // 交叉淡化中：新／舊段落各自算出一個「這個關節該轉到哪」的四元數（沒有這個關節的那一側視為
-    // 不轉／單位四元數），再用 Slerp 依權重混合。
-    if (newPreset){
-      const v = grooveWaveValue(newPreset.wave, phaseClock * newPreset.freq + newPreset.phase) * newPreset.amp * warmupRamp;
-      _grooveEuler[0] = newPreset.axis === "x" ? v : 0;
-      _grooveEuler[1] = newPreset.axis === "y" ? v : 0;
-      _grooveEuler[2] = newPreset.axis === "z" ? v : 0;
-      eulerToQuat(_grooveEuler, _grooveXfadeNewQuat);
-    } else {
-      _grooveXfadeNewQuat.identity();
-    }
-
-    const oldPreset = fromKeys.includes(key) ? fromParamsFor(key) : null;
-    if (oldPreset){
-      const v = grooveWaveValue(oldPreset.wave, fromPhaseClock * oldPreset.freq + oldPreset.phase) * oldPreset.amp * warmupRamp;
-      _grooveEuler[0] = oldPreset.axis === "x" ? v : 0;
-      _grooveEuler[1] = oldPreset.axis === "y" ? v : 0;
-      _grooveEuler[2] = oldPreset.axis === "z" ? v : 0;
-      eulerToQuat(_grooveEuler, _grooveXfadeOldQuat);
-    } else {
-      _grooveXfadeOldQuat.identity();
-    }
-
-    _grooveQuat.copy(_grooveXfadeOldQuat).slerp(_grooveXfadeNewQuat, 1 - xfadeWeight); // weight從1(剛切換,幾乎全舊值)降到0(全新值)
-    bone.quaternion.multiply(_grooveQuat);
-  }
+function applyGroove(...args){
+  return grooveController.applyGroove(...args);
 }
 
 // 捕捉「目前」雙腳的世界座標/世界旋轉當蹲彈的原地錨點——之後不管身體怎麼上下/左右移動，
 // 兩腿IK都會反算成讓腳掌精準貼住這個點，腳踝則鎖住這個旋轉，模擬「腳掌貼地不動」。
 // 呼叫時機：每次重新開始播放/預覽（grooveSquatAnchored 被重置為 false）的第一幀。
-function captureSquatFootAnchors(){
-  for (const limb of ["rLeg", "lLeg"]){
-    const chain = IK_CHAINS[limb];
-    const footBone = bones[chain.end];
-    if (!footBone) continue;
-    const pos = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    footBone.getWorldPosition(pos);
-    footBone.getWorldQuaternion(quat);
-    grooveSquatFootAnchor[limb] = pos;
-    grooveSquatFootLockedQuat[limb] = quat;
-  }
-  grooveSquatAnchored = true;
+function captureSquatFootAnchors(...args){
+  return squatController.captureSquatFootAnchors(...args);
 }
 
-function resetSquatFootAnchors(){
-  grooveSquatAnchored = false;
-  grooveSquatFootAnchor = { rLeg:null, lLeg:null };
-  grooveSquatFootLockedQuat = { rLeg:null, lLeg:null };
+function resetSquatFootAnchors(...args){
+  return squatController.resetSquatFootAnchors(...args);
 }
 
 // 蹲彈律動：用 Hips 平移驅動身體整體升降/側移，兩腿各自反算IK讓腳掌固定在原地錨點，
@@ -5416,9 +3495,9 @@ function resetSquatFootAnchors(){
 //   全新的內插值，這裡的位移是疊加在「本幀全新的基準」上，不會累積，直接加就好。
 // - 即時預覽（非播放）時傳 true：animate() 的閒置分支不會有任何流程重設 model.position，
 //   所以每幀都要先扣掉上一幀加的量、再加這一幀新算出來的量，否則位移會逐幀疊加一路往下沉。
-const _squatDeltaTmp = new THREE.Vector3();
-const _squatMidPosTmp = new THREE.Vector3();
-const _squatPolePosTmp = new THREE.Vector3();
+
+
+
 
 // 蹲彈律動的交叉淡化狀態，跟 applyGroove 那組（grooveLastSegIndex 等）概念一樣，但蹲彈是獨立
 // 系統，狀態分開存，避免兩邊互相干擾；共用同一個 GROOVE_XFADE_BEATS 視窗長度。
@@ -5426,143 +3505,19 @@ let squatLastSegIndex = -1;      // 上一幀是序列的第幾段
 let squatLastSegSnapshot = null; // { enabled, params, localBeats }：切換前那一幀的蹲彈設定，淡出起點
 let squatXfade = null;           // { switchElapsed, fromEnabled, fromParams, fromLocalBeatsAtSwitch }
 
-function resetSquatXfadeState(){
-  squatLastSegIndex = -1;
-  squatLastSegSnapshot = null;
-  squatXfade = null;
+function resetSquatXfadeState(...args){
+  return squatController.resetSquatXfadeState(...args);
 }
 
 // 依「是否啟用／參數／拍子相位」算出這一幀蹲彈要疊加的位移量（公尺）；沒啟用時回傳 0，
 // 這樣交叉淡化混合「啟用→停用」的段落交界時，停用那一側自然貢獻0，不需要另外特判。
 // 垂直／側向各自用自己的 freq/phase/wave 算相位，可以做出「蹲一次側擺兩次」之類的複合節奏；
 // 函式簽章沒變，applySquatGroove 的交叉淡化混合邏輯完全不用跟著改。
-function computeSquatDelta(enabled, params, phase){
-  if (!enabled || !params) return { dx: 0, dy: 0 };
-  const vertBeats = phase * params.freq + params.phase;
-  const lateralBeats = phase * params.lateralFreq + params.lateralPhase;
-  const vertVal = grooveWaveValue(params.wave, vertBeats);         // bounce：0~1（只往下沉）；sine：-1~1
-  const lateralVal = grooveWaveValue(params.lateralWave, lateralBeats);
-  return {
-    dy: -(params.vertAmp / 100) * vertVal,   // 蹲下＝往下沉，所以取負值；單位換算：UI是公分，場景座標是公尺
-    dx: (params.lateralAmp / 100) * lateralVal
-  };
+function computeSquatDelta(...args){
+  return squatController.computeSquatDelta(...args);
 }
-function applySquatGroove(now, startTime, needsDriftCorrection, overrideKeys, useSequence = true){
-  // legTrajOverridden：這一段轉場的腿正被「軌跡拍點」IK接管（見 collectTrajOverrideKeys）。
-  // 修正：蹲彈律動之前沒檢查這個，會在 applyTrajOverridesDuringPlayback 剛把腳踩上軌跡路徑之後，
-  // 馬上又用另一套IK把腳拉回律動的原地錨點，兩邊每幀互搶同一組骨骼，造成腳/膝蓋抖動、瞬移。
-  const legTrajOverridden = !!overrideKeys && (
-    overrideKeys.has(IK_CHAINS.rLeg.root) || overrideKeys.has(IK_CHAINS.rLeg.mid) ||
-    overrideKeys.has(IK_CHAINS.lLeg.root) || overrideKeys.has(IK_CHAINS.lLeg.mid)
-  );
-
-  // 若有律動序列，蹲彈開關/參數跟單關節振盪（見 applyGroove）一樣改由序列目前解析出的律動庫
-  // 項目決定，覆蓋掉上面手動的 grooveSquatEnabled／grooveSquatCustom；段落切換時的交叉淡化
-  // 邏輯跟 applyGroove 是同一套時間窗（GROOVE_XFADE_BEATS），只是這裡混合的是位移量（dx/dy）
-  // 而不是旋轉四元數，用簡單線性內插就足夠平滑，不需要 Slerp。沒有序列則維持原本行為：
-  // 全域設定＋連續時鐘。useSequence 用途跟 applyGroove 一致：「律動預覽」呼叫時傳 false，
-  // 讓預覽固定只看手動設定，不會被序列蓋掉。
-  const beatMs = 60000 / bpm;
-  const beatsElapsedTotal = (now - startTime) / beatMs;
-  let squatEnabledEff, squatParams, phaseBase;
-  if (useSequence && grooveSequence.length > 0){
-    const seg = getGrooveActiveSegment(beatsElapsedTotal);
-    let data = (seg && seg.item) ? (seg.item.data || {}) : null;
-    if (data){
-      lastValidSquatSeqData = data; // 記住這次成功解析到的蹲彈設定，供後面段落萬一查無項目時沿用
-    } else {
-      data = lastValidSquatSeqData; // 這段引用的律動庫項目已被刪除：沿用上一個有效段落的蹲彈設定，避免蹲彈動作瞬間停止
-    }
-    squatEnabledEff = !!(data && data.squatEnabled);
-    squatParams = Object.assign({}, GROOVE_SQUAT_DEFAULT, (data && data.squatCustom) || {});
-    phaseBase = seg ? seg.localBeats : 0;
-
-    // 偵測段落切換：跟 applyGroove 同一套 segIndex 判斷邏輯，狀態各自獨立存放。
-    const segIndex = seg ? seg.segIndex : -1;
-    if (squatLastSegIndex !== -1 && squatLastSegIndex !== segIndex && squatLastSegSnapshot){
-      squatXfade = {
-        switchElapsed: beatsElapsedTotal,
-        fromEnabled: squatLastSegSnapshot.enabled,
-        fromParams: squatLastSegSnapshot.params,
-        fromLocalBeatsAtSwitch: squatLastSegSnapshot.localBeats
-      };
-    }
-    squatLastSegIndex = segIndex;
-    squatLastSegSnapshot = { enabled: squatEnabledEff, params: squatParams, localBeats: phaseBase };
-  } else {
-    squatEnabledEff = grooveSquatEnabled;
-    squatParams = getGrooveSquatParams();
-    phaseBase = beatsElapsedTotal;
-    resetSquatXfadeState(); // 沒有序列、或 useSequence=false（律動預覽）時都不需要交叉淡化，順便清掉殘留狀態
-  }
-
-  // 交叉淡化視窗內：算出舊段落淡出權重，時間邏輯跟 applyGroove 一致。
-  let squatXfadeWeight = 0, fromSquatEnabled = false, fromSquatParams = null, fromSquatPhaseClock = 0;
-  if (squatXfade){
-    const elapsedSinceSwitch = beatsElapsedTotal - squatXfade.switchElapsed;
-    if (elapsedSinceSwitch >= GROOVE_XFADE_BEATS || elapsedSinceSwitch < 0){
-      squatXfade = null;
-    } else {
-      squatXfadeWeight = 1 - (elapsedSinceSwitch / GROOVE_XFADE_BEATS);
-      fromSquatEnabled = squatXfade.fromEnabled;
-      fromSquatParams = squatXfade.fromParams;
-      fromSquatPhaseClock = squatXfade.fromLocalBeatsAtSwitch + elapsedSinceSwitch; // 延續時鐘，理由同 applyGroove
-    }
-  }
-
-  // active 拆成兩層：activeBase 是跟蹲彈無關的硬性條件（隨時可能讓蹲彈整個讓路，交叉淡化不該
-  // 蓋過這些）；squatEnabledEff 這一層才是交叉淡化要柔化的對象——切換瞬間即使新段落沒開蹲彈，
-  // 只要還在淡出舊段落的視窗內，也要視為「仍需要跑蹲彈流程」，讓位移平滑歸零而不是硬切消失。
-  const activeBase = !ikEnabled.rLeg && !ikEnabled.lLeg && !legTrajOverridden;
-  const active = activeBase && (squatEnabledEff || (squatXfadeWeight > 0 && fromSquatEnabled));
-
-  // 不管現在active與否，只要上一幀有留下預覽模式的位移殘留就先清乾淨，
-  // 避免「關掉蹲彈/切到手動腿部IK」那一刻角色卡在半蹲姿勢。
-  if (needsDriftCorrection && _squatPreviewLastDelta.lengthSq() > 0){
-    model.position.sub(_squatPreviewLastDelta);
-    _squatPreviewLastDelta.set(0, 0, 0);
-    model.updateMatrixWorld(true);
-  }
-
-  if (!active){
-    resetSquatFootAnchors();
-    return;
-  }
-
-  if (!grooveSquatAnchored) captureSquatFootAnchors();
-
-  // 新段落的位移貢獻（沒開蹲彈就是0）；若正在交叉淡化，再跟舊段落延續下去的貢獻依權重線性混合。
-  const newDelta = computeSquatDelta(squatEnabledEff, squatParams, phaseBase);
-  let dx = newDelta.dx, dy = newDelta.dy;
-  if (squatXfadeWeight > 0){
-    const oldDelta = computeSquatDelta(fromSquatEnabled, fromSquatParams, fromSquatPhaseClock);
-    dy = oldDelta.dy * squatXfadeWeight + newDelta.dy * (1 - squatXfadeWeight);
-    dx = oldDelta.dx * squatXfadeWeight + newDelta.dx * (1 - squatXfadeWeight);
-  }
-  // 暖身漸強：只在整段律動剛開始的頭幾拍把位移壓小，理由跟 applyGroove 一致（見 grooveWarmupRamp）。
-  const warmupRamp = grooveWarmupRamp(beatsElapsedTotal);
-  dx *= warmupRamp;
-  dy *= warmupRamp;
-
-  _squatDeltaTmp.set(dx, dy, 0);
-  model.position.add(_squatDeltaTmp);
-  if (needsDriftCorrection) _squatPreviewLastDelta.copy(_squatDeltaTmp);
-  model.updateMatrixWorld(true);
-
-  // 兩腿各自反算：目標＝原地錨點（固定世界座標，不受這次平移影響），
-  // 極向球＝目前膝蓋位置往「猜測的身體前方」偏移一點（沿用 IK_CHAINS 既有的 poleOffset 假設）。
-  for (const limb of ["rLeg", "lLeg"]){
-    const anchor = grooveSquatFootAnchor[limb];
-    if (!anchor) continue;
-    const chain = IK_CHAINS[limb];
-    const rootBone = bones[chain.root], midBone = bones[chain.mid], endBone = bones[chain.end];
-    if (!rootBone || !midBone || !endBone) continue;
-
-    midBone.getWorldPosition(_squatMidPosTmp);
-    _squatPolePosTmp.copy(_squatMidPosTmp).add(chain.poleOffset);
-    solveTwoBoneIK(rootBone, midBone, endBone, anchor, _squatPolePosTmp);
-    applyBoneWorldQuatLock(endBone, grooveSquatFootLockedQuat[limb]);
-  }
+function applySquatGroove(...args){
+  return squatController.applySquatGroove(...args);
 }
 
 // ---- 律動模式：UI ----
@@ -5571,569 +3526,109 @@ function applySquatGroove(now, startTime, needsDriftCorrection, overrideKeys, us
 // 下方共用的編輯面板（軸向/波形/幅度/頻率/相位）就會顯示、可調整這顆關節的參數。
 // 用「共用一組編輯面板」而不是每個關節攤開一整組滑桿，是刻意的取捨：14個關節×5個控制項
 // 會讓分頁長到不可用，共用面板只需要在切換選取關節時換一次顯示值即可。
-function buildGrooveJointUI(){
-  const host = document.getElementById("grooveJointsList");
-  if (!host) return;
-  host.innerHTML = "";
-  for (const key of GROOVE_JOINT_KEYS){
-    const chip = document.createElement("div");
-    chip.className = "grooveChip";
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "grooveToggleBtn";
-    btn.textContent = LABEL_LOOKUP[key] || key;
-    btn.dataset.key = key;
-    btn.classList.toggle("active", grooveJointSet.has(key));
-    btn.classList.toggle("customized", isGrooveJointCustomized(key));
-    btn.onclick = () => {
-      if (grooveJointSet.has(key)) grooveJointSet.delete(key); else grooveJointSet.add(key);
-      btn.classList.toggle("active", grooveJointSet.has(key));
-      invalidateGrooveGenMeta(); // 勾選/取消關節也改變了這組律動的內容，同樣讓 seed 失效
-      scheduleAutoSave();
-    };
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "grooveEditBtn";
-    editBtn.textContent = "⚙";
-    editBtn.title = "自訂「" + (LABEL_LOOKUP[key] || key) + "」的律動參數";
-    editBtn.dataset.key = key;
-    editBtn.classList.toggle("editing", grooveEditingKey === key);
-    editBtn.onclick = () => selectGrooveEditingJoint(key);
-
-    chip.appendChild(btn);
-    chip.appendChild(editBtn);
-    host.appendChild(chip);
-  }
+function buildGrooveJointUI(...args){
+  return groovePanelController.buildGrooveJointUI(...args);
 }
 
 // 切換「目前正在自訂參數」的關節：更新所有 ⚙ 按鈕的醒目樣式，並重繪下方編輯面板的顯示值。
-function selectGrooveEditingJoint(key){
-  grooveEditingKey = key;
-  document.querySelectorAll("#grooveJointsList .grooveEditBtn").forEach(b => {
-    b.classList.toggle("editing", b.dataset.key === key);
-  });
-  renderGrooveEditor();
+function selectGrooveEditingJoint(...args){
+  return groovePanelController.selectGrooveEditingJoint(...args);
 }
 
 // 判斷某個關節目前是否有任何自訂覆寫欄位（決定 chip 上要不要顯示「已自訂」小圓點）。
-function isGrooveJointCustomized(key){
-  const c = grooveCustomParams[key];
-  return !!c && Object.keys(c).length > 0;
+function isGrooveJointCustomized(...args){
+  return groovePanelController.isGrooveJointCustomized(...args);
 }
 
 // 只更新單一關節 chip 上的「已自訂」小圓點，不用重建整份清單——
 // 跟其他按鈕自己管自己樣式的既有作法（見 buildGrooveJointUI 上方註解）一致。
-function updateGrooveChipCustomizedMark(key){
-  const btn = document.querySelector('#grooveJointsList .grooveToggleBtn[data-key="' + key + '"]');
-  if (btn) btn.classList.toggle("customized", isGrooveJointCustomized(key));
+function updateGrooveChipCustomizedMark(...args){
+  return groovePanelController.updateGrooveChipCustomizedMark(...args);
 }
 
 // 依 grooveEditingKey 目前選取的關節，把「合併後」的參數（getGrooveParams）灌回編輯面板的
 // 滑桿/按鈕顯示值。沒選取關節時顯示空狀態提示，引導使用者先點 ⚙。
-function renderGrooveEditor(){
-  const empty = document.getElementById("grooveEditorEmpty");
-  const panel = document.getElementById("grooveEditorPanel");
-  if (!empty || !panel) return;
-
-  if (!grooveEditingKey || !GROOVE_PRESETS[grooveEditingKey]){
-    empty.style.display = "";
-    panel.style.display = "none";
-    return;
-  }
-  empty.style.display = "none";
-  panel.style.display = "";
-
-  const params = getGrooveParams(grooveEditingKey);
-  const label = document.getElementById("grooveEditorLabel");
-  if (label) label.textContent = LABEL_LOOKUP[grooveEditingKey] || grooveEditingKey;
-
-  document.querySelectorAll("#grooveAxisBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.axis === params.axis);
-  });
-  document.querySelectorAll("#grooveWaveBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.wave === params.wave);
-  });
-
-  // 合成波（ease:/easeBi:）列：拆出「極性」與「曲線名」兩個維度分別回填。
-  // 目前用的是內建 bounce/sine 時，極性仍顯示對應的那一側（bounce→單向、sine→來回），
-  // 讓使用者直接從選單挑一條曲線就能無痛升級，不用先想「我該按哪個極性」。
-  const waveStr = String(params.wave || "");
-  const isBi = waveStr.startsWith(GROOVE_WAVE_EASE_BI_PREFIX);
-  const isUni = waveStr.startsWith(GROOVE_WAVE_EASE_PREFIX);
-  const polarity = isBi ? GROOVE_WAVE_EASE_BI_PREFIX
-                 : isUni ? GROOVE_WAVE_EASE_PREFIX
-                 : (params.wave === "sine" ? GROOVE_WAVE_EASE_BI_PREFIX : GROOVE_WAVE_EASE_PREFIX);
-  document.querySelectorAll("#grooveWavePolarityBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.polarity === polarity);
-  });
-  const easeSel = document.getElementById("grooveWaveEaseSelect");
-  if (easeSel) easeSel.value = isBi ? waveStr.slice(GROOVE_WAVE_EASE_BI_PREFIX.length)
-                            : isUni ? waveStr.slice(GROOVE_WAVE_EASE_PREFIX.length)
-                            : "";
-  const wavePrev = document.getElementById("grooveWavePreview");
-  if (wavePrev) wavePrev.innerHTML = buildGrooveWaveSVG(params.wave, 72, 30);
-
-  const ampSlider = document.getElementById("grooveAmpSlider");
-  const freqSlider = document.getElementById("grooveFreqSlider");
-  const phaseSlider = document.getElementById("groovePhaseSlider");
-  if (ampSlider) ampSlider.value = String(params.amp);
-  if (freqSlider) freqSlider.value = String(params.freq);
-  if (phaseSlider) phaseSlider.value = String(params.phase);
-
-  const ampVal = document.getElementById("grooveAmpVal");
-  const freqVal = document.getElementById("grooveFreqVal");
-  const phaseVal = document.getElementById("groovePhaseVal");
-  if (ampVal) ampVal.textContent = params.amp + "°";
-  if (freqVal) freqVal.textContent = "×" + params.freq;
-  if (phaseVal) phaseVal.textContent = params.phase.toFixed(2);
+function renderGrooveEditor(...args){
+  return groovePanelController.renderGrooveEditor(...args);
 }
 
 // 畫出一個完整週期的律動波形（跟 buildEasingSVG 同風格，但畫的是 grooveWaveValue 的輸出，
 // 不是 easing 本身——合成波經過鏡像/切段之後長相跟原曲線差很多，直接畫結果才看得準）。
 // y 軸範圍固定 -1.25~1.25：容納 Back/Elastic 的 overshoot，同時讓不同波形之間的高度可以互相比較。
-const _grooveWaveSVGCache = new Map();
-function buildGrooveWaveSVG(wave, w, h){
-  const cacheKey = wave + "_" + w + "_" + h;
-  const cached = _grooveWaveSVGCache.get(cacheKey);
-  if (cached !== undefined) return cached;
-  const pad = 3, steps = 48, yMin = -1.25, yMax = 1.25;
-  let d = "";
-  for (let i = 0; i <= steps; i++){
-    const p = i / steps;
-    let y = grooveWaveValue(wave, p);
-    if (!isFinite(y)) y = 0;
-    y = Math.max(yMin, Math.min(yMax, y));
-    const x = pad + p * (w - 2 * pad);
-    const yy = (h - pad) - ((y - yMin) / (yMax - yMin)) * (h - 2 * pad);
-    d += (i === 0 ? "M" : "L") + x.toFixed(1) + "," + yy.toFixed(1) + " ";
-  }
-  const zeroY = (h - pad) - ((0 - yMin) / (yMax - yMin)) * (h - 2 * pad);
-  const svg = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="display:block;">`
-    + `<line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${w-pad}" y2="${zeroY.toFixed(1)}" stroke="#33335a" stroke-width="1" stroke-dasharray="2,2"/>`
-    + `<path d="${d}" fill="none" stroke="#7fe0ff" stroke-width="1.6" stroke-linecap="round"/>`
-    + `</svg>`;
-  _grooveWaveSVGCache.set(cacheKey, svg);
-  return svg;
+
+function buildGrooveWaveSVG(...args){
+  return groovePanelController.buildGrooveWaveSVG(...args);
 }
 
 // ---- 自動生成律動：UI ----
 // 選單選項只建一次（原型/曲線清單都是靜態資料），之後只更新描述與結果文字。
-let _grooveGenOptionsBuilt = false;
-function renderGrooveGenUI(){
-  const sel = document.getElementById("grooveGenArchetypeSelect");
-  if (!sel) return; // DOM 還沒建好（例如還原自動存檔時就被呼叫到），直接跳過
 
-  if (!_grooveGenOptionsBuilt){
-    sel.innerHTML = GROOVE_ARCHETYPE_IDS
-      .map(id => `<option value="${id}">${GROOVE_ARCHETYPES[id].label}</option>`).join("");
-    _grooveGenOptionsBuilt = true;
-  }
-
-  const arc = GROOVE_ARCHETYPES[sel.value] || GROOVE_ARCHETYPES.down;
-  const desc = document.getElementById("grooveGenDesc");
-  if (desc) desc.textContent = arc.desc;
-
-  // 結果列：只有「目前這組律動確實是自動生成且沒被手動改過」時才顯示 seed，
-  // 否則顯示的 seed 重現出來會是別的東西（見 invalidateGrooveGenMeta）。
-  const result = document.getElementById("grooveGenResult");
-  if (result){
-    if (grooveLastGenMeta){
-      const m = grooveLastGenMeta;
-      const arcLabel = (GROOVE_ARCHETYPES[m.archetype] || {}).label || m.archetype;
-      const loop = Number.isFinite(m.loopBeats) ? `・循環 ${m.loopBeats} 拍` : "";
-      const energy = Number.isFinite(m.energy) ? `・總幅度 ${m.energy}°` : "";
-      result.textContent = `目前：${arcLabel}・種子 ${m.seed}${loop}${energy}・${grooveJointSet.size} 個關節・蹲彈${grooveSquatEnabled ? "開" : "關"}`;
-    } else {
-      result.textContent = "目前的律動不是自動生成的（或已手動修改過），沒有可重現的種子。";
-    }
-  }
-
-  const seedInput = document.getElementById("grooveGenSeedInput");
-  if (seedInput && grooveLastGenMeta && document.activeElement !== seedInput){
-    seedInput.value = String(grooveLastGenMeta.seed); // 不覆蓋使用者正在輸入的內容
-  }
+function renderGrooveGenUI(...args){
+  return groovePanelController.renderGrooveGenUI(...args);
 }
 
 // 生成一組並立刻套用到「目前的手動律動設定」＝使用者可以馬上接著微調任何一個滑桿。
-function doGrooveGenerate(seed){
-  const sel = document.getElementById("grooveGenArchetypeSelect");
-  const arcId = sel ? sel.value : "down";
-  const cfg = generateGrooveConfig(arcId, seed);
-
-  // applyGrooveConfigData 會跑 sanitize（順便驗證生成出來的波形/數值全部合法）、
-  // 寫回 grooveJointSet/grooveCustomParams/蹲彈設定、設定 grooveLastGenMeta、刷新整個律動 UI。
-  applyGrooveConfigData(cfg);
-  grooveSquatAnchored = false; // 蹲彈開關/振幅可能整個換掉了，下一幀重新捕捉腳掌原地錨點
-
-  const autoPrev = document.getElementById("grooveGenAutoPreviewChk");
-  if (autoPrev && autoPrev.checked && !groovePreviewEnabled){
-    const btn = document.getElementById("groovePreviewBtn");
-    if (btn) btn.click(); // 沿用預覽按鈕自己的開啟流程（重設拍子起點/清 xfade 殘留），不另外複製一份邏輯
-  }
-  renderGrooveGenUI();
+function doGrooveGenerate(...args){
+  return groovePanelController.doGrooveGenerate(...args);
 }
 
-function bindGrooveGenUI(){
-  const sel = document.getElementById("grooveGenArchetypeSelect");
-  if (!sel) return;
-  sel.onchange = () => renderGrooveGenUI();
-
-  const rollBtn = document.getElementById("grooveGenRollBtn");
-  if (rollBtn) rollBtn.onclick = () => doGrooveGenerate(null);
-  const rerollBtn = document.getElementById("grooveGenRerollBtn");
-  if (rerollBtn) rerollBtn.onclick = () => doGrooveGenerate(null);
-
-  const seedBtn = document.getElementById("grooveGenSeedApplyBtn");
-  if (seedBtn) seedBtn.onclick = () => {
-    const input = document.getElementById("grooveGenSeedInput");
-    const raw = (input && input.value || "").trim();
-    const n = parseInt(raw, 10);
-    if (!raw || !Number.isFinite(n)){ doGrooveGenerate(null); return; } // 留空/亂打＝當隨機處理，不彈錯誤打斷創作流程
-    doGrooveGenerate(n >>> 0);
-  };
-
-  const saveBtn = document.getElementById("grooveGenSaveBtn");
-  if (saveBtn) saveBtn.onclick = () => {
-    if (!grooveLibCtrl) return;
-    if (grooveJointSet.size === 0 && !grooveSquatEnabled){
-      alert("目前沒有任何律動內容可存——請先按「🎲 生成並套用」。");
-      return;
-    }
-    const name = grooveLastGenMeta
-      ? grooveGenAutoName(grooveLastGenMeta.archetype, grooveLastGenMeta.seed)
-      : ("手調律動_" + new Date().toLocaleTimeString("zh-TW", { hour12:false }));
-    grooveLibCtrl.saveData(name, captureCurrentGrooveConfig());
-  };
-
-  const batchBtn = document.getElementById("grooveGenBatchBtn");
-  if (batchBtn) batchBtn.onclick = () => {
-    if (!grooveLibCtrl) return;
-    const countEl = document.getElementById("grooveGenBatchCount");
-    let n = parseInt(countEl ? countEl.value : "4", 10);
-    if (!Number.isFinite(n) || n < 1) n = 1;
-    n = Math.min(n, 20);
-    const arcId = sel.value;
-    for (let i = 0; i < n; i++){
-      const cfg = generateGrooveConfig(arcId, null);
-      grooveLibCtrl.saveData(grooveGenAutoName(arcId, cfg.meta.seed), cfg);
-    }
-    // 批次刻意不動目前的律動設定（跟「自動生成招式」只存進招式庫、不動時間軸同一個原則）
-    alert(`已生成 ${n} 組「${GROOVE_ARCHETYPES[arcId].label}」律動並存入律動庫。\n接著可到「時間軸」分頁的「律動序列」把它們排成段落。`);
-  };
-
-  renderGrooveGenUI();
+function bindGrooveGenUI(...args){
+  return groovePanelController.bindGrooveGenUI(...args);
 }
 
 // 寫入目前選取關節的一個自訂欄位（只覆寫這個欄位，其餘欄位繼續沿用預設值或先前的自訂值）。
-function setGrooveCustomField(key, field, value){
-  if (!grooveCustomParams[key]) grooveCustomParams[key] = {};
-  grooveCustomParams[key][field] = value;
-  updateGrooveChipCustomizedMark(key);
-  invalidateGrooveGenMeta();
-  scheduleAutoSave();
+function setGrooveCustomField(...args){
+  return groovePanelController.setGrooveCustomField(...args);
 }
 
 // 使用者手動動過任何律動欄位，就不能再宣稱「這組＝seed X 生成的結果」——清掉來源資訊，
 // UI 上的 seed 標記也會跟著消失，避免存進律動庫的 meta 是假的、重現時得到不一樣的東西。
-function invalidateGrooveGenMeta(){
-  if (!grooveLastGenMeta) return;
-  grooveLastGenMeta = null;
-  renderGrooveGenUI();
+function invalidateGrooveGenMeta(...args){
+  return groovePanelController.invalidateGrooveGenMeta(...args);
 }
 
 // 恢復單一關節的預設值：直接刪掉它的自訂覆寫物件即可，getGrooveParams() 自然會退回 GROOVE_PRESETS。
-function resetGrooveJoint(key){
-  delete grooveCustomParams[key];
-  updateGrooveChipCustomizedMark(key);
-  invalidateGrooveGenMeta();
-  renderGrooveEditor();
-  scheduleAutoSave();
+function resetGrooveJoint(...args){
+  return groovePanelController.resetGrooveJoint(...args);
 }
 
 // 恢復全部關節的預設值：清空整份自訂覆寫。有確認框，避免不小心點掉調了很久的參數。
-function resetAllGrooveCustom(){
-  if (Object.keys(grooveCustomParams).length === 0) return;
-  const ok = confirm("確定要把所有關節的律動參數恢復成預設值嗎？此動作無法復原。");
-  if (!ok) return;
-  grooveCustomParams = {};
-  for (const key of GROOVE_JOINT_KEYS) updateGrooveChipCustomizedMark(key);
-  invalidateGrooveGenMeta();
-  renderGrooveEditor();
-  scheduleAutoSave();
+function resetAllGrooveCustom(...args){
+  return groovePanelController.resetAllGrooveCustom(...args);
 }
 
 // 匯入編舞／還原自動存檔後，grooveJointSet 與 grooveCustomParams 的內容整個換掉了，
 // 既有按鈕的 active/editing 樣式跟編輯面板顯示值都要跟著同步，直接重建整份最簡單。
-function refreshGrooveJointUI(){
-  grooveEditingKey = null; // 匯入後不預設選取任何關節，避免顯示到舊選取但語意已經變的資料
-  buildGrooveJointUI();
-  renderGrooveEditor();
-  renderGrooveSquatUI();
-  renderGrooveWarmupUI();
-  renderGrooveGenUI();
+function refreshGrooveJointUI(...args){
+  return groovePanelController.refreshGrooveJointUI(...args);
 }
 
 // ---- 暖身漸強：UI ----
-function renderGrooveWarmupUI(){
-  const chk = document.getElementById("grooveWarmupEnabledChk");
-  if (chk) chk.checked = grooveWarmupEnabled;
-  const slider = document.getElementById("grooveWarmupBeatsSlider");
-  if (slider) slider.value = String(grooveWarmupBeats);
-  const val = document.getElementById("grooveWarmupBeatsVal");
-  if (val) val.textContent = grooveWarmupBeats + "拍";
-  document.querySelectorAll("#grooveWarmupCurveBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.curve === grooveWarmupCurve);
-  });
+function renderGrooveWarmupUI(...args){
+  return groovePanelController.renderGrooveWarmupUI(...args);
 }
 
-function bindGrooveUI(){
-  buildGrooveJointUI();
-
-  const warmupChk = document.getElementById("grooveWarmupEnabledChk");
-  if (warmupChk) warmupChk.onchange = (e) => { grooveWarmupEnabled = e.target.checked; scheduleAutoSave(); };
-  const warmupSlider = document.getElementById("grooveWarmupBeatsSlider");
-  if (warmupSlider) warmupSlider.oninput = (e) => {
-    grooveWarmupBeats = parseFloat(e.target.value);
-    const val = document.getElementById("grooveWarmupBeatsVal");
-    if (val) val.textContent = grooveWarmupBeats + "拍";
-    scheduleAutoSave();
-  };
-  document.querySelectorAll("#grooveWarmupCurveBtns button").forEach(b => {
-    b.onclick = () => {
-      grooveWarmupCurve = b.dataset.curve;
-      document.querySelectorAll("#grooveWarmupCurveBtns button").forEach(bb => bb.classList.toggle("active", bb === b));
-      scheduleAutoSave();
-    };
-  });
-  renderGrooveWarmupUI();
-
-  // 即時預覽：不用播放拍點，原地持續套用律動，方便邊調滑桿邊看手感。
-  // 每次重新開啟都重新對齊拍子起點（groovePreviewStartTime = now），讓每次預覽的手感一致、
-  // 不會因為「上次關閉時卡在哪個相位」而每次開頭的彈動幅度都不一樣。
-  const previewBtn = document.getElementById("groovePreviewBtn");
-  if (previewBtn){
-    previewBtn.onclick = () => {
-      groovePreviewEnabled = !groovePreviewEnabled;
-      if (groovePreviewEnabled){
-        groovePreviewStartTime = performance.now();
-        grooveSquatAnchored = false; // 重新對齊蹲彈的腳掌原地錨點
-        resetGrooveXfadeState();     // 清掉上次預覽殘留的段落切換狀態，理由同 toggleKeyframePlayback
-        resetSquatXfadeState();
-      } else if (_squatPreviewLastDelta.lengthSq() > 0){
-        // 關閉預覽的當下順手把蹲彈疊加的位移還原乾淨，避免角色卡在半蹲姿勢
-        // （下一幀 animate() 就不會再呼叫 applySquatGroove 幫忙清了，這裡要主動做）
-        model.position.sub(_squatPreviewLastDelta);
-        _squatPreviewLastDelta.set(0, 0, 0);
-        resetSquatFootAnchors();
-      }
-      previewBtn.classList.toggle("active", groovePreviewEnabled);
-      previewBtn.textContent = groovePreviewEnabled ? "■ 停止預覽" : "▶ 律動預覽";
-    };
-  }
-
-  document.querySelectorAll("#grooveAxisBtns button").forEach(b => {
-    b.onclick = () => {
-      if (!grooveEditingKey) return;
-      setGrooveCustomField(grooveEditingKey, "axis", b.dataset.axis);
-      renderGrooveEditor();
-    };
-  });
-  document.querySelectorAll("#grooveWaveBtns button").forEach(b => {
-    b.onclick = () => {
-      if (!grooveEditingKey) return;
-      setGrooveCustomField(grooveEditingKey, "wave", b.dataset.wave);
-      renderGrooveEditor();
-    };
-  });
-
-  // 合成波：極性（單向/來回）× 曲線（32 條 Easing）兩個維度組成 wave id。
-  // 曲線選「—」代表不使用合成波，退回同極性的內建波形（單向→bounce、來回→sine），
-  // 這樣使用者永遠有一條明確的回頭路，不會被卡在合成波裡。
-  // 曲線選單在這裡就填好（不是等生成面板初始化）——renderGrooveEditor() 會在 bindGrooveGenUI()
-  // 之前先跑一次，選單若那時還是空的，回填 value 會靜默失敗。
-  const grooveEaseSel = document.getElementById("grooveWaveEaseSelect");
-  if (grooveEaseSel && !grooveEaseSel.options.length){
-    grooveEaseSel.innerHTML = `<option value="">—（用上面的 bounce／sine）</option>` + buildEasingSelectOptions();
-  }
-  const applyCompositeWave = () => {
-    if (!grooveEditingKey) return;
-    const polBtn = document.querySelector("#grooveWavePolarityBtns button.active");
-    const polarity = polBtn ? polBtn.dataset.polarity : GROOVE_WAVE_EASE_PREFIX;
-    const easeName = grooveEaseSel ? grooveEaseSel.value : "";
-    const wave = easeName
-      ? (polarity + easeName)
-      : (polarity === GROOVE_WAVE_EASE_BI_PREFIX ? "sine" : "bounce");
-    setGrooveCustomField(grooveEditingKey, "wave", wave);
-    renderGrooveEditor();
-  };
-  document.querySelectorAll("#grooveWavePolarityBtns button").forEach(b => {
-    b.onclick = () => {
-      if (!grooveEditingKey) return;
-      document.querySelectorAll("#grooveWavePolarityBtns button").forEach(bb => bb.classList.toggle("active", bb === b));
-      applyCompositeWave();
-    };
-  });
-  if (grooveEaseSel) grooveEaseSel.onchange = applyCompositeWave;
-
-  const ampSlider = document.getElementById("grooveAmpSlider");
-  if (ampSlider) ampSlider.oninput = (e) => {
-    if (!grooveEditingKey) return;
-    const v = parseFloat(e.target.value);
-    setGrooveCustomField(grooveEditingKey, "amp", v);
-    const ampVal = document.getElementById("grooveAmpVal");
-    if (ampVal) ampVal.textContent = v + "°";
-  };
-  const freqSlider = document.getElementById("grooveFreqSlider");
-  if (freqSlider) freqSlider.oninput = (e) => {
-    if (!grooveEditingKey) return;
-    const v = parseFloat(e.target.value);
-    setGrooveCustomField(grooveEditingKey, "freq", v);
-    const freqVal = document.getElementById("grooveFreqVal");
-    if (freqVal) freqVal.textContent = "×" + v;
-  };
-  const phaseSlider = document.getElementById("groovePhaseSlider");
-  if (phaseSlider) phaseSlider.oninput = (e) => {
-    if (!grooveEditingKey) return;
-    const v = parseFloat(e.target.value);
-    setGrooveCustomField(grooveEditingKey, "phase", v);
-    const phaseVal = document.getElementById("groovePhaseVal");
-    if (phaseVal) phaseVal.textContent = v.toFixed(2);
-  };
-
-  const resetJointBtn = document.getElementById("grooveResetJointBtn");
-  if (resetJointBtn) resetJointBtn.onclick = () => { if (grooveEditingKey) resetGrooveJoint(grooveEditingKey); };
-
-  const resetAllBtn = document.getElementById("grooveResetAllBtn");
-  if (resetAllBtn) resetAllBtn.onclick = resetAllGrooveCustom;
-
-  renderGrooveEditor();
-  bindGrooveSquatUI();
-  bindGrooveLibraryUI(); // 先建立 grooveLibCtrl，下面「批次生成存入律動庫」才有對象可寫
-  bindGrooveGenUI();
-  bindGrooveSequenceUI();
+function bindGrooveUI(...args){
+  return groovePanelController.bindGrooveUI(...args);
 }
 
 // ---- 蹲彈律動：UI ----
 // 只有一組共用滑桿（跟關節編輯面板的滑桿模式一致），因為蹲彈本來就是雙腳同步的單一系統，
 // 不像關節列表要在14個關節之間切換——沒有「選取哪個」的問題，永遠只有一份參數可調。
-function renderGrooveSquatUI(){
-  const chk = document.getElementById("grooveSquatEnabledChk");
-  if (chk) chk.checked = grooveSquatEnabled;
-
-  const params = getGrooveSquatParams();
-  document.querySelectorAll("#grooveSquatWaveBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.wave === params.wave);
-  });
-  document.querySelectorAll("#grooveSquatLateralWaveBtns button").forEach(b => {
-    b.classList.toggle("active", b.dataset.wave === params.lateralWave);
-  });
-
-  const vertSlider = document.getElementById("grooveSquatVertSlider");
-  const lateralSlider = document.getElementById("grooveSquatLateralSlider");
-  const freqSlider = document.getElementById("grooveSquatFreqSlider");
-  const phaseSlider = document.getElementById("grooveSquatPhaseSlider");
-  const lateralFreqSlider = document.getElementById("grooveSquatLateralFreqSlider");
-  const lateralPhaseSlider = document.getElementById("grooveSquatLateralPhaseSlider");
-  if (vertSlider) vertSlider.value = String(params.vertAmp);
-  if (lateralSlider) lateralSlider.value = String(params.lateralAmp);
-  if (freqSlider) freqSlider.value = String(params.freq);
-  if (phaseSlider) phaseSlider.value = String(params.phase);
-  if (lateralFreqSlider) lateralFreqSlider.value = String(params.lateralFreq);
-  if (lateralPhaseSlider) lateralPhaseSlider.value = String(params.lateralPhase);
-
-  const vertVal = document.getElementById("grooveSquatVertVal");
-  const lateralVal = document.getElementById("grooveSquatLateralVal");
-  const freqVal = document.getElementById("grooveSquatFreqVal");
-  const phaseVal = document.getElementById("grooveSquatPhaseVal");
-  const lateralFreqVal = document.getElementById("grooveSquatLateralFreqVal");
-  const lateralPhaseVal = document.getElementById("grooveSquatLateralPhaseVal");
-  if (vertVal) vertVal.textContent = params.vertAmp + "cm";
-  if (lateralVal) lateralVal.textContent = params.lateralAmp + "cm";
-  if (freqVal) freqVal.textContent = "×" + params.freq;
-  if (phaseVal) phaseVal.textContent = params.phase.toFixed(2);
-  if (lateralFreqVal) lateralFreqVal.textContent = "×" + params.lateralFreq;
-  if (lateralPhaseVal) lateralPhaseVal.textContent = params.lateralPhase.toFixed(2);
+function renderGrooveSquatUI(...args){
+  return groovePanelController.renderGrooveSquatUI(...args);
 }
 
-function setGrooveSquatField(field, value){
-  grooveSquatCustom[field] = value;
-  invalidateGrooveGenMeta();
-  scheduleAutoSave();
+function setGrooveSquatField(...args){
+  return groovePanelController.setGrooveSquatField(...args);
 }
 
-function resetGrooveSquat(){
-  grooveSquatCustom = {};
-  invalidateGrooveGenMeta();
-  renderGrooveSquatUI();
-  scheduleAutoSave();
+function resetGrooveSquat(...args){
+  return groovePanelController.resetGrooveSquat(...args);
 }
 
-function bindGrooveSquatUI(){
-  const chk = document.getElementById("grooveSquatEnabledChk");
-  if (chk){
-    chk.onchange = (e) => {
-      grooveSquatEnabled = e.target.checked;
-      if (grooveSquatEnabled) grooveSquatAnchored = false; // 剛打開：下一幀重新抓目前站姿當基準
-      scheduleAutoSave();
-    };
-  }
-
-  document.querySelectorAll("#grooveSquatWaveBtns button").forEach(b => {
-    b.onclick = () => { setGrooveSquatField("wave", b.dataset.wave); renderGrooveSquatUI(); };
-  });
-  document.querySelectorAll("#grooveSquatLateralWaveBtns button").forEach(b => {
-    b.onclick = () => { setGrooveSquatField("lateralWave", b.dataset.wave); renderGrooveSquatUI(); };
-  });
-
-  const vertSlider = document.getElementById("grooveSquatVertSlider");
-  if (vertSlider) vertSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("vertAmp", v);
-    const el = document.getElementById("grooveSquatVertVal");
-    if (el) el.textContent = v + "cm";
-  };
-  const lateralSlider = document.getElementById("grooveSquatLateralSlider");
-  if (lateralSlider) lateralSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("lateralAmp", v);
-    const el = document.getElementById("grooveSquatLateralVal");
-    if (el) el.textContent = v + "cm";
-  };
-  const freqSlider = document.getElementById("grooveSquatFreqSlider");
-  if (freqSlider) freqSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("freq", v);
-    const el = document.getElementById("grooveSquatFreqVal");
-    if (el) el.textContent = "×" + v;
-  };
-  const phaseSlider = document.getElementById("grooveSquatPhaseSlider");
-  if (phaseSlider) phaseSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("phase", v);
-    const el = document.getElementById("grooveSquatPhaseVal");
-    if (el) el.textContent = v.toFixed(2);
-  };
-  const lateralFreqSlider = document.getElementById("grooveSquatLateralFreqSlider");
-  if (lateralFreqSlider) lateralFreqSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("lateralFreq", v);
-    const el = document.getElementById("grooveSquatLateralFreqVal");
-    if (el) el.textContent = "×" + v;
-  };
-  const lateralPhaseSlider = document.getElementById("grooveSquatLateralPhaseSlider");
-  if (lateralPhaseSlider) lateralPhaseSlider.oninput = (e) => {
-    const v = parseFloat(e.target.value);
-    setGrooveSquatField("lateralPhase", v);
-    const el = document.getElementById("grooveSquatLateralPhaseVal");
-    if (el) el.textContent = v.toFixed(2);
-  };
-
-  const resetBtn = document.getElementById("grooveSquatResetBtn");
-  if (resetBtn) resetBtn.onclick = resetGrooveSquat;
-
-  renderGrooveSquatUI();
+function bindGrooveSquatUI(...args){
+  return groovePanelController.bindGrooveSquatUI(...args);
 }
 
 // ---- 律動序列：讓「律動庫」項目依拍數接龍套用（A律動維持幾拍、B律動維持幾拍……）----
@@ -6147,27 +3642,15 @@ let grooveSeqDragIndex = -1; // 拖曳排序用，互動風格跟 #kfList 的拍
 let grooveSeqChipEls = [];   // BG-2：律動段 DOM 快取，播放每幀只切 activeSeg class，不重建整條 Track
 let grooveSeqSelectedIndex = -1; // Beat Grid 中目前選取的律動段；Delete / Backspace 刪除此段
 
-function selectGrooveSeqEntry(i){
-  waveClipSelected=null;renderWaveTrack();
-  if (i < 0 || i >= grooveSequence.length) return;
-  if (kfMultiSelectMode){ toggleGrooveMultiSelectItem(i); return; }
-  grooveSeqSelectedIndex = i;
-  // POSE / GROOVE 採單一 timeline selection，避免按 Delete 時不知道要刪哪一軌。
-  kfEditingIndex = -1;
-  syncEasingControlsFromSelection();
-  for (const el of kfChipEls) if (el) el.classList.remove("active");
-  for (let n = 0; n < grooveSeqChipEls.length; n++){
-    const el = grooveSeqChipEls[n];
-    if (el) el.classList.toggle("selected", n === i);
-  }
-  updateOnionSkins();
+function selectGrooveSeqEntry(...args){
+  return grooveSequenceController.selectGrooveSeqEntry(...args);
 }
 
 let lastValidGrooveSeqItem = null; // 給 applyGroove 用：序列播到「查無此律動庫項目」的段落時，沿用最近一次成功解析到的項目，避免動作瞬間僵直（方案A，見下方 applyGroove/applySquatGroove）
 let lastValidSquatSeqData = null; // 同上，給 applySquatGroove（蹲彈）用，另外分開存是因為兩套系統各自需要的欄位不同（jointSet/customParams vs squatEnabled/squatCustom）
 
-function grooveSeqTotalBeats(){
-  return grooveSequence.reduce((s, e) => s + ((Number(e.beats) > 0) ? Number(e.beats) : 0), 0);
+function grooveSeqTotalBeats(...args){
+  return grooveSequenceController.grooveSeqTotalBeats(...args);
 }
 
 // 依「從播放起點累積的拍數」查表，決定目前該套用序列裡的哪一段。
@@ -6177,467 +3660,105 @@ function grooveSeqTotalBeats(){
 // segIndex：這一段在 grooveSequence 陣列裡的索引，供 applyGroove/applySquatGroove 偵測「是否剛切換到新段落」
 // 用來觸發交叉淡化（crossfade），跟序列會不會循環播放無關——即使循環繞回同一個 libId，只要 segIndex 變了
 // 一樣視為切換，因為 localBeats 一樣會歸零，一樣有交界跳動的風險。
-function getGrooveActiveSegment(beatsElapsedTotal){
-  if (grooveSequence.length === 0) return null;
-  const total = grooveSeqTotalBeats();
-  if (total <= 0) return null;
-  let pos = beatsElapsedTotal % total;
-  if (pos < 0) pos += total; // 保險：理論上 beatsElapsedTotal 不會是負的，但取模防呆一下
-  let acc = 0;
-  for (let i = 0; i < grooveSequence.length; i++){
-    const entry = grooveSequence[i];
-    const b = (Number(entry.beats) > 0) ? Number(entry.beats) : 0;
-    if (b <= 0) continue;
-    if (pos < acc + b || i === grooveSequence.length - 1){
-      const item = grooveLibCtrl ? grooveLibCtrl.getItems().find(it => it.id === entry.libId) : null;
-      return { entry, item, localBeats: pos - acc, segIndex: i };
-    }
-    acc += b;
-  }
-  return null;
+function getGrooveActiveSegment(...args){
+  return grooveSequenceController.getGrooveActiveSegment(...args);
 }
 
-function addGrooveSeqEntry(libId){
-  if (!libId) return;
-  grooveSequence.push({ id: makeLibId(), libId, beats: 4 });
-  renderGrooveSeqChips();
-  scheduleAutoSave();
+function addGrooveSeqEntry(...args){
+  return grooveSequenceController.addGrooveSeqEntry(...args);
 }
-function removeGrooveSeqEntry(i){
-  if (i < 0 || i >= grooveSequence.length) return;
-  grooveSequence.splice(i, 1);
-  if (grooveSeqSelectedIndex === i) grooveSeqSelectedIndex = -1;
-  else if (grooveSeqSelectedIndex > i) grooveSeqSelectedIndex -= 1;
-  renderGrooveSeqChips();
-  scheduleAutoSave();
+function removeGrooveSeqEntry(...args){
+  return grooveSequenceController.removeGrooveSeqEntry(...args);
 }
-function duplicateGrooveSeqEntry(i){
-  if (i < 0 || !grooveSequence[i]) return;
-  const copy = Object.assign({}, grooveSequence[i], { id: makeLibId() });
-  grooveSequence.splice(i + 1, 0, copy);
-  renderGrooveSeqChips();
-  scheduleAutoSave();
+function duplicateGrooveSeqEntry(...args){
+  return grooveSequenceController.duplicateGrooveSeqEntry(...args);
 }
-function reorderGrooveSeqEntry(from, to){
-  if (from < 0 || from >= grooveSequence.length || to < 0 || to >= grooveSequence.length || from === to) return;
-  const [item] = grooveSequence.splice(from, 1);
-  grooveSequence.splice(to, 0, item);
-  if (grooveSeqSelectedIndex === from) grooveSeqSelectedIndex = to;
-  else if (from < grooveSeqSelectedIndex && grooveSeqSelectedIndex <= to) grooveSeqSelectedIndex -= 1;
-  else if (to <= grooveSeqSelectedIndex && grooveSeqSelectedIndex < from) grooveSeqSelectedIndex += 1;
-  renderGrooveSeqChips();
-  scheduleAutoSave();
+function reorderGrooveSeqEntry(...args){
+  return grooveSequenceController.reorderGrooveSeqEntry(...args);
 }
-function normalizeTimelineBeats(beats, minBeats = 0.01, maxBeats = 64){
-  const raw = Number(beats);
-  const safe = Number.isFinite(raw) ? raw : 1;
-  return Math.max(minBeats, Math.min(maxBeats, Number(safe.toFixed(4))));
+function normalizeTimelineBeats(...args){
+  return timelineResizeController.normalizeTimelineBeats(...args);
 }
 
-function snapTimelineBeats(beats, minBeats = null, maxBeats = 64){
-  const step = Number(BEAT_GRID_SNAP) || 0;
-  const min = minBeats == null ? (step > 0 ? step : 0.01) : minBeats;
-  const safe = normalizeTimelineBeats(beats, min, maxBeats);
-  if (!(step > 0)) return safe;
-  return Math.max(min, Math.min(maxBeats, Number((Math.round(safe / step) * step).toFixed(4))));
+function snapTimelineBeats(...args){
+  return timelineResizeController.snapTimelineBeats(...args);
 }
 
-function snapGrooveBeats(beats){
-  return snapTimelineBeats(beats);
+function snapGrooveBeats(...args){
+  return timelineResizeController.snapGrooveBeats(...args);
 }
 
-function formatSnapLabel(step = BEAT_GRID_SNAP){
-  if (!(step > 0)) return "Off";
-  if (Math.abs(step - 1) < 1e-9) return "1";
-  if (Math.abs(step - .5) < 1e-9) return "1/2";
-  if (Math.abs(step - .25) < 1e-9) return "1/4";
-  if (Math.abs(step - .125) < 1e-9) return "1/8";
-  if (Math.abs(step - .0625) < 1e-9) return "1/16";
-  return formatBeatValue(step);
+function formatSnapLabel(...args){
+  return timelineResizeController.formatSnapLabel(...args);
 }
 
-function setBeatGridSnap(step){
-  const n = Number(step);
-  BEAT_GRID_SNAP = Number.isFinite(n) && n >= 0 ? n : 0.25;
-  const select = document.getElementById("beatGridSnapSelect");
-  if (select) select.value = String(BEAT_GRID_SNAP);
-  const legend = document.getElementById("beatGridSnapLegend");
-  if (legend) legend.textContent = `Snap＝${formatSnapLabel()}${BEAT_GRID_SNAP > 0 ? "拍" : ""}`;
-  document.querySelectorAll("#grooveSeqList .beatsInput").forEach(input => {
-    input.step = BEAT_GRID_SNAP > 0 ? String(BEAT_GRID_SNAP) : "0.01";
-    input.min = BEAT_GRID_SNAP > 0 ? String(BEAT_GRID_SNAP) : "0.01";
-  });
-  if (hasBeatGridRange()){
-    const [a,b] = normalizeBeatGridRange(beatGridRangeStart, beatGridRangeEnd);
-    beatGridRangeStart = a; beatGridRangeEnd = b;
-  }
-  updateBeatGridRangeUI();
+function setBeatGridSnap(...args){
+  return timelineResizeController.setBeatGridSnap(...args);
 }
 
-function formatBeatValue(v){
-  const n = Number(v) || 0;
-  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2)));
+function formatBeatValue(...args){
+  return timelineResizeController.formatBeatValue(...args);
 }
 
 // kfBeatsSelect 保留常用快速選項；Resize 若產生 2.25 / 2.75 等值，動態加一個「目前值」選項，
 // 避免 Inspector 因原清單沒有該值而顯示空白。
-function syncBeatSelectValue(select, beats){
-  if (!select) return;
-  const value = normalizeTimelineBeats(beats);
-  select.querySelectorAll('option[data-custom-beat="1"]').forEach(o => o.remove());
-  let match = Array.from(select.options).find(o => Math.abs(Number(o.value) - value) < 1e-9);
-  if (!match){
-    match = document.createElement("option");
-    match.value = formatBeatValue(value);
-    match.textContent = `${formatBeatValue(value)} 拍`;
-    match.dataset.customBeat = "1";
-    select.appendChild(match);
-  }
-  select.value = match.value;
+function syncBeatSelectValue(...args){
+  return timelineResizeController.syncBeatSelectValue(...args);
 }
 
-function setGrooveSeqBeats(i, beats){
-  if (!grooveSequence[i]) return;
-  grooveSequence[i].beats = snapGrooveBeats(beats);
-  renderGrooveSeqChips();
-  renderKeyframeChips();
-  scheduleAutoSave();
+function setGrooveSeqBeats(...args){
+  return grooveSequenceController.setGrooveSeqBeats(...args);
 }
-function setGrooveSeqLibId(i, libId){
-  if (!grooveSequence[i]) return;
-  grooveSequence[i].libId = libId;
-  renderGrooveSeqChips();
-  scheduleAutoSave();
+function setGrooveSeqLibId(...args){
+  return grooveSequenceController.setGrooveSeqLibId(...args);
 }
 
-function updateKeyframeClipLayoutOnly(){
-  updateBeatGridGeometry();
-  for (let i = 0; i < kfChipEls.length; i++){
-    const chip = kfChipEls[i];
-    const kf = keyframes[i];
-    if (!chip || !kf) continue;
-    const startBeat = keyframeStartBeat(i);
-    const isEnd = i === keyframes.length - 1;
-    const durationBeats = isEnd ? 0 : normalizeTimelineBeats(kf.beats || 1);
-    const widthPx = isEnd ? 48 : Math.max(2, durationBeats * BEAT_GRID_PX_PER_BEAT - 2);
-    chip.style.left = `${startBeat * BEAT_GRID_PX_PER_BEAT}px`;
-    chip.style.width = `${widthPx}px`;
-    chip.classList.toggle("beatGridCompact", widthPx < 92);
-    const easeTag = chip.querySelector(".kfEaseTag");
-    if (easeTag && !isEnd){
-      const easeName = kf.easing || "easeInOutQuad";
-      easeTag.title = `${easeName} · ${formatBeatValue(durationBeats)} 拍`;
-      const span = easeTag.querySelector("span");
-      if (span) span.textContent = `${formatBeatValue(durationBeats)}拍`;
-    }
-  }
-  if (kfEditingIndex >= 0 && keyframes[kfEditingIndex]){
-    kfPendingBeats = normalizeTimelineBeats(keyframes[kfEditingIndex].beats || 1);
-    syncBeatSelectValue(document.getElementById("kfBeatsSelect"), kfPendingBeats);
-    updateBeatMsHint();
-    updateBeatGridPoseInspector();
-  }
-  updateKfTotalDurationLabel();
-  renderGrooveLoopGhosts();
-  drawKfWaveform();
+function updateKeyframeClipLayoutOnly(...args){
+  return timelineResizeController.updateKeyframeClipLayoutOnly(...args);
 }
 
-function updateGrooveClipLayoutOnly(){
-  updateBeatGridGeometry();
-  for (let i = 0; i < grooveSeqChipEls.length; i++){
-    const chip = grooveSeqChipEls[i];
-    const entry = grooveSequence[i];
-    if (!chip || !entry) continue;
-    const startBeat = grooveSegmentStartBeat(i);
-    const durationBeats = Math.max(0.01, Number(entry.beats) || 0.01);
-    const widthPx = Math.max(2, durationBeats * BEAT_GRID_PX_PER_BEAT - 2);
-    chip.style.left = `${startBeat * BEAT_GRID_PX_PER_BEAT}px`;
-    chip.style.width = `${widthPx}px`;
-    chip.classList.toggle("beatGridCompact", widthPx < 126);
-    const input = chip.querySelector(".beatsInput");
-    if (input && document.activeElement !== input) input.value = formatBeatValue(durationBeats);
-  }
-  renderGrooveLoopGhosts();
-  updateGrooveSeqTotalLabel();
+function updateGrooveClipLayoutOnly(...args){
+  return timelineResizeController.updateGrooveClipLayoutOnly(...args);
 }
 
 // POSE / GROOVE 共用 Resize Engine：座標換算、1/4 beat snap、HUD、Pointer Capture、
 // Cancel rollback、AutoSave 與「一次拖曳＝一筆 Undo」都集中在這裡，避免兩軌各維護一套手勢。
-function beginTimelineResize(e, config){
-  if (kfPlaying || !config || !config.chip || !config.handle) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (config.select) config.select();
-
-  const chip = config.chip;
-  const handle = config.handle;
-  const startX = e.clientX;
-  const startBeats = normalizeTimelineBeats(config.getBeats());
-  let lastBeats = startBeats;
-  let changed = false;
-  const hud = document.getElementById("timelineResizeHud");
-  const originalDraggable = chip.draggable;
-  chip.draggable = false;
-  chip.classList.add("resizing");
-  handle.classList.add("resizing");
-  try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-
-  const showHud = (ev, beats) => {
-    if (!hud) return;
-    const extra = config.hudExtra ? config.hudExtra(beats) : "";
-    hud.textContent = `${config.label || "Duration"} · ${formatBeatValue(beats)} beat${Math.abs(beats - 1) < 1e-9 ? "" : "s"}${extra ? ` · ${extra}` : ""}`;
-    hud.style.left = `${Math.min(window.innerWidth - 230, ev.clientX + 12)}px`;
-    hud.style.top = `${Math.max(6, ev.clientY - 30)}px`;
-    hud.style.display = "block";
-  };
-  showHud(e, startBeats);
-
-  const onMove = (ev) => {
-    const deltaBeats = (ev.clientX - startX) / BEAT_GRID_PX_PER_BEAT;
-    const next = snapTimelineBeats(startBeats + deltaBeats);
-    if (Math.abs(lastBeats - next) > 1e-9){
-      config.setBeats(next);
-      lastBeats = next;
-      changed = Math.abs(startBeats - next) > 1e-9;
-      config.updateLayout();
-    }
-    showHud(ev, next);
-  };
-  const finish = (cancelled = false) => {
-    handle.removeEventListener("pointermove", onMove);
-    handle.removeEventListener("pointerup", onUp);
-    handle.removeEventListener("pointercancel", onCancel);
-    try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-    chip.classList.remove("resizing");
-    handle.classList.remove("resizing");
-    chip.draggable = originalDraggable;
-    if (hud) hud.style.display = "none";
-    if (cancelled){
-      config.setBeats(startBeats);
-      config.updateLayout();
-      return;
-    }
-    config.updateLayout();
-    if (changed){
-      scheduleAutoSave();
-      pushHistory();
-    }
-  };
-  const onUp = () => finish(false);
-  const onCancel = () => finish(true);
-  handle.addEventListener("pointermove", onMove);
-  handle.addEventListener("pointerup", onUp);
-  handle.addEventListener("pointercancel", onCancel);
+function beginTimelineResize(...args){
+  return timelineResizeController.beginTimelineResize(...args);
 }
 
-function beginPoseResize(e, i, chip, handle){
-  if (i < 0 || i >= keyframes.length - 1 || kfMultiSelectMode) return;
-  beginTimelineResize(e, {
-    chip, handle,
-    label: `F${i+1} → F${i+2}`,
-    select: () => selectKeyframeStateOnly(i),
-    getBeats: () => keyframes[i] ? (keyframes[i].beats || 1) : 1,
-    setBeats: (v) => { if (keyframes[i]) keyframes[i].beats = v; },
-    updateLayout: updateKeyframeClipLayoutOnly,
-    hudExtra: (beats) => {
-      const sec = (beats * (60000 / bpm) / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-      return `${sec}s`;
-    }
-  });
+function beginPoseResize(...args){
+  return timelineResizeController.beginPoseResize(...args);
 }
 
-function beginGrooveResize(e, i, chip, handle){
-  if (i < 0 || i >= grooveSequence.length) return;
-  beginTimelineResize(e, {
-    chip, handle,
-    label: "GROOVE",
-    select: () => selectGrooveSeqEntry(i),
-    getBeats: () => grooveSequence[i] ? grooveSequence[i].beats : 1,
-    setBeats: (v) => { if (grooveSequence[i]) grooveSequence[i].beats = v; },
-    updateLayout: updateGrooveClipLayoutOnly
-  });
+function beginGrooveResize(...args){
+  return timelineResizeController.beginGrooveResize(...args);
 }
 
-function updateGrooveSeqTotalLabel(){
-  const el = document.getElementById("grooveSeqTotalBeats");
-  if (!el) return;
-  if (grooveSequence.length === 0){ el.textContent = ""; return; }
-  const total = grooveSeqTotalBeats();
-  const kfTotal = kfTotalBeats();
-  let msg = `序列總拍數：${total}拍`;
-  if (kfTotal > 0){
-    if (Math.abs(total - kfTotal) < 1e-9){
-      msg += `・跟編舞總拍數（${kfTotal}拍）一致，剛好整段循環一次`;
-    } else if (total < kfTotal){
-      const loops = kfTotal / total;
-      msg += `・編舞共${kfTotal}拍（會循環約${loops.toFixed(1)}輪`;
-      msg += Math.abs(loops - Math.round(loops)) < 1e-9 ? "，剛好整數次）" : "，最後一輪會在中途被切斷）";
-    } else {
-      msg += `・編舞共${kfTotal}拍（序列比編舞長，後面 ${total - kfTotal} 拍的段落播不到）`;
-    }
-  }
-  el.textContent = msg;
+function updateGrooveSeqTotalLabel(...args){
+  return grooveSequenceController.updateGrooveSeqTotalLabel(...args);
 }
 
 // 渲染律動序列 chip 清單：下拉選單選律動庫項目、拍數輸入框、複製/刪除，支援拖曳排序。
 // 拖曳邏輯風格跟 #kfList 的拍點拖曳一致：dragstart 記來源 index、drop 時呼叫 reorder。
-function renderGrooveSeqChips(){
-  const host = document.getElementById("grooveSeqList");
-  const empty = document.getElementById("grooveSeqEmpty");
-  if (!host) return;
-  bindTimelineReorderHost("groove", host);
-  updateBeatGridGeometry();
-  host.innerHTML = "";
-  grooveSeqChipEls = [];
-  if (grooveSequence.length === 0){
-    if (empty) host.appendChild(empty);
-    updateBeatGridGeometry();
-    updateGrooveSeqTotalLabel();
-    return;
-  }
-  const libItems = grooveLibCtrl ? grooveLibCtrl.getItems() : [];
-  grooveSequence.forEach((entry, i) => {
-    const chip = document.createElement("div");
-    chip.className = "grooveSeqChip";
-    const startBeat = grooveSegmentStartBeat(i);
-    const durationBeats = Math.max(0.01, Number(entry.beats) || 0.01);
-    const widthPx = Math.max(2, durationBeats * BEAT_GRID_PX_PER_BEAT - 2);
-    chip.style.left = `${startBeat * BEAT_GRID_PX_PER_BEAT}px`;
-    chip.style.width = `${widthPx}px`;
-    if (widthPx < 126) chip.classList.add("beatGridCompact");
-    chip.draggable = !kfPlaying && (!kfMultiSelectMode || grooveMultiSelected.has(i));
-    const libItem = libItems.find(it => it.id === entry.libId);
-    chip.classList.toggle("missingLib", !libItem);
-    chip.classList.toggle("selected", !kfMultiSelectMode && i === grooveSeqSelectedIndex);
-    chip.classList.toggle("multiChecked", kfMultiSelectMode && grooveMultiSelected.has(i));
-    chip.addEventListener("click", () => { if (kfMultiSelectMode) toggleGrooveMultiSelectItem(i); else selectGrooveSeqEntry(i); });
-    if (kfMultiSelectMode){
-      const check=document.createElement("span"); check.className="kfCheckMark"; check.textContent="✓";
-      check.setAttribute("data-tooltip", grooveMultiSelected.has(i) ? "已選取；可拖曳任一已選 GROOVE 整組移動" : "點此段加入多選");
-      chip.appendChild(check);
-    }
-
-    const sel = document.createElement("select");
-    if (!libItem){
-      // 引用到已被刪除的律動庫項目：顯示警示選項，讓使用者知道要重新指定，而不是靜默失效。
-      const optMissing = document.createElement("option");
-      optMissing.value = entry.libId;
-      optMissing.textContent = "⚠ 已刪除的律動";
-      sel.appendChild(optMissing);
-    }
-    libItems.forEach(it => {
-      const opt = document.createElement("option");
-      opt.value = it.id;
-      opt.textContent = it.name;
-      if (it.id === entry.libId) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.title = "這段套用哪個律動庫項目";
-    // clip 本身可拖曳；操作下拉選單時不要讓父層把 pointer 起手誤判成拖曳。
-    sel.onpointerdown = (ev) => { ev.stopPropagation(); if (!kfMultiSelectMode) selectGrooveSeqEntry(i); };
-    sel.onmousedown = (ev) => ev.stopPropagation();
-    sel.onclick = (ev) => ev.stopPropagation();
-    sel.onchange = (e) => { setGrooveSeqLibId(i, e.target.value); pushHistory(); };
-    chip.appendChild(sel);
-
-    const beatsInput = document.createElement("input");
-    beatsInput.type = "number";
-    beatsInput.className = "beatsInput";
-    beatsInput.min = BEAT_GRID_SNAP > 0 ? String(BEAT_GRID_SNAP) : "0.01"; beatsInput.max = "64"; beatsInput.step = BEAT_GRID_SNAP > 0 ? String(BEAT_GRID_SNAP) : "0.01";
-    beatsInput.value = formatBeatValue(entry.beats);
-    beatsInput.title = "這段維持幾拍（支援 1/4 拍）；也可拖曳 clip 右側邊緣調整";
-    beatsInput.draggable = false;
-    // 1 拍 compact clip 空間很窄，直接操作數字框時禁止事件冒泡到可拖曳的父層。
-    beatsInput.onpointerdown = (ev) => { ev.stopPropagation(); if (!kfMultiSelectMode) selectGrooveSeqEntry(i); };
-    beatsInput.onmousedown = (ev) => ev.stopPropagation();
-    beatsInput.onclick = (ev) => ev.stopPropagation();
-    beatsInput.onchange = (e) => { setGrooveSeqBeats(i, e.target.value); pushHistory(); };
-    chip.appendChild(beatsInput);
-
-    const beatsUnit = document.createElement("span");
-    beatsUnit.className = "beatUnit";
-    beatsUnit.textContent = "拍";
-    beatsUnit.style.cssText = "font-size:10px; color:#6a6a9a; padding:0 3px;";
-    chip.appendChild(beatsUnit);
-
-    const dup = document.createElement("button");
-    dup.className = "dup"; dup.textContent = "⧉"; dup.title = "複製這段";
-    dup.onclick = (ev) => { ev.stopPropagation(); duplicateGrooveSeqEntry(i); pushHistory(); };
-    if (!kfMultiSelectMode) chip.appendChild(dup);
-
-    const resizeHandle = document.createElement("div");
-    resizeHandle.className = "timelineResizeHandle grooveResizeHandle";
-    resizeHandle.setAttribute("data-tooltip", "拖曳左右調整這段律動長度（1/4拍吸附）");
-    resizeHandle.addEventListener("pointerdown", (ev) => beginGrooveResize(ev, i, chip, resizeHandle));
-    resizeHandle.addEventListener("click", (ev) => ev.stopPropagation());
-    if (!kfMultiSelectMode) chip.appendChild(resizeHandle);
-
-    chip.addEventListener("dragstart", (ev) => {
-      grooveSeqDragIndex = i; // 保留舊狀態變數供相容/除錯
-      if (!beginTimelineReorderDrag("groove", i, chip, ev)) grooveSeqDragIndex = -1;
-    });
-    chip.addEventListener("dragend", () => {
-      endTimelineReorderDrag("groove");
-      grooveSeqDragIndex = -1;
-    });
-
-    host.appendChild(chip);
-    grooveSeqChipEls[i] = chip;
-  });
-  updateBeatGridGeometry();
-  renderGrooveLoopGhosts();
-  updateGrooveSeqTotalLabel();
+function renderGrooveSeqChips(...args){
+  return grooveSequenceController.renderGrooveSeqChips(...args);
 }
 
 // 律動庫的 UI 初始化：跟姿勢庫/手勢庫/招式庫共用同一套 createLibraryController，
 // 差別只在 onRender 時要順便重繪律動序列（因為序列下拉選單的選項來自律動庫項目清單）。
-function bindGrooveLibraryUI(){
-  grooveLibCtrl = createLibraryController({
-    storageKey: GROOVE_LIB_KEY, captureFn: captureCurrentGrooveConfig, applyFn: applyGrooveConfigData,
-    listElId: "grooveLibList", emptyElId: "grooveLibEmpty", filePrefix: "律動", itemLabel: "律動",
-    subtitleFn: grooveLibSubtitle,
-    extraDeleteWarning: (item) => {
-      const refCount = grooveSequence.filter(e => e.libId === item.id).length;
-      if (refCount === 0) return null;
-      return `⚠️「時間軸」分頁的律動序列裡有 ${refCount} 個段落正在使用這個律動，刪除後那幾段播放時會沿用前一個有效段落的設定（若前面沒有其他有效段落，則那幾拍不套用律動）。`;
-    },
-    onRender: (count) => {
-      const badge = document.getElementById("grooveLibCount");
-      if (badge) badge.textContent = count;
-      renderGrooveSeqChips(); // 庫項目增/刪/改名，序列清單的下拉選單內容要跟著重繪
-    }
-  });
-  const nameInput = document.getElementById("grooveLibNameInput");
-  document.getElementById("grooveLibSaveBtn").onclick = () => {
-    grooveLibCtrl.saveCurrent(nameInput.value);
-    nameInput.value = "";
-  };
-  nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("grooveLibSaveBtn").click(); });
-  document.getElementById("grooveLibExportAllBtn").onclick = () => grooveLibCtrl.exportAll();
-  document.getElementById("grooveLibImportAllBtn").onclick = () => document.getElementById("grooveLibImportAllFile").click();
-  document.getElementById("grooveLibImportAllFile").onchange = (e) => { grooveLibCtrl.importAll(e.target.files[0]); e.target.value = ""; };
-  document.getElementById("grooveLibImportOneBtn").onclick = () => document.getElementById("grooveLibImportOneFile").click();
-  document.getElementById("grooveLibImportOneFile").onchange = (e) => { grooveLibCtrl.importOne(e.target.files[0]); e.target.value = ""; };
-  grooveLibCtrl.render();
+function bindGrooveLibraryUI(...args){
+  return grooveSequenceController.bindGrooveLibraryUI(...args);
 }
 
-function bindGrooveSequenceUI(){
-  const addBtn = document.getElementById("grooveSeqAddBtn");
-  if (addBtn){
-    addBtn.onclick = () => {
-      const items = grooveLibCtrl ? grooveLibCtrl.getItems() : [];
-      if (items.length === 0){ alert("律動庫目前是空的，請先在上面「律動庫」存至少一項律動設定。"); return; }
-      addGrooveSeqEntry(items[0].id);
-      pushHistory();
-    };
-  }
-  renderGrooveSeqChips();
+function bindGrooveSequenceUI(...args){
+  return grooveSequenceController.bindGrooveSequenceUI(...args);
 }
 
 // 每幀呼叫：在 keyframes[kfIndex] 與 keyframes[kfIndex+1] 之間用四元數 Slerp 平滑過渡
 // 過渡時長 = 該拍點自訂的「拍數」× BPM 換算出的一拍毫秒數；過渡曲線 = 該拍點自訂的 Easing
-function updateKeyframePlayback(now){
-  timelinePlayback.update(now);
+function updateKeyframePlayback(...args){
+  return timelineTransportController.updateKeyframePlayback(...args);
 }
 
 function bindTopUI(){
@@ -6690,113 +3811,7 @@ function bindTopUI(){
     document.execCommand("copy");
   };
 
-  document.getElementById("kfPlayBtn").onclick = toggleKeyframePlayback;
-  const kfLoopBtn = document.getElementById("kfLoopBtn");
-  kfLoopBtn.classList.toggle("active", kfLoop); // 圖示按鈕改用 active class 表示目前是否為循環播放狀態，跟其他切換按鈕（如手指 IK）同一套視覺語言
-  kfLoopBtn.onclick = () => {
-    kfLoop = !kfLoop;
-    if (kfLoop) setBeatGridRangeLoop(false);
-    kfLoopBtn.classList.toggle("active", kfLoop);
-  };
-  const beatGridZoomSelect = document.getElementById("beatGridZoomSelect");
-  const beatGridZoomOutBtn = document.getElementById("beatGridZoomOutBtn");
-  const beatGridZoomInBtn = document.getElementById("beatGridZoomInBtn");
-  if (beatGridZoomSelect){
-    syncBeatGridZoomSelect(BEAT_GRID_PX_PER_BEAT);
-    beatGridZoomSelect.onchange = (e) => setBeatGridZoomPx(Number(e.target.value));
-  }
-  if (beatGridZoomOutBtn) beatGridZoomOutBtn.onclick = () => stepBeatGridZoom(-1);
-  if (beatGridZoomInBtn) beatGridZoomInBtn.onclick = () => stepBeatGridZoom(1);
-  const beatGridSnapSelect = document.getElementById("beatGridSnapSelect");
-  if (beatGridSnapSelect){
-    beatGridSnapSelect.value = String(BEAT_GRID_SNAP);
-    beatGridSnapSelect.onchange = (e) => setBeatGridSnap(Number(e.target.value));
-  }
-  setBeatGridSnap(BEAT_GRID_SNAP);
-  const beatGridHomeBtn = document.getElementById("beatGridHomeBtn");
-  const beatGridEndBtn = document.getElementById("beatGridEndBtn");
-  const beatGridFitBtn = document.getElementById("beatGridFitBtn");
-  const beatGridCenterBtn = document.getElementById("beatGridCenterBtn");
-  if (beatGridHomeBtn) beatGridHomeBtn.onclick = () => navigateBeatGridToBeat(0);
-  if (beatGridEndBtn) beatGridEndBtn.onclick = () => navigateBeatGridToBeat(beatGridTimelineBeats());
-  if (beatGridFitBtn) beatGridFitBtn.onclick = fitBeatGridTimeline;
-  if (beatGridCenterBtn) beatGridCenterBtn.onclick = centerBeatGridPlayhead;
-  const beatGridRangeLoopBtn = document.getElementById("beatGridRangeLoopBtn");
-  const beatGridRangeCopyBtn = document.getElementById("beatGridRangeCopyBtn");
-  const beatGridRangePasteBtn = document.getElementById("beatGridRangePasteBtn");
-  const beatGridRangeDuplicateBtn = document.getElementById("beatGridRangeDuplicateBtn");
-  const beatGridRangeDeleteBtn = document.getElementById("beatGridRangeDeleteBtn");
-  const beatGridRangeClearBtn = document.getElementById("beatGridRangeClearBtn");
-  if (beatGridRangeLoopBtn) beatGridRangeLoopBtn.onclick = () => setBeatGridRangeLoop(!beatGridRangeLoop);
-  if (beatGridRangeCopyBtn) beatGridRangeCopyBtn.onclick = copyBeatGridRange;
-  if (beatGridRangePasteBtn) beatGridRangePasteBtn.onclick = () => pasteBeatGridRange();
-  if (beatGridRangeDuplicateBtn) beatGridRangeDuplicateBtn.onclick = duplicateBeatGridRange;
-  if (beatGridRangeDeleteBtn) beatGridRangeDeleteBtn.onclick = deleteBeatGridRange;
-  if (beatGridRangeClearBtn) beatGridRangeClearBtn.onclick = clearBeatGridRange;
-  bindBeatGridRangeSelection();
-  updateBeatGridRangeUI();
-  const onionChkDisplay = document.getElementById("onionSkinChkDisplay");
-  if (onionChkDisplay){
-    onionChkDisplay.checked = onionSkinEnabled;
-    onionChkDisplay.onchange = (e) => { onionSkinEnabled = e.target.checked; updateOnionSkins(); };
-  }
-  bindGrooveUI();
-  const kfMusicWaveformDetails = document.getElementById("kfMusicWaveformDetails");
-  document.getElementById("kfAddBtn").onclick = () => { addKeyframe(); pushHistory(); };
-  document.getElementById("kfUpdateBtn").onclick = () => { updateKeyframe(); pushHistory(); };
-  document.getElementById("kfMultiSelectBtn").onclick = () => setKfMultiSelectMode(!kfMultiSelectMode);
-  document.getElementById("kfMultiSelectAllBtn").onclick = kfMultiSelectAll;
-  document.getElementById("kfMultiSelectNoneBtn").onclick = kfMultiSelectNone;
-  document.getElementById("kfMultiSelectCopyBtn").onclick = copyTimelineSelection;
-  document.getElementById("kfMultiSelectCutBtn").onclick = cutTimelineSelection;
-  document.getElementById("kfMultiSelectPasteBtn").onclick = pasteTimelineClipboard;
-  document.getElementById("kfMultiSelectDeleteBtn").onclick = deleteKfMultiSelected;
-  updateKfMultiSelectBar();
-  document.getElementById("kfExportBtn").onclick = exportTimeline;
-  document.getElementById("kfImportBtn").onclick = () => document.getElementById("kfImportFile").click();
-  document.getElementById("kfImportFile").onchange = (e) => {
-    const file = e.target.files[0];
-    if (file) importTimelineFromFile(file);
-    e.target.value = ""; // 清空選取，允許連續匯入同一個檔名的檔案
-  };
-  document.getElementById("kfMusicImportBtn").onclick = () => document.getElementById("kfMusicFile").click();
-  document.getElementById("kfMusicFile").onchange = (e) => {
-    const file = e.target.files[0];
-    if (file) importKfMusic(file);
-    e.target.value = "";
-  };
-  document.getElementById("kfMusicRemoveBtn").onclick = removeKfMusic;
-  document.getElementById("kfMusicVolume").oninput = (e) => {
-    document.getElementById("kfAudioEl").volume = parseFloat(e.target.value);
-  };
-  document.getElementById("kfMusicOffset").oninput = () => {
-    waveform.invalidate();
-    updateBeatGridGeometry();
-    drawKfWaveform();
-  };
-  document.getElementById("kfAudioEl").addEventListener("timeupdate", updateBeatGridMusicPreviewPlayhead);
-  document.getElementById("kfMusicPreviewBtn").onclick = toggleKfMusicPreview;
-  ["play", "pause", "ended"].forEach(evt => document.getElementById("kfAudioEl").addEventListener(evt, () => {
-    syncKfMusicPreviewBtn();
-    updateBeatGridMusicPreviewPlayhead();
-  }));
-  initKfListWheelScroll();
-  bindKfKeyboardShortcuts();
-  bindKfWaveformScrubbing();
-  window.addEventListener("resize", () => { updateBeatGridGeometry(); drawKfWaveform(); });
-
-  const easeSel = document.getElementById("kfEasingSelect");
-  easeSel.innerHTML = buildEasingSelectOptions();
-  easeSel.value = kfPendingEasing;
-  easeSel.onchange = (e) => { setKeyframeEasing(e.target.value); pushHistory(); };
-
-  const beatsSel = document.getElementById("kfBeatsSelect");
-  beatsSel.value = String(kfPendingBeats);
-  beatsSel.onchange = (e) => { setKeyframeBeats(parseFloat(e.target.value)); pushHistory(); };
-
-  updateEasingPreview();
-  updateBeatMsHint();
-  updateBeatGridPoseInspector();
+  bindTimelineUI();
 
   initUITabs();
   initEasingGallery();
@@ -8844,4 +5859,728 @@ const jointOwnership = createJointOwnership({
   get grooveBlockedKeys(){ return grooveBlockedKeys; },
 });
 
+const tuttingController = createTuttingController({
+  get model(){ return model; },
+  get kfPlaying(){ return kfPlaying; },
+  get waveRun(){ return waveRun; },
+  get laPathRun(){ return laPathRun; },
+  get groovePreviewEnabled(){ return groovePreviewEnabled; },
+  get waveTrackActive(){ return waveTrackActive; },
+  get ikEnabled(){ return ikEnabled; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  get fingerIKEnabled(){ return fingerIKEnabled; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get footPlantEnabled(){ return footPlantEnabled; },
+  get handCollisionEnabled(){ return handCollisionEnabled; },
+  get handHandCollisionEnabled(){ return handHandCollisionEnabled; },
+  get bones(){ return bones; },
+  get restQuat(){ return restQuat; },
+  get applyBodyTransform(){ return applyBodyTransform; },
+  get tgPreview(){ return tgPreview; },
+  set tgPreview(value){ tgPreview = value; },
+  get poseController(){ return poseController; },
+  get tgCandidates(){ return tgCandidates; },
+  set tgCandidates(value){ tgCandidates = value; },
+  get tgIndex(){ return tgIndex; },
+  set tgIndex(value){ tgIndex = value; },
+  get tgSignature(){ return tgSignature; },
+  set tgSignature(value){ tgSignature = value; },
+  get tgConfig(){ return tgConfig; },
+  set tgConfig(value){ tgConfig = value; },
+  get JOINT_LIMITS(){ return JOINT_LIMITS; },
+  set JOINT_LIMITS(value){ JOINT_LIMITS = value; },
+  get tgBase(){ return tgBase; },
+  set tgBase(value){ tgBase = value; },
+  get pushHistory(){ return pushHistory; },
+  get snapshotBodyTransform(){ return snapshotBodyTransform; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get clampJointAngles(){ return clampJointAngles; },
+  get setActiveBtn(){ return setActiveBtn; },
+  get updateSelectedBar(){ return updateSelectedBar; },
+  get addKeyframe(){ return addKeyframe; },
+  get isolationSettings(){ return isolationSettings; },
+  set isolationSettings(value){ isolationSettings = value; },
+  get defaultJointLimits(){ return defaultJointLimits; },
+  get JOINT_LIMIT_KEYS(){ return JOINT_LIMIT_KEYS; },
+  get saveJointLimits(){ return saveJointLimits; },
+  get saveIsolationSettings(){ return saveIsolationSettings; },
+  get buildJointLimitPanel(){ return buildJointLimitPanel; },
+  get poseLibCtrl(){ return poseLibCtrl; },
+});
+
+const randomPoseGenerator = createRandomPoseGenerator({
+  get isolationSettings(){ return isolationSettings; },
+  get JOINT_LIMIT_KEYS(){ return JOINT_LIMIT_KEYS; },
+  get bones(){ return bones; },
+  get JOINT_LIMITS(){ return JOINT_LIMITS; },
+  get poseController(){ return poseController; },
+  get setTarget(){ return setTarget; },
+  get setActiveBtn(){ return setActiveBtn; },
+  get updateSelectedBar(){ return updateSelectedBar; },
+  get updateJointLimitPanelAngles(){ return updateJointLimitPanelAngles; },
+  get pushHistory(){ return pushHistory; },
+});
+
+const waveController = createWaveController({
+  get WAVE_ROUTE_NODES(){ return WAVE_ROUTE_NODES; },
+  get waveRun(){ return waveRun; },
+  set waveRun(value){ waveRun = value; },
+  get waveConfig(){ return waveConfig; },
+  set waveConfig(value){ waveConfig = value; },
+  get bpm(){ return bpm; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get WAVE_DEFAULT(){ return WAVE_DEFAULT; },
+  get kfPlaying(){ return kfPlaying; },
+  get groovePreviewEnabled(){ return groovePreviewEnabled; },
+  get laPathRun(){ return laPathRun; },
+  get footPlantEnabled(){ return footPlantEnabled; },
+  get ikEnabled(){ return ikEnabled; },
+  get fingerIKEnabled(){ return fingerIKEnabled; },
+  get lookAtEnabled(){ return lookAtEnabled; },
+  get spineIKEnabled(){ return spineIKEnabled; },
+  get WAVE_SHAPE_HINTS(){ return WAVE_SHAPE_HINTS; },
+  get WAVE_GAIN_FIELDS(){ return WAVE_GAIN_FIELDS; },
+  get model(){ return model; },
+  get bones(){ return bones; },
+  get poseController(){ return poseController; },
+  get tgCancelPreview(){ return tgCancelPreview; },
+  get waveTrackActive(){ return waveTrackActive; },
+  set waveTrackActive(value){ waveTrackActive = value; },
+  get restQuat(){ return restQuat; },
+  get deselectJoint(){ return deselectJoint; },
+  get clampJointAngles(){ return clampJointAngles; },
+  get snapshotBodyTransform(){ return snapshotBodyTransform; },
+  get waveClips(){ return waveClips; },
+  get waveClipSelected(){ return waveClipSelected; },
+  set waveClipSelected(value){ waveClipSelected = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get keyframes(){ return keyframes; },
+  get keyframeStartBeat(){ return keyframeStartBeat; },
+  get beatGridPoseTotalBeats(){ return beatGridPoseTotalBeats; },
+  get waveTrackEnd(){ return waveTrackEnd; },
+  get waveClipOverlap(){ return waveClipOverlap; },
+  get kfIndex(){ return kfIndex; },
+  set kfIndex(value){ kfIndex = value; },
+  get waveBaseAtBeat(){ return waveBaseAtBeat; },
+  get applyBodyTransform(){ return applyBodyTransform; },
+  get makeLibId(){ return makeLibId; },
+  get pushHistory(){ return pushHistory; },
+  get waveClone(){ return waveClone; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get waveTrackMessage(){ return waveTrackMessage; },
+  get bindWaveTrack(){ return bindWaveTrack; },
+});
+
+const waveTrackController = createWaveTrack({
+  get poseController(){ return poseController; },
+  get waveClips(){ return waveClips; },
+  set waveClips(value){ waveClips = value; },
+  get beatGridPoseTotalBeats(){ return beatGridPoseTotalBeats; },
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  get makeLibId(){ return makeLibId; },
+  get cleanWave(){ return cleanWave; },
+  get waveClone(){ return waveClone; },
+  get keyframes(){ return keyframes; },
+  get applyBodyTransform(){ return applyBodyTransform; },
+  get bones(){ return bones; },
+  get restQuat(){ return restQuat; },
+  get model(){ return model; },
+  get locateKeyframeSegmentAtBeat(){ return locateKeyframeSegmentAtBeat; },
+  get kfIndex(){ return kfIndex; },
+  set kfIndex(value){ kfIndex = value; },
+  get applyKeyframeFramePose(){ return applyKeyframeFramePose; },
+  get waveTrackActive(){ return waveTrackActive; },
+  set waveTrackActive(value){ waveTrackActive = value; },
+  get waveHasBody(){ return waveHasBody; },
+  get applyBakedWaveFeet(){ return applyBakedWaveFeet; },
+  get grooveStartTime(){ return grooveStartTime; },
+  get bpm(){ return bpm; },
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  get hasBeatGridRange(){ return hasBeatGridRange; },
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  get beatGridRangeEnd(){ return beatGridRangeEnd; },
+  get kfLoop(){ return kfLoop; },
+  get seekRunningPlaybackToBeat(){ return seekRunningPlaybackToBeat; },
+  get stopKeyframePlayback(){ return stopKeyframePlayback; },
+  get applyGroove(){ return applyGroove; },
+  get applySquatGroove(){ return applySquatGroove; },
+  get kfStartTime(){ return kfStartTime; },
+  set kfStartTime(value){ kfStartTime = value; },
+  get updatePlayingKeyframeHighlight(){ return updatePlayingKeyframeHighlight; },
+  get updateBeatGridPlaybackUI(){ return updateBeatGridPlaybackUI; },
+  get kfPlaying(){ return kfPlaying; },
+  get waveClipSelected(){ return waveClipSelected; },
+  set waveClipSelected(value){ waveClipSelected = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get renderGrooveSeqChips(){ return renderGrooveSeqChips; },
+  get pushHistory(){ return pushHistory; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get stopWave(){ return stopWave; },
+  get waveConfig(){ return waveConfig; },
+  set waveConfig(value){ waveConfig = value; },
+  get waveUI(){ return waveUI; },
+  get beatGridTimelineBeats(){ return beatGridTimelineBeats; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get bakeWaveToTimeline(){ return bakeWaveToTimeline; },
+});
+
+const grooveGenerator = createGrooveGenerator({
+  get JOINT_LIMITS(){ return JOINT_LIMITS; },
+  get GROOVE_ARCHETYPES(){ return GROOVE_ARCHETYPES; },
+  get GROOVE_CHAIN_ORDER(){ return GROOVE_CHAIN_ORDER; },
+  get GROOVE_PRESETS(){ return GROOVE_PRESETS; },
+  get GROOVE_GEN_DISTAL_PROB_FALLBACK(){ return GROOVE_GEN_DISTAL_PROB_FALLBACK; },
+  get GROOVE_ARM_PAIRS(){ return GROOVE_ARM_PAIRS; },
+  get GROOVE_GEN_ENERGY_BUDGET(){ return GROOVE_GEN_ENERGY_BUDGET; },
+  get GROOVE_GEN_DISTAL_ENERGY_BONUS(){ return GROOVE_GEN_DISTAL_ENERGY_BONUS; },
+});
+
+const grooveController = createGrooveController({
+  get GROOVE_PRESETS(){ return GROOVE_PRESETS; },
+  get grooveCustomParams(){ return grooveCustomParams; },
+  get grooveWarmupEnabled(){ return grooveWarmupEnabled; },
+  get grooveWarmupBeats(){ return grooveWarmupBeats; },
+  get grooveWarmupCurve(){ return grooveWarmupCurve; },
+  get grooveLastSegIndex(){ return grooveLastSegIndex; },
+  set grooveLastSegIndex(value){ grooveLastSegIndex = value; },
+  get grooveLastSegSnapshot(){ return grooveLastSegSnapshot; },
+  set grooveLastSegSnapshot(value){ grooveLastSegSnapshot = value; },
+  get grooveXfade(){ return grooveXfade; },
+  set grooveXfade(value){ grooveXfade = value; },
+  get grooveStartTime(){ return grooveStartTime; },
+  get bpm(){ return bpm; },
+  get grooveSequence(){ return grooveSequence; },
+  get getGrooveActiveSegment(){ return getGrooveActiveSegment; },
+  get lastValidGrooveSeqItem(){ return lastValidGrooveSeqItem; },
+  set lastValidGrooveSeqItem(value){ lastValidGrooveSeqItem = value; },
+  get grooveJointSet(){ return grooveJointSet; },
+  get GROOVE_XFADE_BEATS(){ return GROOVE_XFADE_BEATS; },
+  get bones(){ return bones; },
+});
+
+const squatController = createSquatController({
+  get GROOVE_SQUAT_DEFAULT(){ return GROOVE_SQUAT_DEFAULT; },
+  get grooveSquatCustom(){ return grooveSquatCustom; },
+  get bones(){ return bones; },
+  get grooveSquatFootAnchor(){ return grooveSquatFootAnchor; },
+  set grooveSquatFootAnchor(value){ grooveSquatFootAnchor = value; },
+  get grooveSquatFootLockedQuat(){ return grooveSquatFootLockedQuat; },
+  set grooveSquatFootLockedQuat(value){ grooveSquatFootLockedQuat = value; },
+  get grooveSquatAnchored(){ return grooveSquatAnchored; },
+  set grooveSquatAnchored(value){ grooveSquatAnchored = value; },
+  get squatLastSegIndex(){ return squatLastSegIndex; },
+  set squatLastSegIndex(value){ squatLastSegIndex = value; },
+  get squatLastSegSnapshot(){ return squatLastSegSnapshot; },
+  set squatLastSegSnapshot(value){ squatLastSegSnapshot = value; },
+  get squatXfade(){ return squatXfade; },
+  set squatXfade(value){ squatXfade = value; },
+  get bpm(){ return bpm; },
+  get grooveSequence(){ return grooveSequence; },
+  get getGrooveActiveSegment(){ return getGrooveActiveSegment; },
+  get lastValidSquatSeqData(){ return lastValidSquatSeqData; },
+  set lastValidSquatSeqData(value){ lastValidSquatSeqData = value; },
+  get grooveSquatEnabled(){ return grooveSquatEnabled; },
+  get GROOVE_XFADE_BEATS(){ return GROOVE_XFADE_BEATS; },
+  get ikEnabled(){ return ikEnabled; },
+  get _squatPreviewLastDelta(){ return _squatPreviewLastDelta; },
+  get model(){ return model; },
+  get grooveWarmupRamp(){ return grooveWarmupRamp; },
+});
+
+const groovePanelController = createGroovePanel({
+  get GROOVE_JOINT_KEYS(){ return GROOVE_JOINT_KEYS; },
+  get grooveJointSet(){ return grooveJointSet; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get grooveEditingKey(){ return grooveEditingKey; },
+  set grooveEditingKey(value){ grooveEditingKey = value; },
+  get grooveCustomParams(){ return grooveCustomParams; },
+  set grooveCustomParams(value){ grooveCustomParams = value; },
+  get GROOVE_PRESETS(){ return GROOVE_PRESETS; },
+  get getGrooveParams(){ return getGrooveParams; },
+  get GROOVE_ARCHETYPE_IDS(){ return GROOVE_ARCHETYPE_IDS; },
+  get GROOVE_ARCHETYPES(){ return GROOVE_ARCHETYPES; },
+  get grooveLastGenMeta(){ return grooveLastGenMeta; },
+  set grooveLastGenMeta(value){ grooveLastGenMeta = value; },
+  get grooveSquatEnabled(){ return grooveSquatEnabled; },
+  set grooveSquatEnabled(value){ grooveSquatEnabled = value; },
+  get generateGrooveConfig(){ return generateGrooveConfig; },
+  get applyGrooveConfigData(){ return applyGrooveConfigData; },
+  get grooveSquatAnchored(){ return grooveSquatAnchored; },
+  set grooveSquatAnchored(value){ grooveSquatAnchored = value; },
+  get groovePreviewEnabled(){ return groovePreviewEnabled; },
+  set groovePreviewEnabled(value){ groovePreviewEnabled = value; },
+  get grooveLibCtrl(){ return grooveLibCtrl; },
+  get grooveGenAutoName(){ return grooveGenAutoName; },
+  get captureCurrentGrooveConfig(){ return captureCurrentGrooveConfig; },
+  get grooveWarmupEnabled(){ return grooveWarmupEnabled; },
+  set grooveWarmupEnabled(value){ grooveWarmupEnabled = value; },
+  get grooveWarmupBeats(){ return grooveWarmupBeats; },
+  set grooveWarmupBeats(value){ grooveWarmupBeats = value; },
+  get grooveWarmupCurve(){ return grooveWarmupCurve; },
+  set grooveWarmupCurve(value){ grooveWarmupCurve = value; },
+  get groovePreviewStartTime(){ return groovePreviewStartTime; },
+  set groovePreviewStartTime(value){ groovePreviewStartTime = value; },
+  get resetGrooveXfadeState(){ return resetGrooveXfadeState; },
+  get resetSquatXfadeState(){ return resetSquatXfadeState; },
+  get _squatPreviewLastDelta(){ return _squatPreviewLastDelta; },
+  get model(){ return model; },
+  get resetSquatFootAnchors(){ return resetSquatFootAnchors; },
+  get bindGrooveLibraryUI(){ return bindGrooveLibraryUI; },
+  get bindGrooveSequenceUI(){ return bindGrooveSequenceUI; },
+  get getGrooveSquatParams(){ return getGrooveSquatParams; },
+  get grooveSquatCustom(){ return grooveSquatCustom; },
+  set grooveSquatCustom(value){ grooveSquatCustom = value; },
+});
+
+const grooveSequenceController = createGrooveSequence({
+  get waveClipSelected(){ return waveClipSelected; },
+  set waveClipSelected(value){ waveClipSelected = value; },
+  get renderWaveTrack(){ return renderWaveTrack; },
+  get grooveSequence(){ return grooveSequence; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get toggleGrooveMultiSelectItem(){ return toggleGrooveMultiSelectItem; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get syncEasingControlsFromSelection(){ return syncEasingControlsFromSelection; },
+  get kfChipEls(){ return kfChipEls; },
+  get grooveSeqChipEls(){ return grooveSeqChipEls; },
+  set grooveSeqChipEls(value){ grooveSeqChipEls = value; },
+  get updateOnionSkins(){ return updateOnionSkins; },
+  get grooveLibCtrl(){ return grooveLibCtrl; },
+  set grooveLibCtrl(value){ grooveLibCtrl = value; },
+  get makeLibId(){ return makeLibId; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get snapGrooveBeats(){ return snapGrooveBeats; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get kfTotalBeats(){ return kfTotalBeats; },
+  get bindTimelineReorderHost(){ return bindTimelineReorderHost; },
+  get updateBeatGridGeometry(){ return updateBeatGridGeometry; },
+  get grooveSegmentStartBeat(){ return grooveSegmentStartBeat; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get kfPlaying(){ return kfPlaying; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  get pushHistory(){ return pushHistory; },
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  get formatBeatValue(){ return formatBeatValue; },
+  get beginGrooveResize(){ return beginGrooveResize; },
+  get grooveSeqDragIndex(){ return grooveSeqDragIndex; },
+  set grooveSeqDragIndex(value){ grooveSeqDragIndex = value; },
+  get beginTimelineReorderDrag(){ return beginTimelineReorderDrag; },
+  get endTimelineReorderDrag(){ return endTimelineReorderDrag; },
+  get renderGrooveLoopGhosts(){ return renderGrooveLoopGhosts; },
+  get createLibraryController(){ return createLibraryController; },
+  get GROOVE_LIB_KEY(){ return GROOVE_LIB_KEY; },
+  get captureCurrentGrooveConfig(){ return captureCurrentGrooveConfig; },
+  get applyGrooveConfigData(){ return applyGrooveConfigData; },
+  get grooveLibSubtitle(){ return grooveLibSubtitle; },
+});
+
+const choreographyGenerator = createChoreographyGenerator({
+  get keyframes(){ return keyframes; },
+  set keyframes(value){ keyframes = value; },
+  get moveLibCtrl(){ return moveLibCtrl; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get stopKeyframePlayback(){ return stopKeyframePlayback; },
+  get syncEasingControlsFromSelection(){ return syncEasingControlsFromSelection; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get pushHistory(){ return pushHistory; },
+  get JOINT_LIMIT_KEYS(){ return JOINT_LIMIT_KEYS; },
+  get bones(){ return bones; },
+  get JOINT_LIMITS(){ return JOINT_LIMITS; },
+  get generateRandomPose(){ return generateRandomPose; },
+  get snapshotCurrentAngles(){ return snapshotCurrentAngles; },
+  get snapshotBodyTransform(){ return snapshotBodyTransform; },
+  get kfPendingEasing(){ return kfPendingEasing; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+});
+
+const libraryDomainController = createLibraryDomainController({
+  get BODY_LIB_JOINT_KEYS(){ return BODY_LIB_JOINT_KEYS; },
+  get poseController(){ return poseController; },
+  get setTarget(){ return setTarget; },
+  get setActiveBtn(){ return setActiveBtn; },
+  get updateSelectedBar(){ return updateSelectedBar; },
+  get waveRun(){ return waveRun; },
+  get stopWave(){ return stopWave; },
+  get bpm(){ return bpm; },
+  get keyframes(){ return keyframes; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get syncEasingControlsFromSelection(){ return syncEasingControlsFromSelection; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get grooveJointSet(){ return grooveJointSet; },
+  set grooveJointSet(value){ grooveJointSet = value; },
+  get grooveCustomParams(){ return grooveCustomParams; },
+  set grooveCustomParams(value){ grooveCustomParams = value; },
+  get grooveSquatEnabled(){ return grooveSquatEnabled; },
+  set grooveSquatEnabled(value){ grooveSquatEnabled = value; },
+  get grooveSquatCustom(){ return grooveSquatCustom; },
+  set grooveSquatCustom(value){ grooveSquatCustom = value; },
+  get grooveLastGenMeta(){ return grooveLastGenMeta; },
+  set grooveLastGenMeta(value){ grooveLastGenMeta = value; },
+  get sanitizeGrooveCustomEntry(){ return sanitizeGrooveCustomEntry; },
+  get sanitizeGrooveSquatCustomEntry(){ return sanitizeGrooveSquatCustomEntry; },
+  get refreshGrooveJointUI(){ return refreshGrooveJointUI; },
+  get renderGrooveSquatUI(){ return renderGrooveSquatUI; },
+  get poseLibCtrl(){ return poseLibCtrl; },
+  set poseLibCtrl(value){ poseLibCtrl = value; },
+  get createLibraryController(){ return createLibraryController; },
+  get POSE_LIB_KEY(){ return POSE_LIB_KEY; },
+  get gestureLibCtrl(){ return gestureLibCtrl; },
+  set gestureLibCtrl(value){ gestureLibCtrl = value; },
+  get GESTURE_LIB_KEY(){ return GESTURE_LIB_KEY; },
+  get moveLibCtrl(){ return moveLibCtrl; },
+  set moveLibCtrl(value){ moveLibCtrl = value; },
+  get MOVE_LIB_KEY(){ return MOVE_LIB_KEY; },
+  get generateChoreographyFromMoves(){ return generateChoreographyFromMoves; },
+  get autoGenerateMove(){ return autoGenerateMove; },
+  get renderStorageUsageIndicator(){ return renderStorageUsageIndicator; },
+});
+
+const onionSkinController = createOnionSkin({
+  get model(){ return model; },
+  get ghostBones(){ return ghostBones; },
+  get scene(){ return scene; },
+  get ghostPrev(){ return ghostPrev; },
+  set ghostPrev(value){ ghostPrev = value; },
+  get ghostNext(){ return ghostNext; },
+  set ghostNext(value){ ghostNext = value; },
+  get restQuat(){ return restQuat; },
+  get kfPlaying(){ return kfPlaying; },
+  get onionSkinEnabled(){ return onionSkinEnabled; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get keyframes(){ return keyframes; },
+  get kfIndex(){ return kfIndex; },
+});
+
+const poseEditorController = createPoseEditor({
+  get snapshotCurrentAngles(){ return snapshotCurrentAngles; },
+  get snapshotBodyTransform(){ return snapshotBodyTransform; },
+  get kfPendingEasing(){ return kfPendingEasing; },
+  set kfPendingEasing(value){ kfPendingEasing = value; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+  set kfPendingBeats(value){ kfPendingBeats = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get keyframes(){ return keyframes; },
+  set keyframes(value){ keyframes = value; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get updateEasingPreview(){ return updateEasingPreview; },
+  get snapTimelineBeats(){ return snapTimelineBeats; },
+  get updateBeatMsHint(){ return updateBeatMsHint; },
+  get kfPlaying(){ return kfPlaying; },
+  get stopKeyframePlayback(){ return stopKeyframePlayback; },
+  get syncEasingControlsFromSelection(){ return syncEasingControlsFromSelection; },
+  get waveClipSelected(){ return waveClipSelected; },
+  set waveClipSelected(value){ waveClipSelected = value; },
+  get renderWaveTrack(){ return renderWaveTrack; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  get grooveSeqChipEls(){ return grooveSeqChipEls; },
+  get kfChipEls(){ return kfChipEls; },
+  get applyPose(){ return applyPose; },
+  get setActiveBtn(){ return setActiveBtn; },
+  get updateOnionSkins(){ return updateOnionSkins; },
+  get waveTrackActive(){ return waveTrackActive; },
+  set waveTrackActive(value){ waveTrackActive = value; },
+  get waveRun(){ return waveRun; },
+  get stopWave(){ return stopWave; },
+});
+
+const timelineInspectorController = createTimelineInspector({
+  get waveClips(){ return waveClips; },
+  get wavePlaybackEnd(){ return wavePlaybackEnd; },
+  get keyframes(){ return keyframes; },
+  get bpm(){ return bpm; },
+  get updateGrooveSeqTotalLabel(){ return updateGrooveSeqTotalLabel; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get kfPendingEasing(){ return kfPendingEasing; },
+  set kfPendingEasing(value){ kfPendingEasing = value; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+  set kfPendingBeats(value){ kfPendingBeats = value; },
+  get syncBeatSelectValue(){ return syncBeatSelectValue; },
+});
+
+const timelineReorderController = createTimelineReorder({
+  get keyframes(){ return keyframes; },
+  set keyframes(value){ keyframes = value; },
+  get grooveSequence(){ return grooveSequence; },
+  set grooveSequence(value){ grooveSequence = value; },
+  get kfChipEls(){ return kfChipEls; },
+  get grooveSeqChipEls(){ return grooveSeqChipEls; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  set kfMultiSelected(value){ kfMultiSelected = value; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  set grooveMultiSelected(value){ grooveMultiSelected = value; },
+  get kfPlaying(){ return kfPlaying; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get timelineReorderDrag(){ return timelineReorderDrag; },
+  set timelineReorderDrag(value){ timelineReorderDrag = value; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  set kfEditingIndex(value){ kfEditingIndex = value; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  set grooveSeqSelectedIndex(value){ grooveSeqSelectedIndex = value; },
+  get renderGrooveSeqChips(){ return renderGrooveSeqChips; },
+  get updateKfMultiSelectBar(){ return updateKfMultiSelectBar; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get reorderKeyframe(){ return reorderKeyframe; },
+  get reorderGrooveSeqEntry(){ return reorderGrooveSeqEntry; },
+  get pushHistory(){ return pushHistory; },
+});
+
+const timelineResizeController = createTimelineResize({
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  set BEAT_GRID_SNAP(value){ BEAT_GRID_SNAP = value; },
+  get hasBeatGridRange(){ return hasBeatGridRange; },
+  get normalizeBeatGridRange(){ return normalizeBeatGridRange; },
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  set beatGridRangeStart(value){ beatGridRangeStart = value; },
+  get beatGridRangeEnd(){ return beatGridRangeEnd; },
+  set beatGridRangeEnd(value){ beatGridRangeEnd = value; },
+  get updateBeatGridRangeUI(){ return updateBeatGridRangeUI; },
+  get updateBeatGridGeometry(){ return updateBeatGridGeometry; },
+  get kfChipEls(){ return kfChipEls; },
+  get keyframes(){ return keyframes; },
+  get keyframeStartBeat(){ return keyframeStartBeat; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+  set kfPendingBeats(value){ kfPendingBeats = value; },
+  get updateBeatMsHint(){ return updateBeatMsHint; },
+  get updateBeatGridPoseInspector(){ return updateBeatGridPoseInspector; },
+  get updateKfTotalDurationLabel(){ return updateKfTotalDurationLabel; },
+  get renderGrooveLoopGhosts(){ return renderGrooveLoopGhosts; },
+  get drawKfWaveform(){ return drawKfWaveform; },
+  get grooveSeqChipEls(){ return grooveSeqChipEls; },
+  get grooveSequence(){ return grooveSequence; },
+  get grooveSegmentStartBeat(){ return grooveSegmentStartBeat; },
+  get updateGrooveSeqTotalLabel(){ return updateGrooveSeqTotalLabel; },
+  get kfPlaying(){ return kfPlaying; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
+  get pushHistory(){ return pushHistory; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get selectKeyframeStateOnly(){ return selectKeyframeStateOnly; },
+  get bpm(){ return bpm; },
+  get selectGrooveSeqEntry(){ return selectGrooveSeqEntry; },
+});
+
+const beatGridController = createBeatGrid({
+  get BEAT_GRID_ZOOM_LEVELS(){ return BEAT_GRID_ZOOM_LEVELS; },
+  get updateKeyframeClipLayoutOnly(){ return updateKeyframeClipLayoutOnly; },
+  get updateGrooveClipLayoutOnly(){ return updateGrooveClipLayoutOnly; },
+  get drawKfWaveform(){ return drawKfWaveform; },
+  get kfPlaying(){ return kfPlaying; },
+  get updateBeatGridMusicPreviewPlayhead(){ return updateBeatGridMusicPreviewPlayhead; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  set BEAT_GRID_PX_PER_BEAT(value){ BEAT_GRID_PX_PER_BEAT = value; },
+  get BEAT_GRID_LABEL_W(){ return BEAT_GRID_LABEL_W; },
+  get grooveSequence(){ return grooveSequence; },
+  get keyframes(){ return keyframes; },
+  get waveform(){ return waveform; },
+  get bpm(){ return bpm; },
+  get waveTrackEnd(){ return waveTrackEnd; },
+  get grooveSeqTotalBeats(){ return grooveSeqTotalBeats; },
+  get BEAT_GRID_SUBDIV(){ return BEAT_GRID_SUBDIV; },
+  get updateBeatGridRangeUI(){ return updateBeatGridRangeUI; },
+  get layoutWaveTrack(){ return layoutWaveTrack; },
+  get stopKeyframePlayback(){ return stopKeyframePlayback; },
+  get normalizeBeatGridRange(){ return normalizeBeatGridRange; },
+  get beatGridRangeDrag(){ return beatGridRangeDrag; },
+  set beatGridRangeDrag(value){ beatGridRangeDrag = value; },
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  set beatGridRangeStart(value){ beatGridRangeStart = value; },
+  get beatGridRangeEnd(){ return beatGridRangeEnd; },
+  set beatGridRangeEnd(value){ beatGridRangeEnd = value; },
+  get setBeatGridRangeLoop(){ return setBeatGridRangeLoop; },
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  set beatGridRangeLoop(value){ beatGridRangeLoop = value; },
+  get grooveLibCtrl(){ return grooveLibCtrl; },
+  get kfChipEls(){ return kfChipEls; },
+  get timelineEditor(){ return timelineEditor; },
+  get waveClips(){ return waveClips; },
+  get wavePlaybackEnd(){ return wavePlaybackEnd; },
+  get grooveStartTime(){ return grooveStartTime; },
+  get kfIndex(){ return kfIndex; },
+  get kfStartTime(){ return kfStartTime; },
+  get keyframeStartBeat(){ return keyframeStartBeat; },
+  get getGrooveActiveSegment(){ return getGrooveActiveSegment; },
+  get grooveSeqChipEls(){ return grooveSeqChipEls; },
+  get audioTimeToTimelineBeat(){ return audioTimeToTimelineBeat; },
+  get beatGridLastPreviewBeat(){ return beatGridLastPreviewBeat; },
+  set beatGridLastPreviewBeat(value){ beatGridLastPreviewBeat = value; },
+  get applyTimelinePreviewAtElapsed(){ return applyTimelinePreviewAtElapsed; },
+  get timelineBeatToAudioTime(){ return timelineBeatToAudioTime; },
+  get showBeatGridScrubPlayhead(){ return showBeatGridScrubPlayhead; },
+});
+
+const timelineTransportController = createTimelineTransport({
+  get keyframes(){ return keyframes; },
+  get waveClips(){ return waveClips; },
+  get wavePlaybackEnd(){ return wavePlaybackEnd; },
+  get beatGridPoseTotalBeats(){ return beatGridPoseTotalBeats; },
+  get locateKeyframeSegmentAtBeat(){ return locateKeyframeSegmentAtBeat; },
+  get kfIndex(){ return kfIndex; },
+  set kfIndex(value){ kfIndex = value; },
+  get kfStartTime(){ return kfStartTime; },
+  set kfStartTime(value){ kfStartTime = value; },
+  get bpm(){ return bpm; },
+  get grooveStartTime(){ return grooveStartTime; },
+  set grooveStartTime(value){ grooveStartTime = value; },
+  get grooveSquatAnchored(){ return grooveSquatAnchored; },
+  set grooveSquatAnchored(value){ grooveSquatAnchored = value; },
+  get resetGrooveXfadeState(){ return resetGrooveXfadeState; },
+  get resetSquatXfadeState(){ return resetSquatXfadeState; },
+  get waveform(){ return waveform; },
+  get timelineBeatToAudioTime(){ return timelineBeatToAudioTime; },
+  get updateOnionSkins(){ return updateOnionSkins; },
+  get updatePlayingKeyframeHighlight(){ return updatePlayingKeyframeHighlight; },
+  get beatGridLastPreviewBeat(){ return beatGridLastPreviewBeat; },
+  set beatGridLastPreviewBeat(value){ beatGridLastPreviewBeat = value; },
+  get tgCancelPreview(){ return tgCancelPreview; },
+  get stopWave(){ return stopWave; },
+  get stopLAPath(){ return stopLAPath; },
+  get kfPlaying(){ return kfPlaying; },
+  set kfPlaying(value){ kfPlaying = value; },
+  get deselectJoint(){ return deselectJoint; },
+  get transformControls(){ return transformControls; },
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  get hasBeatGridRange(){ return hasBeatGridRange; },
+  get beatGridRangeStart(){ return beatGridRangeStart; },
+  get playKfMusicIfLoaded(){ return playKfMusicIfLoaded; },
+  get scrollBeatGridBeatToCenter(){ return scrollBeatGridBeatToCenter; },
+  get updateBeatGridPlaybackUI(){ return updateBeatGridPlaybackUI; },
+  get bones(){ return bones; },
+  get syncWaveTrackTarget(){ return syncWaveTrackTarget; },
+  get waveTrackActive(){ return waveTrackActive; },
+  set waveTrackActive(value){ waveTrackActive = value; },
+  get pauseKfMusic(){ return pauseKfMusic; },
+  get renderKeyframeChips(){ return renderKeyframeChips; },
+  get resetBeatGridPlaybackUI(){ return resetBeatGridPlaybackUI; },
+  get waveRun(){ return waveRun; },
+  get waveBaseAtBeat(){ return waveBaseAtBeat; },
+  get applyWaveTrackAtBeat(){ return applyWaveTrackAtBeat; },
+  get applyPose(){ return applyPose; },
+  get applyBodyTransform(){ return applyBodyTransform; },
+  get applyKeyframeFramePose(){ return applyKeyframeFramePose; },
+  get beatGridTimelineBeats(){ return beatGridTimelineBeats; },
+  get BEAT_GRID_LABEL_W(){ return BEAT_GRID_LABEL_W; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get autoScrollBeatGridToPlayhead(){ return autoScrollBeatGridToPlayhead; },
+  get kfScrubDragging(){ return kfScrubDragging; },
+  set kfScrubDragging(value){ kfScrubDragging = value; },
+  get audioTimeToTimelineBeat(){ return audioTimeToTimelineBeat; },
+  get timelinePlayback(){ return timelinePlayback; },
+});
+
+const poseInterpolatorController = createPoseInterpolator({
+  get collectTrajOverrideKeys(){ return collectTrajOverrideKeys; },
+  get bones(){ return bones; },
+  get restQuat(){ return restQuat; },
+  get model(){ return model; },
+  get applyTrajOverridesDuringPlayback(){ return applyTrajOverridesDuringPlayback; },
+  get applyBakedWaveFeet(){ return applyBakedWaveFeet; },
+});
+
+const timelineToolbarController = createTimelineToolbar({
+  get toggleKeyframePlayback(){ return toggleKeyframePlayback; },
+  get kfLoop(){ return kfLoop; },
+  set kfLoop(value){ kfLoop = value; },
+  get setBeatGridRangeLoop(){ return setBeatGridRangeLoop; },
+  get syncBeatGridZoomSelect(){ return syncBeatGridZoomSelect; },
+  get BEAT_GRID_PX_PER_BEAT(){ return BEAT_GRID_PX_PER_BEAT; },
+  get setBeatGridZoomPx(){ return setBeatGridZoomPx; },
+  get stepBeatGridZoom(){ return stepBeatGridZoom; },
+  get BEAT_GRID_SNAP(){ return BEAT_GRID_SNAP; },
+  get setBeatGridSnap(){ return setBeatGridSnap; },
+  get navigateBeatGridToBeat(){ return navigateBeatGridToBeat; },
+  get beatGridTimelineBeats(){ return beatGridTimelineBeats; },
+  get fitBeatGridTimeline(){ return fitBeatGridTimeline; },
+  get centerBeatGridPlayhead(){ return centerBeatGridPlayhead; },
+  get beatGridRangeLoop(){ return beatGridRangeLoop; },
+  get copyBeatGridRange(){ return copyBeatGridRange; },
+  get pasteBeatGridRange(){ return pasteBeatGridRange; },
+  get duplicateBeatGridRange(){ return duplicateBeatGridRange; },
+  get deleteBeatGridRange(){ return deleteBeatGridRange; },
+  get clearBeatGridRange(){ return clearBeatGridRange; },
+  get bindBeatGridRangeSelection(){ return bindBeatGridRangeSelection; },
+  get updateBeatGridRangeUI(){ return updateBeatGridRangeUI; },
+  get onionSkinEnabled(){ return onionSkinEnabled; },
+  set onionSkinEnabled(value){ onionSkinEnabled = value; },
+  get updateOnionSkins(){ return updateOnionSkins; },
+  get bindGrooveUI(){ return bindGrooveUI; },
+  get addKeyframe(){ return addKeyframe; },
+  get pushHistory(){ return pushHistory; },
+  get updateKeyframe(){ return updateKeyframe; },
+  get setKfMultiSelectMode(){ return setKfMultiSelectMode; },
+  get kfMultiSelectMode(){ return kfMultiSelectMode; },
+  get kfMultiSelectAll(){ return kfMultiSelectAll; },
+  get kfMultiSelectNone(){ return kfMultiSelectNone; },
+  get copyTimelineSelection(){ return copyTimelineSelection; },
+  get cutTimelineSelection(){ return cutTimelineSelection; },
+  get pasteTimelineClipboard(){ return pasteTimelineClipboard; },
+  get deleteKfMultiSelected(){ return deleteKfMultiSelected; },
+  get updateKfMultiSelectBar(){ return updateKfMultiSelectBar; },
+  get exportTimeline(){ return exportTimeline; },
+  get importTimelineFromFile(){ return importTimelineFromFile; },
+  get importKfMusic(){ return importKfMusic; },
+  get removeKfMusic(){ return removeKfMusic; },
+  get waveform(){ return waveform; },
+  get updateBeatGridGeometry(){ return updateBeatGridGeometry; },
+  get drawKfWaveform(){ return drawKfWaveform; },
+  get updateBeatGridMusicPreviewPlayhead(){ return updateBeatGridMusicPreviewPlayhead; },
+  get toggleKfMusicPreview(){ return toggleKfMusicPreview; },
+  get syncKfMusicPreviewBtn(){ return syncKfMusicPreviewBtn; },
+  get initKfListWheelScroll(){ return initKfListWheelScroll; },
+  get bindKfWaveformScrubbing(){ return bindKfWaveformScrubbing; },
+  get kfPendingEasing(){ return kfPendingEasing; },
+  get setKeyframeEasing(){ return setKeyframeEasing; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+  get setKeyframeBeats(){ return setKeyframeBeats; },
+  get updateEasingPreview(){ return updateEasingPreview; },
+  get updateBeatMsHint(){ return updateBeatMsHint; },
+  get updateBeatGridPoseInspector(){ return updateBeatGridPoseInspector; },
+  get isKeyframeTabActive(){ return isKeyframeTabActive; },
+  get hasBeatGridRange(){ return hasBeatGridRange; },
+  get kfPlaying(){ return kfPlaying; },
+  get waveClipSelected(){ return waveClipSelected; },
+  get deleteWaveClip(){ return deleteWaveClip; },
+  get duplicateWaveClip(){ return duplicateWaveClip; },
+  get kfMultiSelected(){ return kfMultiSelected; },
+  get grooveMultiSelected(){ return grooveMultiSelected; },
+  get deleteTimelineSelection(){ return deleteTimelineSelection; },
+  get keyframes(){ return keyframes; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get selectKeyframe(){ return selectKeyframe; },
+  get grooveSeqSelectedIndex(){ return grooveSeqSelectedIndex; },
+  get removeGrooveSeqEntry(){ return removeGrooveSeqEntry; },
+  get deleteKeyframe(){ return deleteKeyframe; },
+  get duplicateKeyframe(){ return duplicateKeyframe; },
+});
+
 init();
+
+function bindTimelineUI(...args){
+  return timelineToolbarController.bindTimelineUI(...args);
+}

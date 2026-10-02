@@ -82,15 +82,15 @@
 
 資料模組操作呼叫端擁有的拍點陣列。插入、複製與重排回傳新選取索引，無效複製／重排回傳 `null`；複製保留 JSON 可序列化的角度、身體、備註、軌跡與 Wave 烘焙欄位並深拷貝。主程式負責重繪與自動存檔。`totalKeyframeBeats()` 保留原本單一姿勢回傳 1 的語意；Beat Grid 的實際轉場總長仍由原函式計算。
 
-`createTimelinePlayback(adapter).update(now)` 使用既有動畫循環的時間，不建立第二個循環。Adapter 的 getter 每次取得當前拍點、BPM、播放時鐘及循環狀態，因此匯入、Undo 或生成編舞替換陣列後不會讀到舊資料。播放器透過 setter 更新段落索引、起始時間與蹲彈錨點；音訊、UI、開始／停止與尋位的同步仍由主程式負責。
+`createTimelinePlayback(adapter).update(now)` 使用既有動畫循環的時間，不建立第二個循環。Adapter 的 getter 每次取得當前拍點、BPM、播放時鐘及循環狀態，因此匯入、Undo 或生成編舞替換陣列後不會讀到舊資料。播放器透過 setter 更新段落索引、起始時間與蹲彈錨點；音訊、UI、開始／停止與尋位的同步由 `timeline/transport.js` 協調。
 
 跨段先推進時鐘，再統一套用姿勢與律動；非循環結束時定格最後姿勢，範圍循環優先於整段循環，Wave 軌仍使用原有播放路徑。資料格式、JSON 版本與音訊同步方式保持相容。這一階段尚未將所有拍點寫入集中到私有 store，批次編輯與生成器仍由主程式持有狀態。
 
 ## 音訊與拍點介面
 
-`createTimelineAudio()` 不查詢 DOM。主程式注入 media element、當前 BPM／offset；控制器擁有自己建立的 object URL，替換或移除時釋放，保留試聽獨立於拍點播放的行為。媒體事件仍驅動按鈕文字及 playhead。音訊檔不寫入 JSON、Undo 或 localStorage。波形解碼、快取與繪圖已交由波形模組處理；尋位與媒體／時間軸同步仍由主程式協調。
+`createTimelineAudio()` 不查詢 DOM。主程式注入 media element、當前 BPM／offset；控制器擁有自己建立的 object URL，替換或移除時釋放，保留試聽獨立於拍點播放的行為。媒體事件仍驅動按鈕文字及 playhead。音訊檔不寫入 JSON、Undo 或 localStorage。波形解碼、快取與繪圖已交由波形模組處理；尋位與媒體／時間軸同步由 `timeline/transport.js` 協調。
 
-`createTimelineEditor(adapter).render()` 產生既有 POSE 拍點介面；`updateHighlight()` 僅更新既有節點的播放 class，不逐幀重建 DOM。Adapter getter 讀取即時拍點、選取、播放、縮放狀態；事件回呼將修改委派給 host。原有 DOM ID、樣式 class、End Marker、備註、Easing、軌跡標籤及多選手勢保持一致。此模組涵蓋 POSE 拍點清單，GROOVE／WAVING 編輯與工具列仍在主程式。
+`createTimelineEditor(adapter).render()` 產生既有 POSE 拍點介面；`updateHighlight()` 僅更新既有節點的播放 class，不逐幀重建 DOM。Adapter getter 讀取即時拍點、選取、播放、縮放狀態；事件回呼將修改委派給 host。原有 DOM ID、樣式 class、End Marker、備註、Easing、軌跡標籤及多選手勢保持一致。此模組涵蓋 POSE 拍點清單，GROOVE／WAVING 編輯分別由 sequence／wave-track 模組處理，工具列由 `ui/timeline-toolbar.js` 綁定。
 
 瀏覽器回歸新增實際 WAV 匯入、Web Audio 波形解碼、試聽／暫停、拍點播放後音訊暫停、移除，以及拍點複製與刪除。音訊單元測試另外驗證 URL 釋放、即時 BPM／offset 換算與播放拒絕處理。
 
@@ -114,7 +114,7 @@
 
 `createProjectFiles()` 保留檔案驗證、覆蓋確認、匯入後記錄歷史及排程存檔的順序。`restoreSnapshot()` 與 `restoreTimelineData()` 暫留主程式：它們依序還原 Wave、LookAt、軌跡、骨架及 UI；後续拆分各功能 controller 時再逐步轉為模組回呼。
 
-第一批涵蓋歷史、快照產生、自動存檔與專案檔案控制；偏好設定及場景還原協調尚待拆分。完整批次進度見 [refactor-roadmap.md](refactor-roadmap.md)。
+第一批涵蓋歷史、快照產生、自動存檔與專案檔案控制；偏好設定已拆出，場景還原協調尚待拆分。完整批次進度見 [refactor-roadmap.md](refactor-roadmap.md)。
 
 ## 偏好設定與素材庫
 
@@ -122,7 +122,7 @@
 
 `createLibraryStore()` 統一讀取 legacy 陣列與 `{ v: 1, items }` envelope、儲存及 UTF-16 用量估算。寫入失敗仍保留記憶體資料，呼叫既有 JSON 備份及提示流程。素材庫與專案存檔保持獨立。
 
-`createLibraryController(opts, dependencies)` 保留各庫獨立的 items／filter；由 opts 注入姿勢、手勢、招式或律動的 capture／apply 函式。共用控制器處理搜尋、命名、套用後記錄歷史、刪除確認、單筆匯入及整批合併／取代。`renderLibraryList()` 建立原有 `.libChip` 介面及空狀態，保留 DOM ID 和按鈕行為。各庫的領域捕捉／套用、工具列綁定與儲存用量提示仍在主程式。
+`createLibraryController(opts, dependencies)` 保留各庫獨立的 items／filter；由 opts 注入姿勢、手勢、招式或律動的 capture／apply 函式。共用控制器處理搜尋、命名、套用後記錄歷史、刪除確認、單筆匯入及整批合併／取代。`renderLibraryList()` 建立原有 `.libChip` 介面及空狀態，保留 DOM ID 和按鈕行為。各庫的領域捕捉／套用與操作綁定已移至 `library/domain-controller.js`；儲存用量提示保留主程式入口。
 
 測試新增偏好合併、舊庫讀取、版本化儲存、容量／備份與控制器操作；瀏覽器新增實際姿勢／手勢儲存、姿勢套用、欄位隔離與重載。
 
@@ -132,7 +132,7 @@
 
 `createRangeEditor(adapter)` 保留另一份獨立區段剪貼簿。Range 以相交的完整 transition／clip 操作，不切割半段；複製 POSE transition 時包含最後 target frame，貼上位於相交項目之後，刪除保留最後 target frame。重複區段只記錄一次歷史；Range Loop 限制在可播放範圍內，並關閉整段 Loop。
 
-兩個 controller 的 adapter getter／setter 讀寫目前共享的拍點、選取與 Range 狀態，因此 Undo／匯入替換陣列或選取集合後仍使用最新值。場景姿勢套用、重繪、歷史及存檔透過回呼協作。各 controller 包含既有工具列／HUD 更新，Ruler 拖曳事件與通用排序／縮放手勢仍在主程式，後續再拆分。
+兩個 controller 的 adapter getter／setter 讀寫目前共享的拍點、選取與 Range 狀態，因此 Undo／匯入替換陣列或選取集合後仍使用最新值。場景姿勢套用、重繪、歷史及存檔透過回呼協作。各 controller 包含既有工具列／HUD 更新，Ruler 拖曳與縮放由 `ui/beat-grid.js` 處理，排序與 clip 長度調整分別由 `timeline/reorder.js`、`timeline/resize.js` 處理。
 
 新增單元測試驗證混合 POSE／GROOVE 複製、資料隔離、id 重建、取消／播放防護、邊界相交、範圍重複與刪除，以及循環互斥；瀏覽器實際執行多選貼上、區段重複與 Undo，再與重構前版本比對。
 
@@ -154,3 +154,40 @@
 controller 透過 host getter／setter 讀取共用角色、目標與模式狀態；可獨立擁有的暫存向量、四元數與骨鏈快取已移入 factory。骨架物件仍由主程式載入與建立，各功能仍由同一 animate() 調度，保留 IK、朝向、腳部、碰撞與再次求解的順序。主程式的同名函式為整合委派入口；這一階段沒有將所有跨功能狀態改成私有 store。
 
 四肢設定面板仍包含原有共用開關，以後拆分介面時可再細分；朝向與軌跡的運算、狀態操作及相關事件已從主程式移出。
+
+## Wave、律動與生成器
+
+| 模組 | 責任 |
+| --- | --- |
+| `motion/definitions.js` | Wave／律動預设、路線、波形與生成器 archetype 定義 |
+| `motion/wave-controller.js` | Wave 設定、傳遞、播放／還原、足部補償與烘焙 |
+| `timeline/wave-track.js` | Wave clip 編輯、顯示與拍點播放 |
+| `motion/groove-controller.js` | 律動參數、warmup、混合與姿勢疊加 |
+| `motion/squat-controller.js` | 蹲彈位移、足部錨點與混合 |
+| `motion/groove-generator.js` | 帶種子的律動設定生成 |
+| `motion/tutting-controller.js` | Tutting 規則、生成、預覽、提交與快照 |
+| `motion/random-pose.js` | Isolation 權重與隨機姿勢取樣 |
+| `motion/choreography-generator.js` | 招式串接、編舞生成與自動招式 |
+| `timeline/groove-sequence.js` | 律動段落編輯、片段查詢與素材庫連結 |
+| `ui/groove-panel.js` | 律動、蹲彈及生成器介面 |
+
+每個 factory 透過 host adapter 讀取目前設定及角色，沒有另建 RAF。停止預覽、快照還原、Wave 烘焙欄位及律動與 IK 的避讓規則維持原行為；局部運算暫存已移入 factory。
+
+## 領域整合與剩餘時間軸介面
+
+| 模組 | 責任 |
+| --- | --- |
+| `library/domain-controller.js` | 姿勢／手勢捕捉與套用、招式插入、律動設定清理與素材庫操作綁定 |
+| `timeline/pose-editor.js` | 拍點新增、更新、複製、刪除、選取、標籤與 Easing／拍長修改 |
+| `timeline/reorder.js` | POSE／GROOVE 單項及多項拖曳排序、插入位置與提示 |
+| `timeline/resize.js` | Clip 長度調整、拍長限制、Snap 與局部版面更新 |
+| `timeline/pose-interpolator.js` | 骨骼／角色插值、世界矩陣刷新及軌跡／Wave 覆寫 |
+| `timeline/transport.js` | 開始／停止、播放更新、尋位、scrub 與音訊 playhead 協調 |
+| `ui/beat-grid.js` | 共同拍格幾何、縮放、Range 手勢、導覽、播放游標與 loop ghost |
+| `ui/timeline-inspector.js` | Easing 預覽、選取屬性、拍長與總長提示 |
+| `ui/timeline-toolbar.js` | 播放／縮放／範圍／多選／匯入匯出／音訊工具及鍵盤綁定 |
+| `scene/onion-skin.js` | 前後拍點 ghost 與編輯／播放顯示 |
+
+保持原 DOM ID、事件順序、資料格式與播放防護。排序替換陣列與選取集合後，所有 adapter 立即讀取最新狀態；插值先刷新世界矩陣，再解軌跡，最後處理 Wave 足部覆寫。`main.js` 的同名函式僅委派給 controller，場景／历史還原協調與共用狀態仍待後續整理。
+
+本批增加非連續群組排序、即時 Snap、軌跡前矩陣刷新、身體與手勢欄位隔離測試；合計 61 項單元測試通過。三版本瀏覽器回歸包含素材庫、Wave、Tutting、時間軸編輯、歷史、音訊、匯入匯出與自動存檔。
