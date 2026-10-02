@@ -1,0 +1,17 @@
+{
+  "name": "3d-tutting-simulator-2077",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 8000 --bind 0.0.0.0",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "three": "0.160.0",
+    "esbuild": "0.25.12",
+    "playwright-core": "1.62.1"
+  }
+}

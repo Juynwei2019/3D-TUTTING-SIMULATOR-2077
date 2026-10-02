@@ -1,0 +1,632 @@
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#0a0a12; overflow:hidden;
+    font-family:-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif; }
+  #canvasHolder { position:absolute; inset:0; }
+  #canvasHolder canvas { display:block; }
+  #title { position:absolute; top:14px; left:18px; color:#7fe0ff; font-size:13px; letter-spacing:2px; opacity:.75; }
+  #hint { position:absolute; top:14px; right:18px; font-size:11px; color:#555580; text-align:right; line-height:1.5; }
+
+  /* ---- 目前選取狀態：從底部面板搬到畫面右上角，隨時可見不必展開面板 ---- */
+  #selectedStatusBox { position:absolute; top:14px; right:18px; z-index:6; display:flex; align-items:center;
+    gap:8px; padding:7px 12px; background:#0f0f20e6; border:1px solid #26264a; border-radius:8px;
+    font-size:12px; color:#9a9ac2; box-shadow:0 2px 12px rgba(0,0,0,.4); white-space:nowrap; }
+  @media (max-width:640px){
+    #selectedStatusBox { top:14px; right:8px; font-size:10px; padding:5px 8px; gap:5px; max-width:62vw;
+      white-space:normal; }
+  }
+
+  /* ---- 分割視窗：唯讀同步預覽小視窗，疊在主畫面右上角、往下堆疊 ---- */
+  #splitViewPanes { position:absolute; top:96px; right:18px; display:flex; flex-direction:column;
+    gap:8px; z-index:5; pointer-events:none; }
+  .splitPane { position:relative; width:180px; height:112px; border:1px solid #3a3a66; border-radius:6px;
+    overflow:hidden; background:#05050c; box-shadow:0 2px 12px rgba(0,0,0,.5); }
+  .splitPane canvas { display:block; width:100%; height:100%; }
+  .splitPane .splitPaneLabel { position:absolute; top:4px; left:7px; font-size:10px; color:#7fe0ff;
+    letter-spacing:1px; text-shadow:0 1px 3px #000; }
+  @media (max-width:640px){
+    #splitViewPanes { top:100px; right:8px; gap:6px; }
+    .splitPane { width:120px; height:76px; }
+  }
+
+  /* ---- 顯示設定小面板：身體/手部關節球、骨架、碰撞可視化，整合在一起，疊在主畫面左上角、標題下方 ---- */
+  #displayTogglesPanel { position:absolute; top:44px; left:18px; z-index:5; width:200px;
+    border:1px solid #3a3a66; border-radius:8px; overflow:hidden;
+    background:#0f0f20e6; box-shadow:0 2px 12px rgba(0,0,0,.5); }
+  #displayTogglesHeader { display:flex; align-items:center; justify-content:space-between; gap:6px;
+    padding:6px 6px 6px 10px; background:#14142a; }
+  #displayTogglesHeader .dtTitle { font-size:11px; color:#7fe0ff; letter-spacing:1px; }
+  #displayTogglesCollapseBtn { background:none; border:none; color:#7a7aa8; font-size:11px;
+    padding:3px 6px; cursor:pointer; transition:transform .15s ease, color .12s; }
+  #displayTogglesCollapseBtn:hover { color:#7fe0ff; }
+  #displayTogglesPanel.collapsed #displayTogglesCollapseBtn { transform:rotate(-90deg); }
+  #displayTogglesBody { display:flex; flex-direction:column; gap:7px; padding:9px 10px 10px; }
+  #displayTogglesPanel.collapsed #displayTogglesBody { display:none; }
+  #displayTogglesBody label { display:flex; align-items:center; gap:6px; font-size:11px;
+    color:#cfd6ff; cursor:pointer; white-space:nowrap; }
+  @media (max-width:640px){
+    #displayTogglesPanel { top:48px; left:8px; width:170px; }
+  }
+
+  /* ---- 效能面板：FPS／單幀耗時／Draw Call／三角形數。疊在右上角，卡在
+     #selectedStatusBox 下緣跟 #splitViewPanes 上緣之間原本就留著的空隙，
+     跟閒置降頻機制共用同一份計時資訊，方便直接驗證降頻有沒有生效。
+     滑鼠移上去可看到主循環(rAF)實際頻率（用既有的全站 Tooltip 系統）。---- */
+  #perfPanel { position:absolute; top:48px; right:18px; z-index:6; display:none;
+    flex-direction:column; gap:2px; padding:6px 11px; background:#0f0f20e6; border:1px solid #26264a;
+    border-radius:8px; font-size:11px; color:#9a9ac2; font-family:monospace; letter-spacing:.2px;
+    box-shadow:0 2px 12px rgba(0,0,0,.4); white-space:nowrap; cursor:help; }
+  #perfPanel .perfRow { display:flex; align-items:center; gap:6px; }
+  #perfFps { color:#7fe0ff; }
+  @media (max-width:640px){
+    #perfPanel { top:44px; right:8px; font-size:10px; padding:5px 8px; }
+  }
+
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#7fe0ff; font-size:14px; letter-spacing:2px; background:#0a0a12; }
+  #ui { position:absolute; left:0; right:0; bottom:0; padding:12px 16px 16px; box-sizing:border-box;
+    background:linear-gradient(to top, rgba(10,10,18,.96), rgba(10,10,18,.55) 70%, rgba(10,10,18,.05));
+    color:#e8e8f5; min-height:120px; display:flex; flex-direction:column; }
+  .row { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+
+  /* ---- 手動拉高度（貼底模式） ---- */
+  #uiResizeHandle { flex:0 0 auto; height:14px; margin:-4px -16px 4px; cursor:ns-resize;
+    display:flex; align-items:center; justify-content:center; touch-action:none; }
+  #uiResizeHandle .grip { width:36px; height:4px; border-radius:2px; background:#3a3a66; transition:background .12s, width .12s; }
+  #uiResizeHandle:hover .grip { background:#7fe0ff; width:52px; }
+  #uiResizeHandle.dragging .grip { background:#ff2f7e; width:52px; }
+  body.uiResizing { cursor:ns-resize !important; user-select:none; }
+
+  /* ---- 面板隱藏/顯示／浮動切換 ---- */
+  #uiTopBtnRow { position:absolute; top:-28px; right:0; display:flex; gap:6px; }
+  .uiTopBtn { background:#16162a; border:1px solid #3a3a66; border-bottom:none; color:#9a9ac2;
+    font-size:11px; padding:4px 10px; border-radius:6px 6px 0 0; cursor:pointer; }
+  .uiTopBtn:hover { color:#7fe0ff; }
+  #uiShowBtn { position:absolute; right:18px; bottom:14px; background:#16162a; border:1px solid #3a3a66;
+    color:#7fe0ff; font-size:12px; padding:8px 14px; border-radius:8px; cursor:pointer;
+    box-shadow:0 2px 12px rgba(0,0,0,.4); }
+  #uiShowBtn:hover { background:#21214a; border-color:#6a6aff; }
+
+  /* ---- 浮動模式：面板變成可拖曳/縮放的懸浮視窗，不再貼底滿版寬 ---- */
+  #uiDragHandle { display:none; align-items:center; gap:8px; height:22px; margin:-4px -16px 6px;
+    padding:0 10px; cursor:move; touch-action:none; border-radius:9px 9px 0 0; background:#14142a; }
+  #uiDragHandle .grip { width:36px; height:4px; border-radius:2px; background:#3a3a66; transition:background .12s; }
+  #uiDragHandle:hover .grip { background:#7fe0ff; }
+  #uiDragHandle .uiDragHandleLabel { font-size:10px; color:#6a6a9a; letter-spacing:1px; white-space:nowrap; }
+  #uiFloatResizeHandle { display:none; position:absolute; right:0; bottom:0; width:20px; height:20px;
+    cursor:nwse-resize; touch-action:none; }
+  #uiFloatResizeHandle::before { content:""; position:absolute; right:4px; bottom:4px; width:9px; height:9px;
+    border-right:2px solid #3a3a66; border-bottom:2px solid #3a3a66; border-radius:0 0 2px 0; }
+  #uiFloatResizeHandle:hover::before { border-color:#7fe0ff; }
+  #ui.uiFloating { right:auto; bottom:auto; border:1px solid #3a3a66; border-radius:9px;
+    box-shadow:0 10px 34px rgba(0,0,0,.55);
+    background:linear-gradient(to top, rgba(10,10,18,.98), rgba(10,10,18,.94)); }
+  #ui.uiFloating #uiResizeHandle { display:none; }
+  #ui.uiFloating #uiDragHandle { display:flex; }
+  #ui.uiFloating #uiFloatResizeHandle { display:block; }
+  body.uiFloatDragging { cursor:move !important; user-select:none; }
+  body.uiFloatResizing { cursor:nwse-resize !important; user-select:none; }
+
+  /* ---- 通用「可浮動＋可調整大小」小面板（目前用於手指面板彈出視窗）----
+     跟上面 #ui 的浮動模式是同一套拖曳/縮放手感，但抽成獨立、跟主面板無關的浮動容器，
+     可以之後套用在其他分頁上，不綁死在單一個面板。 ---- */
+  .floatablePanel { position:fixed; z-index:20; display:flex; flex-direction:column; box-sizing:border-box;
+    background:linear-gradient(to top, rgba(10,10,18,.98), rgba(10,10,18,.94));
+    border:1px solid #3a3a66; border-radius:9px; box-shadow:0 10px 34px rgba(0,0,0,.55); overflow:hidden; }
+  .floatablePanelHeader { display:flex; align-items:center; gap:8px; height:26px; padding:0 6px 0 10px;
+    cursor:move; touch-action:none; background:#14142a; flex:0 0 auto; }
+  .floatablePanelHeader .grip { width:26px; height:4px; border-radius:2px; background:#3a3a66; transition:background .12s; }
+  .floatablePanelHeader:hover .grip { background:#7fe0ff; }
+  .floatablePanelTitle { font-size:11px; color:#7fe0ff; letter-spacing:1px; white-space:nowrap; flex:1 1 auto; }
+  .floatablePanelDockBtn { background:none; border:1px solid #3a3a66; color:#9a9ac2; font-size:10px;
+    padding:3px 8px; border-radius:5px; cursor:pointer; }
+  .floatablePanelDockBtn:hover { color:#7fe0ff; border-color:#6a6aff; }
+  .floatablePanelBody { flex:1 1 auto; overflow:auto; padding:9px 10px 10px; min-height:0; }
+  .floatablePanelResizeHandle { position:absolute; right:0; bottom:0; width:20px; height:20px;
+    cursor:nwse-resize; touch-action:none; }
+  .floatablePanelResizeHandle::before { content:""; position:absolute; right:4px; bottom:4px; width:9px; height:9px;
+    border-right:2px solid #3a3a66; border-bottom:2px solid #3a3a66; border-radius:0 0 2px 0; }
+  .floatablePanelResizeHandle:hover::before { border-color:#7fe0ff; }
+  /* 浮動視窗裡的手指卡片改直排（寬度通常比主面板窄），並讓卡片本身可各自捲動 */
+  .floatablePanelBody .fingerHandGrid { grid-template-columns:1fr; height:100%; }
+  .floatablePanelBody .fingerHandCard { overflow-y:auto; }
+
+  /* ---- 常駐區（主控列＋選取狀態） ---- */
+  #uiCommon { flex:0 0 auto; }
+
+  /* ---- 分頁 ---- */
+  #uiTabBar { display:flex; gap:4px; flex:0 0 auto; border-bottom:1px solid #26264a; margin-bottom:8px; }
+  .tabBtn { background:none; border:none; border-bottom:2px solid transparent; color:#7a7aa8;
+    font-size:12px; padding:6px 10px 8px; border-radius:0; cursor:pointer; letter-spacing:.5px; }
+  .tabBtn:hover { color:#cfd6ff; background:none; border-color:#3a3a66; }
+  .tabBtn.active { color:#7fe0ff; border-bottom-color:#7fe0ff; }
+  #uiTabBody { flex:1 1 auto; overflow-y:auto; min-height:0; }
+  .tabPanel { display:none; }
+  .tabPanel.active { display:block; }
+  .poseBtns { display:flex; gap:6px; flex-wrap:wrap; }
+  button { background:#16162a; border:1px solid #3a3a66; color:#cfd6ff; padding:7px 12px; border-radius:6px;
+    font-size:12px; cursor:pointer; transition:.12s; letter-spacing:.5px; }
+  button:hover { background:#21214a; border-color:#6a6aff; }
+  button:active { transform:scale(.95); }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  button:disabled:hover { background:#16162a; border-color:#3a3a66; }
+  button.active { background:#ff2f7e; border-color:#ff2f7e; color:#0a0a12; font-weight:bold; }
+  #kfPlayBtn { background:#ffb400; border-color:#ffb400; color:#2a1a00; font-weight:bold; min-width:96px; }
+  #kfPlayBtn.playing { background:#ff4757; border-color:#ff4757; color:#fff; }
+  .iconToggleBtn { min-width:0; width:28px; padding:4px 0; font-size:13px; line-height:1; } /* 圖示按鈕：不用跟文字按鈕一樣寬，維持正方形好按 */
+  label { font-size:11px; color:#9a9ac2; white-space:nowrap; }
+  input[type=range] { -webkit-appearance:none; width:90px; height:3px; background:#33335a; border-radius:2px; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:#7fe0ff; cursor:pointer; }
+  #beatGridTempoControls { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; }
+  #bpmVal { box-sizing:border-box; width:60px; color:#7fe0ff; font-size:12px; background:#16162a; border:1px solid #3a3a66; border-radius:6px; padding:4px; }
+  select {
+    background:#16162a; border:1px solid #3a3a66; color:#7fe0ff; font-size:11px;
+    padding:5px 8px; border-radius:6px; cursor:pointer;
+  }
+  .panelTitle { font-size:11px; color:#6a6a9a; letter-spacing:1px; margin:10px 0 6px; }
+
+  /* ---- 律動模式：關節 chip（切換按鈕 + ⚙ 自訂參數按鈕）---- */
+  .grooveChip { display:flex; align-items:stretch; gap:2px; }
+  .grooveChip .grooveEditBtn { background:#16162a; border:1px solid #3a3a66; color:#7fe0ff88;
+    font-size:11px; padding:7px 8px; border-radius:6px; cursor:pointer; }
+  .grooveChip .grooveEditBtn:hover { color:#7fe0ff; border-color:#6a6aff; }
+  .grooveChip .grooveEditBtn.editing { border-color:#7fe0ff; color:#7fe0ff; box-shadow:0 0 6px #7fe0ff55; }
+  .grooveChip .grooveToggleBtn { position:relative; }
+  .grooveChip .grooveToggleBtn.customized::after {
+    content:""; position:absolute; top:-3px; right:-3px; width:7px; height:7px;
+    border-radius:50%; background:#ffb400; box-shadow:0 0 4px #ffb400aa; pointer-events:none;
+  }
+
+  #selectedBar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:#0f0f20;
+    border:1px solid #26264a; border-radius:8px; margin-bottom:8px; font-size:12px; flex-wrap:wrap; }
+  #selectedLabel { color:#ff2f7e; font-weight:bold; }
+  #selectedAngles { color:#7fe0ff; font-family:monospace; font-size:12px; }
+  #selectedBar button { font-size:11px; padding:4px 9px; }
+
+  #jsonArea {
+    width:100%; box-sizing:border-box; height:120px; background:#0f0f20; color:#7fe0ff;
+    border:1px solid #3a3a66; border-radius:6px; font-family:monospace; font-size:11px;
+    padding:8px; resize:vertical;
+  }
+
+  /* 拍點清單：改成單列橫向排列（原本 .row 的 flex-wrap:wrap 會讓拍點多了自動換行、
+     往下長成一大塊垂直清單，跟「時間軸」由左到右＝時間先後的概念不一致，也很佔垂直空間）。
+     nowrap + overflow-x 讓它變成一條可橫向捲動的時間軸；上下留一點padding是為了不讓
+     .playing 的橘色發光 box-shadow 被容器裁掉。 */
+  #kfList { gap:6px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; align-content:flex-start;
+    margin-bottom:0; padding:6px 2px 8px; -webkit-overflow-scrolling:touch; }
+  #kfList::-webkit-scrollbar { height:6px; }
+  #kfList::-webkit-scrollbar-track { background:#14142a; border-radius:3px; }
+  #kfList::-webkit-scrollbar-thumb { background:#3a3a66; border-radius:3px; }
+  #kfList::-webkit-scrollbar-thumb:hover { background:#6a6aff; }
+  .kfChip {
+    display:flex; align-items:center; gap:2px; background:#16162a; border:1px solid #3a3a66;
+    border-radius:6px; padding:2px 2px 2px 10px; font-size:11px; color:#cfd6ff;
+    flex:0 0 auto; /* 單列橫向捲動時，拍點本身的寬度不能被擠壓縮小，一律照內容自然寬度排開 */
+  }
+  .kfChip.active { border-color:#7fe0ff; color:#7fe0ff; }
+  .kfChip.playing { border-color:#ffb400; box-shadow:0 0 8px #ffb400aa; }
+  .kfChip { cursor:grab; }
+  .kfChip.dragging { opacity:.4; }
+  .kfChip.dragOver { border-color:#9944ff; box-shadow:0 0 0 2px #9944ff66 inset; }
+  .kfChip .sel { background:none; border:none; color:inherit; font-size:11px; padding:5px 4px; cursor:pointer; }
+  .kfChip .dup { background:none; border:none; color:#7fe0ff88; font-size:12px; padding:3px 6px; cursor:pointer; }
+  .kfChip .dup:hover { color:#7fe0ff; }
+  .kfChip .del { background:none; border:none; color:#ff6b81; font-size:13px; padding:3px 7px; cursor:pointer; }
+  .kfChip .kfEaseTag { display:flex; align-items:center; gap:3px; padding:2px 6px 2px 4px;
+    border-left:1px solid #2a2a4a; color:#7fe0ff88; font-size:9px; letter-spacing:.3px; white-space:nowrap; }
+  .kfChip .kfEaseTag svg { display:block; }
+  #kfEmpty { font-size:11px; color:#555580; }
+  #kfTotalDuration { font-size:10px; color:#555580; letter-spacing:0; font-weight:normal; }
+  #kfMultiSelectCount { color:#7fe0ff; }
+  #kfMultiSelectBar button { font-size:10px; padding:4px 8px; }
+  .kfChip.multiChecked { border-color:#ff6b81; box-shadow:0 0 0 1px #ff6b8155 inset; }
+  .grooveSeqChip.multiChecked { border-color:#ff6b81 !important; box-shadow:0 0 0 1px #ff6b8155 inset !important; }
+  .grooveSeqChip .kfCheckMark { width:14px; height:14px; border:1px solid #3a3a66; border-radius:3px;
+    display:flex; align-items:center; justify-content:center; font-size:10px; color:transparent;
+    background:#0f0f20; flex:0 0 auto; margin-right:2px; }
+  .grooveSeqChip.multiChecked .kfCheckMark { background:#ff6b81; border-color:#ff6b81; color:#0a0a12; }
+  #kfMultiSelectBar .clipboardBtn { color:#cfd6ff; }
+  #kfMultiSelectBar .clipboardBtn:disabled { opacity:.35; cursor:not-allowed; }
+  .kfChip.groupDragging, .grooveSeqChip.groupDragging { opacity:.36; }
+  .kfChip .kfCheckMark { width:14px; height:14px; border:1px solid #3a3a66; border-radius:3px;
+    display:flex; align-items:center; justify-content:center; font-size:10px; color:transparent;
+    background:#0f0f20; flex:0 0 auto; margin-right:2px; }
+  .kfChip.multiChecked .kfCheckMark { background:#ff6b81; border-color:#ff6b81; color:#0a0a12; }
+  .kfChip .kfLabelBtn { background:none; border:none; color:#6a6a9a; font-size:10px; padding:3px 5px;
+    cursor:pointer; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kfChip .kfLabelBtn.hasLabel { color:#cfd6ff; border-left:1px solid #2a2a4a; padding-left:7px; }
+  .kfChip .kfLabelBtn:hover { color:#7fe0ff; }
+
+  /* ---- 時間軸分頁：子區塊標題（分組用，不可收合）與可收合區塊（音樂／波形） ---- */
+  .kfSectionHead { display:flex; align-items:center; gap:6px; font-size:11px; color:#6a6a9a;
+    letter-spacing:1px; margin:14px 0 6px; padding-top:10px; border-top:1px solid #20203c; }
+  .kfSectionHead:first-of-type { margin-top:2px; padding-top:0; border-top:none; }
+  .kfCollapsible { border:1px solid #26264a; border-radius:8px; margin:2px 0 8px; overflow:hidden; }
+  .kfCollapsible > summary { cursor:pointer; list-style:none; padding:7px 10px; font-size:11px;
+    color:#9a9ac2; letter-spacing:.5px; display:flex; align-items:center; gap:6px; user-select:none; }
+  .kfCollapsible > summary::-webkit-details-marker { display:none; }
+  .kfCollapsible > summary::before { content:"▸"; color:#7fe0ff; display:inline-block; transition:transform .15s ease; }
+  .kfCollapsible[open] > summary::before { transform:rotate(90deg); }
+  .kfCollapsible > summary:hover { color:#cfd6ff; }
+  .kfCollapsibleBody { padding:2px 10px 10px; }
+  /* 說明文字改用滑鼠移上去才顯示的小圖示，平常收起來讓介面精簡，需要時仍查得到完整說明 */
+  .kfInfoIcon { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+    border-radius:50%; background:#20203c; color:#7fe0ffaa; font-size:10px; font-style:normal;
+    cursor:help; flex:0 0 auto; line-height:1; }
+  .kfInfoIcon:hover { background:#2a2a52; color:#7fe0ff; }
+
+  /* ---- BG-4.1：Waveform 直接成為 Beat Grid Track。
+     水平位置與 POSE/GROOVE 共用 beat → x 座標；不再擁有自己的 zoom / scroll。 ---- */
+  #beatGridWaveformRow { display:none; min-height:66px; }
+  #beatGridWaveformTrack { position:relative; min-height:66px; overflow:hidden; background:#0b0b17; }
+  #kfWaveformCanvas { position:absolute; left:0; top:0; height:64px; display:block; cursor:crosshair; touch-action:none; }
+  #beatGridWaveformTrack.waveformLoading::after { content:"波形產生中…"; position:absolute; left:10px; top:24px;
+    font-size:10px; color:#666a8a; pointer-events:none; }
+  #beatGridWaveformTrack.waveformError::after { content:"此格式無法解析波形（音樂仍可正常播放）"; position:absolute; left:10px; top:24px;
+    font-size:10px; color:#8a6a6a; pointer-events:none; }
+
+  /* ---- 動作姿勢庫／掌指手勢庫：自訂清單 chip + 儲存列 ---- */
+  .libNameInput { flex:1 1 160px; min-width:100px; background:#0f0f20; border:1px solid #3a3a66;
+    color:#e8e8f5; border-radius:6px; padding:7px 9px; font-size:12px; }
+  .libNameInput:focus { outline:none; border-color:#7fe0ff; }
+  #poseLibList, #gestureLibList, #moveLibList { gap:6px; max-height:28vh; overflow-y:auto; align-content:flex-start;
+    padding:2px 2px 4px; }
+  .libChip { display:flex; align-items:center; gap:0; background:#16162a; border:1px solid #3a3a66;
+    border-radius:6px; padding:2px 2px 2px 10px; font-size:11px; color:#cfd6ff; max-width:100%; }
+  .libChip .sel { background:none; border:none; color:inherit; font-size:11px; padding:5px 6px;
+    cursor:pointer; max-width:170px; display:flex; flex-direction:column; align-items:flex-start; gap:1px; }
+  .libChip .selName { max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .libChip .selSub { font-size:9.5px; color:#6a6a9a; }
+  .libChip .ren { background:none; border:none; color:#9a9ac2; font-size:11px; padding:3px 5px; cursor:pointer; }
+  .libChip .exp { background:none; border:none; color:#7fe0ff; font-size:12px; padding:3px 6px; cursor:pointer; }
+  .libChip .del { background:none; border:none; color:#ff6b81; font-size:13px; padding:3px 7px; cursor:pointer; }
+  .libEmpty { font-size:11px; color:#555580; }
+
+  /* ---- 招式庫 UI 優化：主要動作按鈕強調色、範圍箭頭、清單筆數徽章 ---- */
+  .moveLibPrimaryBtn { background:#173049; border-color:#3a7fb0; color:#bfe8ff; }
+  .moveLibPrimaryBtn:hover { background:#1f3f60; border-color:#4a9fd8; }
+  .moveLibRangeArrow { color:#555580; font-size:13px; }
+  .moveLibCountBadge { font-size:10px; color:#7fe0ff; background:#12233a; border:1px solid #234a68;
+    border-radius:10px; padding:1px 7px; margin-left:4px; }
+  #grooveLibList { gap:6px; max-height:22vh; overflow-y:auto; align-content:flex-start; padding:2px 2px 4px; }
+  .grooveLibCountBadge { font-size:10px; color:#7fe0ff; background:#12233a; border:1px solid #234a68;
+    border-radius:10px; padding:1px 7px; margin-left:4px; }
+
+  /* ---- 律動序列：橫向可捲動 chip，結構跟 #kfList/.kfChip 一致（拖曳排序/刪除/複製），
+     多了一個下拉選單選「用哪個律動庫項目」跟一個拍數輸入框，取代 kfChip 的 Easing 標籤區 ---- */
+  #grooveSeqList { gap:6px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; align-content:flex-start;
+    margin-bottom:0; padding:6px 2px 8px; -webkit-overflow-scrolling:touch; }
+  #grooveSeqList::-webkit-scrollbar { height:6px; }
+  #grooveSeqList::-webkit-scrollbar-track { background:#14142a; border-radius:3px; }
+  #grooveSeqList::-webkit-scrollbar-thumb { background:#3a3a66; border-radius:3px; }
+  .grooveSeqChip { display:flex; align-items:center; gap:2px; background:#16162a; border:1px solid #3a3a66;
+    border-radius:6px; padding:4px 4px 4px 8px; font-size:11px; color:#cfd6ff; flex:0 0 auto; cursor:grab; }
+  .grooveSeqChip.dragging { opacity:.4; }
+  .grooveSeqChip.dragOver { border-color:#9944ff; box-shadow:0 0 0 2px #9944ff66 inset; }
+  .grooveSeqChip.activeSeg { border-color:#ffb400; box-shadow:0 0 8px #ffb400aa; }
+  .grooveSeqChip.missingLib { border-color:#ff6b81; }
+  .grooveSeqChip.selected { border-color:#7fe0ff; box-shadow:0 0 0 1px #7fe0ff66 inset; }
+  .grooveSeqChip select { font-size:10.5px; padding:4px 5px; max-width:110px; }
+  .grooveSeqChip .beatsInput { width:38px; background:#0f0f20; border:1px solid #3a3a66; color:#7fe0ff;
+    border-radius:4px; padding:4px 3px; font-size:11px; text-align:center; }
+  .grooveSeqChip .beatsInput:focus { outline:none; border-color:#7fe0ff; }
+  .grooveSeqChip .dup { background:none; border:none; color:#7fe0ff88; font-size:12px; padding:3px 6px; cursor:pointer; }
+  .grooveSeqChip .dup:hover { color:#7fe0ff; }
+  .grooveSeqChip .del { background:none; border:none; color:#ff6b81; font-size:13px; padding:3px 7px; cursor:pointer; }
+  .grooveSeqArrow { color:#555580; font-size:13px; flex:0 0 auto; }
+  #grooveSeqEmpty { font-size:11px; color:#555580; }
+  #grooveSeqTotalBeats { font-size:10px; color:#555580; }
+
+
+  /* ---- BG-1 Beat Grid：拍點＋律動共用 Beat 座標軸 ---- */
+  #beatGridShell { border:1px solid #26264a; border-radius:8px; overflow:hidden; background:#0d0d19; margin:4px 0 8px; }
+  #beatGridToolbar { display:flex; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap:6px 8px; padding:6px 9px;
+    background:#14142a; border-bottom:1px solid #26264a; font-size:10px; color:#6a6a9a; }
+  #beatGridTransport { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; }
+  #beatGridFileControls { display:inline-flex; align-items:center; gap:4px; min-width:0; flex:0 1 auto;
+    padding:2px 4px; border:1px solid #2a2a4b; border-radius:6px; background:#111122; }
+  #beatGridFileControls button { flex:0 0 auto; padding:4px 7px; font-size:10px; white-space:nowrap; }
+  #beatGridFileControls #kfMusicName { display:inline-block; min-width:0; max-width:150px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; padding:0 3px; color:#9a9ac2; font-size:10px; vertical-align:middle; }
+  #beatGridFileControls #kfMusicName:not(:empty) { color:#b6b6db; }
+  #beatGridFileControls .beatGridMiniIconBtn { width:23px; min-width:23px; height:23px; padding:0; color:#ff8d9d; }
+  .beatGridToolbarDivider { width:1px; height:19px; background:#2f2f50; margin:0 2px; flex:0 0 1px; }
+  .beatGridMusicSettings { margin:0; border:0; border-radius:0; border-bottom:1px solid #26264a; background:#0f0f1d; }
+  .beatGridMusicSettings > summary { padding:5px 9px; color:#8f8fe8; font-size:10px; cursor:pointer; user-select:none; }
+  .beatGridMusicSettings .kfCollapsibleBody { padding:5px 9px 7px; background:#0d0d19; }
+  .beatGridMusicSettings #kfMusicControlsRow { margin:0; gap:6px; align-items:center; }
+  #beatGridLegend { margin-left:auto; }
+  @media (max-width: 860px) {
+    #beatGridLegend { display:none; }
+    #beatGridFileControls { order:3; flex:1 1 100%; }
+    #beatGridFileControls #kfMusicName { max-width:220px; flex:1 1 auto; }
+  }
+  #beatGridTransport #kfPlayBtn { min-width:76px; padding:5px 10px; font-size:11px; }
+  #beatGridTransport #kfLoopBtn { width:28px; height:27px; padding:0; }
+  #beatGridZoomControls { display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; padding:2px 4px; border:1px solid #2a2a4b; border-radius:6px; background:#111122; }
+  #beatGridZoomControls button { width:24px; height:23px; min-width:24px; padding:0; font-size:13px; line-height:1; }
+  #beatGridZoomSelect { width:64px; min-width:64px; padding:3px 5px; font-size:10px; }
+  #beatGridEditControls, #beatGridNavControls { display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; padding:2px 4px; border:1px solid #2a2a4b; border-radius:6px; background:#111122; }
+  #beatGridEditControls label { color:#8f8fe8; font-size:9px; white-space:nowrap; }
+  #beatGridSnapSelect { width:68px; min-width:68px; padding:3px 5px; font-size:10px; }
+  #beatGridNavControls button { min-width:26px; height:23px; padding:0 6px; font-size:10px; line-height:1; }
+  #beatGridNavControls .beatGridFitBtn { min-width:34px; }
+  #beatGridRangeControls { display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; padding:2px 4px; border:1px solid #2a2a4b; border-radius:6px; background:#111122; }
+  #beatGridRangeControls button { height:23px; min-width:28px; padding:0 6px; font-size:10px; line-height:1; }
+  #beatGridRangeLoopBtn.active { color:#ffe28a; border-color:#9b7d2b; background:#352c11; box-shadow:0 0 0 1px #9b7d2b55 inset; }
+  #beatGridRangeClearBtn:disabled, #beatGridRangeLoopBtn:disabled,
+  #beatGridRangeCopyBtn:disabled, #beatGridRangePasteBtn:disabled, #beatGridRangeDuplicateBtn:disabled, #beatGridRangeDeleteBtn:disabled { opacity:.38; cursor:not-allowed; }
+  #beatGridRangeInfo { max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#c7b8ff; font:9.5px monospace; }
+  #beatGridRangeCopyBtn, #beatGridRangePasteBtn, #beatGridRangeDuplicateBtn, #beatGridRangeDeleteBtn { min-width:30px; padding:0 5px; }
+  #beatGridRangeDeleteBtn:not(:disabled) { color:#ffb3b3; border-color:#6f3030; }
+  #beatGridRangeSelection { position:absolute; z-index:4; top:0; bottom:0; display:none; pointer-events:none;
+    background:linear-gradient(90deg,#875cff20,#875cff30); border-left:2px solid #9b7cff; border-right:2px solid #9b7cff;
+    box-shadow:0 0 0 1px #9b7cff22 inset; }
+  #beatGridRangeSelection.active { display:block; }
+  #beatGridRangeSelection.looping { background:linear-gradient(90deg,#ffd15c1a,#ffd15c30); border-color:#ffd15c; box-shadow:0 0 0 1px #ffd15c22 inset; }
+  #beatGridRuler { cursor:crosshair; touch-action:none; }
+  #beatGridRuler.rangeDragging { cursor:ew-resize; }
+  #beatGridPoseInspector { min-height:36px; display:flex; align-items:center; gap:7px; padding:5px 9px; box-sizing:border-box;
+    background:#101020; border-bottom:1px solid #26264a; color:#9a9ac2; font-size:10px; overflow-x:auto; overflow-y:hidden; }
+  #beatGridPoseInspector::-webkit-scrollbar { height:4px; }
+  #beatGridPoseInspector::-webkit-scrollbar-thumb { background:#3a3a66; border-radius:3px; }
+  #kfInspectorMode { flex:0 0 auto; min-width:68px; color:#7fe0ff; font-size:10px; font-weight:600; letter-spacing:.3px; }
+  #beatGridPoseInspector #kfUpdateBtn { display:none; flex:0 0 auto; padding:4px 8px; font-size:10px; }
+  .beatGridInspectorDivider { flex:0 0 1px; align-self:stretch; background:#26264a; margin:0 2px; }
+  #beatGridPoseInspector label { flex:0 0 auto; }
+  #beatGridPoseInspector select { flex:0 0 auto; padding:4px 7px; font-size:10px; }
+  #beatGridPoseInspector #kfEasingSelect { min-width:110px; }
+  #beatGridPoseInspector #kfBeatsSelect { min-width:58px; }
+  .beatGridEasePreview { flex:0 0 auto; padding:2px 4px; }
+  .beatGridEasePreview svg { width:40px; height:22px; }
+  #beatGridPoseInspector #kfBeatMsHint { flex:0 0 auto; font-size:9.5px; color:#6a6a9a; white-space:nowrap; }
+  #beatGridScroll { overflow-x:auto; overflow-y:hidden; position:relative; -webkit-overflow-scrolling:touch; }
+  #beatGridScroll::-webkit-scrollbar { height:7px; }
+  #beatGridScroll::-webkit-scrollbar-track { background:#101020; }
+  #beatGridScroll::-webkit-scrollbar-thumb { background:#3a3a66; border-radius:4px; }
+  #beatGridInner { position:relative; min-width:100%; }
+  #beatGridRuler { position:relative; height:27px; border-bottom:1px solid #26264a; background:#101020; }
+  .beatGridTick { position:absolute; top:0; bottom:0; width:1px; background:#22223d; pointer-events:none; }
+  .beatGridTick.major { background:#41416b; }
+  .beatGridTick.half { background:#2d2d4d; }
+  .beatGridTickLabel { position:absolute; top:4px; transform:translateX(4px); font:10px monospace; color:#7fe0ff; pointer-events:none; }
+  .beatGridTrackRow { display:grid; grid-template-columns:96px 1fr; min-height:58px; border-bottom:1px solid #20203c; }
+  #beatGridWaveformRow .beatGridTrackLabel { min-height:66px; }
+  #beatGridWaveformRow .beatGridTrackLabelText { color:#8f8fe8; }
+  .beatGridTrackRow:last-child { border-bottom:none; }
+  .beatGridTrackLabel { display:flex; align-items:center; justify-content:space-between; gap:5px; position:sticky; left:0; z-index:6;
+    padding:0 7px; box-sizing:border-box; background:#14142a; border-right:1px solid #26264a; color:#9a9ac2; font-size:10px; letter-spacing:.5px; }
+  .beatGridTrackLabelText { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .beatGridAddBtn { flex:0 0 22px; width:22px; height:22px; min-width:22px; padding:0; border-radius:5px;
+    display:inline-flex; align-items:center; justify-content:center; background:#181832; border:1px solid #3a3a66;
+    color:#7fe0ff; font-size:15px; line-height:1; font-weight:600; }
+  .beatGridAddBtn:hover { background:#22224a; border-color:#7fe0ff; color:#d7f8ff; }
+  .beatGridAddBtn:active { transform:scale(.92); }
+  .beatGridTrack { position:relative; min-height:58px; background-color:#0d0d19;
+    background-image:linear-gradient(to right, #20203c 1px, transparent 1px); background-size:18px 100%; }
+  #kfList, #grooveSeqList { position:relative; display:block; min-height:58px; margin:0; padding:0; overflow:visible; }
+  #kfList .kfChip, #grooveSeqList .grooveSeqChip { position:absolute; top:8px; height:40px; box-sizing:border-box; overflow:hidden; }
+  #kfList .kfChip { padding-left:5px; }
+  #kfList .kfChip .kfEaseTag { margin-left:auto; }
+  #kfList .kfChip.beatGridEndMarker { width:48px !important; }
+  #kfList .kfChip.beatGridCompact .kfLabelBtn, #kfList .kfChip.beatGridCompact .kfEaseTag,
+  #kfList .kfChip.beatGridCompact .dup, #kfList .kfChip.beatGridCompact .kfTrajTag { display:none; }
+  #kfList .kfChip.beatGridCompact .sel { padding:4px 2px; font-size:9px; min-width:0; width:100%; overflow:hidden; }
+  /* 短 Groove clip（例如縮放後的 1 拍）仍保留拍數調整；刪除統一改用 Delete / Backspace。
+     compact 模式只隱藏複製與「拍」單位，拍數 input 縮成小型數字框。 */
+  #grooveSeqList .grooveSeqChip.beatGridCompact .dup,
+  #grooveSeqList .grooveSeqChip.beatGridCompact .beatUnit { display:none; }
+  #grooveSeqList .grooveSeqChip { padding:4px 5px; }
+  #grooveSeqList .grooveSeqChip select { min-width:0; flex:1 1 auto; }
+  #grooveSeqList .grooveSeqChip.beatGridCompact { gap:1px; padding:4px 3px; }
+  #grooveSeqList .grooveSeqChip.beatGridCompact select {
+    min-width:0; width:0; flex:1 1 auto; padding:3px 2px; font-size:9px; text-overflow:ellipsis; overflow:hidden;
+  }
+  #grooveSeqList .grooveSeqChip.beatGridCompact .beatsInput {
+    display:block; flex:0 0 25px; width:25px; min-width:25px; padding:3px 1px; font-size:9px;
+    box-sizing:border-box; position:relative; z-index:3;
+  }
+  /* BG-3：POSE / GROOVE 共用右側 Resize Engine。 */
+  #grooveSeqList .grooveSeqChip, #kfList .kfChip:not(.beatGridEndMarker) { padding-right:10px; }
+  .timelineResizeHandle { position:absolute; top:0; right:0; width:8px; height:100%; z-index:8;
+    cursor:ew-resize; touch-action:none; background:transparent; }
+  .timelineResizeHandle::before { content:""; position:absolute; top:7px; bottom:7px; right:2px; width:2px;
+    border-radius:2px; background:#7fe0ff44; transition:background .12s, box-shadow .12s; }
+  .kfChip:hover .poseResizeHandle::before, .grooveSeqChip:hover .grooveResizeHandle::before,
+  .timelineResizeHandle.resizing::before { background:#7fe0ff; box-shadow:0 0 6px #7fe0ffaa; }
+  .kfChip.resizing, .grooveSeqChip.resizing { cursor:ew-resize; border-color:#7fe0ff; box-shadow:0 0 0 1px #7fe0ff55 inset; }
+  #timelineResizeHud { position:fixed; z-index:10000; display:none; pointer-events:none; padding:5px 8px;
+    border:1px solid #3a3a66; border-radius:5px; background:#14142af2; color:#7fe0ff;
+    font:11px/1.25 monospace; box-shadow:0 4px 14px rgba(0,0,0,.45); white-space:nowrap; }
+  /* BG-3.2：POSE / GROOVE 拖曳排序共用插入指示線與 HUD。 */
+  .timelineDropIndicator { position:absolute; top:5px; bottom:5px; width:2px; z-index:15; pointer-events:none;
+    background:#c9a3ff; box-shadow:0 0 8px #9944ffaa; transform:translateX(-1px); }
+  .timelineDropIndicator::before { content:""; position:absolute; top:-2px; left:50%; transform:translateX(-50%);
+    width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:6px solid #c9a3ff; }
+  #timelineDragHud { position:fixed; z-index:10000; display:none; pointer-events:none; padding:5px 8px;
+    border:1px solid #5c3f86; border-radius:5px; background:#181127f2; color:#d8c3ff;
+    font:11px/1.25 monospace; box-shadow:0 4px 14px rgba(0,0,0,.45); white-space:nowrap; }
+  .kfChip.dragging, .grooveSeqChip.dragging { opacity:.38; filter:saturate(.65); }
+  .beatGridGhost { position:absolute; top:11px; height:34px; border:1px dashed #6a6a9a55; border-radius:6px;
+    background:#25254233; color:#77779b; font-size:9px; display:flex; align-items:center; justify-content:center; pointer-events:none; overflow:hidden; }
+  #kfEmpty, #grooveSeqEmpty { position:absolute; left:10px; top:20px; color:#555580; font-size:10px; white-space:nowrap; }
+  #beatGridLegend { display:flex; align-items:center; gap:10px; white-space:nowrap; }
+  #beatGridLegend b { color:#cfd6ff; font-weight:500; }
+  /* ---- BG-2：共用 Playhead／播放高亮 ---- */
+  #beatGridPlayhead { position:absolute; top:0; bottom:0; width:2px; z-index:12; pointer-events:none;
+    background:#ff4757; box-shadow:0 0 8px #ff475799; opacity:0; transform:translateX(-1px); }
+  #beatGridPlayhead::before { content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-top:7px solid #ff4757; }
+  #beatGridPlayhead.visible { opacity:1; }
+  #beatGridPlayheadLabel { position:absolute; top:2px; left:6px; padding:1px 5px; border-radius:4px;
+    background:#2a1119e8; color:#ff9aaa; font:9px monospace; white-space:nowrap; box-shadow:0 1px 5px #0008; }
+  #grooveSeqList .grooveSeqChip.activeSeg, #grooveSeqList .beatGridGhost.activeSeg {
+    border-color:#ffb400; box-shadow:0 0 8px #ffb400aa, inset 0 0 0 1px #ffb40055; }
+  #grooveSeqList .beatGridGhost.activeSeg { color:#ffd36a; background:#5b451c55; }
+  #beatGridScroll.playing { scrollbar-color:#ff4757 #101020; }
+  @media (max-width:640px){ .beatGridTrackLabel { font-size:9px; } }
+
+  .easeRow { align-items:center; }
+  .easePreview { display:flex; align-items:center; justify-content:center; background:#0f0f20;
+    border:1px solid #26264a; border-radius:6px; padding:3px 5px; }
+  .easePreview svg { display:block; }
+  #kfBeatMsHint { font-size:10px; color:#555580; }
+  /* Easing／拍數控制已整合進 Beat Grid contextual inspector；尺寸由 #beatGridPoseInspector 控制。 */
+
+  /* ---- Easing 圖鑑分頁：32 種緩動函式卡片 ---- */
+  .egGroup { margin-bottom:10px; }
+  .egGroupTitle { font-size:11px; color:#6a6a9a; letter-spacing:1px; margin:0 0 4px; }
+  .egGrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(84px, 1fr)); gap:5px; }
+  .egCard { background:#0f0f20; border:1px solid #26264a; border-radius:6px; padding:5px; display:flex;
+    flex-direction:column; align-items:center; gap:3px; }
+  .egSvg { display:block; width:100%; height:auto; overflow:visible; }
+  .egTrack { position:relative; width:100%; height:10px; background:#16162a; border:1px solid #26264a;
+    border-radius:5px; overflow:visible; }
+  .egBall { position:absolute; top:50%; width:9px; height:9px; border-radius:50%; background:#ff2f7e;
+    box-shadow:0 0 4px #ff2f7eaa; transform:translate(-50%, -50%); left:0%; }
+  .egLabel { font-size:9px; color:#cfd6ff; text-align:center; line-height:1.3; }
+  .egLabel .egLabelEn { color:#6a6a9a; display:block; font-size:8px; }
+
+  /* ---- 軌跡控制點清單 ---- */
+  #trajPointList { gap:6px; align-content:flex-start; }
+  .trajChip { display:flex; align-items:center; gap:2px; background:#16162a; border:1px solid #3a3a66;
+    border-radius:6px; padding:2px 2px 2px 10px; font-size:11px; color:#cfd6ff; }
+  .trajChip.active { border-color:#9944ff; color:#c9a3ff; }
+  .trajChip .sel { background:none; border:none; color:inherit; font-size:11px; padding:5px 4px; cursor:pointer; }
+  .trajChip .del { background:none; border:none; color:#ff6b81; font-size:13px; padding:3px 7px; cursor:pointer; }
+  #trajPointEmpty { font-size:11px; color:#555580; }
+  #trajSampleVal { color:#c9a3ff; font-size:12px; min-width:20px; display:inline-block; }
+  #rootFollowDampVal, #spineCCDDampVal { color:#7fe0ff; font-size:12px; min-width:32px; display:inline-block; }
+  .kfTrajTag { color:#c9a3ff; font-size:11px; padding:0 5px; }
+
+  /* ---- 關節總覽面板：即時列出所有關節的旋轉角度與世界座標 ---- */
+  #overviewGroups { display:flex; flex-direction:column; gap:8px; }
+  .ovGroup { background:#0f0f20; border:1px solid #26264a; border-radius:8px; overflow:hidden; }
+  .ovGroupHead { display:flex; align-items:center; justify-content:space-between; padding:7px 10px;
+    background:#16162a; cursor:pointer; font-size:11px; color:#7fe0ff; letter-spacing:1px; user-select:none; }
+  .ovGroupHead:hover { background:#1c1c3a; }
+  .ovGroupHead .ovCaret { display:inline-block; transition:transform .12s; margin-right:6px; color:#6a6a9a; }
+  .ovGroupHead.collapsed .ovCaret { transform:rotate(-90deg); }
+  .ovGroupHead .ovCount { color:#6a6a9a; font-weight:normal; }
+  .ovGroupBody { display:flex; flex-direction:column; }
+  .ovGroupBody.collapsed { display:none; }
+  .ovHeadRow { display:grid; grid-template-columns:78px repeat(3,44px) 6px repeat(3,54px);
+    gap:3px; padding:3px 10px 5px; font-size:9px; color:#555580; letter-spacing:.5px; }
+  .ovHeadRow span { text-align:right; }
+  .ovHeadRow span:first-child { text-align:left; }
+  .ovRow { display:grid; grid-template-columns:78px repeat(3,44px) 6px repeat(3,54px);
+    align-items:center; gap:3px; padding:4px 10px; font-size:11px; color:#cfd6ff;
+    border-top:1px solid #1c1c36; cursor:pointer; }
+  .ovGroupBody .ovRow:first-child { border-top:none; }
+  .ovRow:hover { background:#1a1a36; }
+  .ovRow.selected { background:#2a1030; color:#ff9fc4; }
+  .ovRow .ovName { color:#e8e8f5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ovRow.selected .ovName { color:#ff9fc4; }
+  .ovRow .ovDivider { border-left:1px solid #2a2a4a; height:14px; justify-self:center; }
+  .ovRow .ovRot { font-family:monospace; color:#7fe0ff; text-align:right; white-space:nowrap; }
+  .ovRow .ovPos { font-family:monospace; color:#c9a3ff; text-align:right; white-space:nowrap; }
+  .ovRow.selected .ovRot { color:#ffcfe4; }
+  .ovRow.selected .ovPos { color:#ffcfe4; }
+  #overviewEmpty { font-size:11px; color:#555580; padding:6px 2px; }
+  @media (max-width:640px){
+    .ovRow, .ovHeadRow { grid-template-columns:58px repeat(3,36px) 4px repeat(3,46px); font-size:9.5px; }
+  }
+
+  /* ---- JSON 面板：中文對照表（沿用 .ovGroupHead / .ovCaret / .ovCount 的分組標題樣式）---- */
+  #jsonRefTable { max-height:34vh; overflow-y:auto; }
+  .jrGroup { background:#0f0f20; border:1px solid #26264a; border-radius:8px; overflow:hidden; margin-bottom:6px; }
+  .jrGroupBody { display:flex; flex-direction:column; }
+  .jrGroupBody.collapsed { display:none; }
+  .jrRow { display:grid; grid-template-columns:72px 82px 1fr; align-items:center; gap:6px;
+    padding:4px 10px; font-size:11px; border-top:1px solid #1c1c36; }
+  .jrGroupBody .jrRow:first-child { border-top:none; }
+  .jrRow .jrName { color:#e8e8f5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .jrRow .jrKey { color:#555580; font-family:monospace; font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .jrRow .jrVal { font-family:monospace; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .jrVal.jrOk { color:#7fe0ff; }
+  .jrVal.jrErr { color:#ff6b81; }
+  .jrVal.jrDim { color:#555580; }
+  @media (max-width:640px){
+    .jrRow { grid-template-columns:58px 66px 1fr; font-size:9.5px; }
+  }
+
+  /* ---- 手指 FK/IK 面板：一指一列、三節橫排，左右手分卡片 ---- */
+  .fingerHandGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fingerHandCard { background:#0f0f20; border:1px solid #26264a; border-radius:8px; padding:8px 10px; }
+  .fingerHandTitle { font-size:11px; color:#6a6a9a; letter-spacing:1px; margin-bottom:6px; }
+  .fingerRow { display:flex; align-items:center; gap:4px; margin-bottom:4px; }
+  .fingerRowLabel { flex:0 0 44px; font-size:11px; color:#9a9ac2; white-space:nowrap; }
+  .fingerJointBtn { flex:1 1 0; min-width:0; padding:5px 2px; font-size:11px; text-align:center; }
+  .fingerJointBtn.active { background:#ff2f7e; border-color:#ff2f7e; color:#0a0a12; font-weight:bold; }
+  .fingerIKToggleBtn { flex:0 0 28px; padding:5px 0; font-size:10px; color:#00e5ff; border-color:#0a4a55; }
+  .fingerIKToggleBtn.active { background:#00e5ff; border-color:#00e5ff; color:#04241c; font-weight:bold; }
+
+  /* ---- 關節角度限制分頁 ---- */
+  .ovGroupBody.jointLimitGrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; padding:8px; }
+  .ovGroupBody.jointLimitGrid.collapsed { display:none; }
+  @media (max-width:640px){ .ovGroupBody.jointLimitGrid { grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); } }
+  .jlJointBlock { background:#0f0f20; border:1px solid #26264a; border-radius:8px; padding:8px 8px; margin-bottom:0; min-width:0; }
+  .jlJointTitle { display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:12px; color:#7fe0ff; margin-bottom:6px; letter-spacing:.5px; }
+  .jlCurAngle { color:#9a9ac2; font-weight:normal; font-size:10px; }
+  .jlAxisRow { display:flex; align-items:center; gap:4px; margin-bottom:4px; font-size:11px; color:#cfd6ff; flex-wrap:nowrap; }
+  .jlAxisRow .jlAxisLabel { width:20px; flex:0 0 auto; color:#9a9ac2; }
+  .jlNumInput { width:40px; background:#16162a; border:1px solid #3a3a66; color:#e8e8f5; border-radius:4px; padding:3px 3px; font-size:11px; }
+  .jlNumInput:disabled { opacity:.35; }
+  .jlAxisRow .jlSep { color:#555580; }
+
+  @media (max-width:640px){
+    .fingerHandGrid { grid-template-columns:1fr; }
+  }
+
+  /* ---- 自訂 Tooltip：取代所有原生 title 屬性的瀏覽器內建提示框（樣式不可控、延遲/位置不一致），
+     全站統一改用同一份深色系樣式，行為對齊介面其他元件（見下方 initGlobalTooltips）---- */
+  .customTooltip {
+    position:fixed; z-index:9999; max-width:320px; padding:8px 10px;
+    background:#14142af0; border:1px solid #3a3a66; border-radius:6px;
+    color:#cfd6ff; font-size:11px; line-height:1.6; letter-spacing:.2px;
+    box-shadow:0 4px 18px rgba(0,0,0,.55); pointer-events:none;
+    opacity:0; transform:translateY(4px); transition:opacity .12s ease, transform .12s ease;
+    white-space:pre-line;
+  }
+  .customTooltip.visible { opacity:1; transform:translateY(0); }
+
+  /* Waving: share the hand/foot IK disclosure style. */
+  #tabWaving .waveTitle { display:flex; align-items:center; gap:6px; }
+  #tabWaving .small { font-size:11px; line-height:1.6; color:#9a9ac2; margin:6px 0 10px; overflow-wrap:anywhere; }
+  #tabWaving .waveTransport { padding:8px; border:1px solid #3a3a66; border-radius:6px; margin:8px 0; }
+  #tabWaving .waveTransport .row { margin-bottom:6px; }
+  #tabWaving .kfCollapsibleBody { padding-top:10px; }
+  #tabWaving .row label { display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  #tabWaving select { max-width:100%; }
+  #tabWaving .waveSliderRow { display:grid; grid-template-columns:110px minmax(70px,240px) 52px auto; justify-content:start; }
+  #tabWaving .waveSliderRow input[type="range"] { width:100%; min-width:0; margin:0; }
+  #tabWaving output { font-size:12px; color:#7fe0ff; font-variant-numeric:tabular-nums; }
+  #tabWaving #waveRouteHint { padding:6px 8px; border-left:2px solid #3a3a66; background:#101020; }
+  #tabWaving #waveLocation, #tabWaving #waveBakeStatus { color:#7fe0ff; }
+  #tabWaving .waveInlineHint { display:inline-block; margin:0 0 8px; }
+  #tabWaving [hidden] { display:none !important; }
+  #tabWaving .kfInfoIcon:focus-visible { outline:2px solid #7fe0ff; outline-offset:3px; }
+  @media(max-width:600px){
+    #tabWaving .waveSliderRow { grid-template-columns:90px minmax(60px,1fr) 48px; }
+    #tabWaving .waveSliderRow button { grid-column:2 / -1; justify-self:start; }
+  }
+
+
+#waveTrackList {position:relative;min-height:58px;}
+#waveTrackList .small {display:block;padding:18px 10px;font-size:11px;color:#9a9ac2;}
+.waveClip {position:absolute;top:8px;height:40px;box-sizing:border-box;border:1px solid #427f96;border-radius:6px;background:#153644;color:#acecff;padding:10px 14px 8px 8px;font-size:11px;white-space:nowrap;overflow:hidden;cursor:grab;touch-action:none;user-select:none;}
+.waveClip.selected {outline:2px solid #7fe0ff;outline-offset:-2px;}
+.waveClip.activeSeg {background:#256579;box-shadow:inset 0 0 0 1px #bdf8ff;}
+.waveResize {position:absolute;right:0;top:0;width:9px;height:100%;cursor:ew-resize;background:#7fe0ff44;}
+#waveClipInspector {padding:8px;border:1px solid #3a3a66;border-radius:6px;margin:8px 0;}
+#waveClipInspector[hidden] {display:none;}
+#waveClipInspector input {width:65px;}
+
+#tabTuttingGen .tgHelp {font-size:11px;line-height:1.7;color:#9a9ac2;margin:6px 0 10px;}
+#tabTuttingGen #tgStatus,#tabTuttingGen #tgCandidateInfo {color:#7fe0ff;}
+#tabTuttingGen .kfCollapsibleBody {padding-top:10px;}
+#tgParts {display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;max-width:1000px;}
+.tgPart {display:flex;align-items:center;gap:12px;padding:8px;border:1px solid #26264a;border-radius:6px;font-size:12px;}
+.tgPart strong {width:80px;font-weight:normal;}
+#tabTuttingGen label {display:inline-flex;align-items:center;gap:5px;}
+#tabTuttingGen input[type=number] {width:65px;}
+#tabTuttingGen .row {flex-wrap:wrap;}
