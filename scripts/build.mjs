@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
-const filename = 'tutting_3d_simulator_v22.html';
+const filename = 'index.html';
 const { outputFiles } = await build({
   entryPoints: ['src/main.js'],
   bundle: true,

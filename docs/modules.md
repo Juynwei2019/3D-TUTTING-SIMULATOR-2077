@@ -6,7 +6,7 @@
 
 | 路徑 | 責任與依賴 |
 | --- | --- |
-| `tutting_3d_simulator_v22.html` | 介面標記、原有 DOM ID、Three.js import map、應用入口 |
+| `index.html` | 介面標記、原有 DOM ID、Three.js import map、應用入口 |
 | `styles/simulator.css` | 原有樣式 |
 | `src/main.js` | 組裝、尚未拆出的功能狀態、模型初始化、既有 `animate()` 調度 |
 | `src/rig/definitions.js` | 50 個關節、手指與四肢鏈、分組與朝向定義；依賴 Three.js |

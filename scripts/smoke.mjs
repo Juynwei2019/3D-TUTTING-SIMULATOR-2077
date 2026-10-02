@@ -35,7 +35,7 @@ window.__smoke = {
   get playing() { return kfPlaying; },
 };`;
 const root = resolve('.');
-const filename = 'tutting_3d_simulator_v22.html';
+const filename = 'index.html';
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 const server = createServer(async (req, res) => {
   try {

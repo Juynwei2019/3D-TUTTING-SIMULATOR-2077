@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-透過 HTTP 開啟 `tutting_3d_simulator_v22.html`。開發入口會載入 `src/main.js` 與 `styles/simulator.css`，請保留這些目錄的相對位置；不要直接用 `file://` 開啟開發版本。
+透過 HTTP 開啟 `index.html`。開發入口會載入 `src/main.js` 與 `styles/simulator.css`，請保留這些目錄的相對位置；不要直接用 `file://` 開啟開發版本。
 
 Three.js 版本固定為 `0.160.0`。正常執行仍從 `unpkg.com` 載入 Three.js，從 `threejs.org` 載入 Xbot 模型，需要連線到這兩個網域。
 
@@ -21,7 +21,7 @@ Three.js 版本固定為 `0.160.0`。正常執行仍從 `unpkg.com` 載入 Three
 npm run build
 ```
 
-產生 `dist/tutting_3d_simulator_v22.html`，將專案模組與 CSS 整合回一份 HTML，方便下載、分享或部署。Three.js 與模型仍使用原有遠端來源，因此這個輸出不是離線版。`dist/` 為產生檔，不提交至 Git。
+產生 `dist/index.html`，將專案模組與 CSS 整合回一份 HTML，方便下載、分享或部署。Three.js 與模型仍使用原有遠端來源，因此這個輸出不是離線版。`dist/` 為產生檔，不提交至 Git。
 
 ## 驗證
 
