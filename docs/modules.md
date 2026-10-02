@@ -23,6 +23,10 @@
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
 | `src/interaction/grab-shapes.js` | 扶握形狀、幾何建構與表面投影 |
 | `src/interaction/grab-core.js` | 扶握狀態與控制環；以 `deps` 注入模型、手部骨骼和 IK 操作 |
+| `src/history/history-controller.js` | 私有 Undo／Redo 堆疊、50 筆上限、分支截斷、播放防護與還原重入保護 |
+| `src/history/snapshot.js` | 分開產生歷史與專案快照，透過 getter 讀取當前狀態 |
+| `src/storage/autosave.js` | 1500ms debounce、localStorage 讀寫、錯誤處理與取消排程 |
+| `src/storage/project-format.js`、`project-file.js` | v1 格式常數、基本結構驗證、專案 JSON 匯入／匯出與確認流程 |
 | `src/timeline/waveform.js` | 私有解碼音訊樣本、峰值取樣／快取、過期解碼取消與 AudioContext 釋放；不依賴 DOM |
 | `src/ui/waveform-view.js` | Canvas 波形與拍點參考線；讀取即時 Beat Grid 比例與音訊範圍 |
 | `src/timeline/audio-controller.js` | 音訊 object URL 所有權、匯入／移除、試聽／暫停與 beat／秒換算；注入 media element 與即時 BPM／offset |
@@ -93,3 +97,15 @@
 `createWaveformView(waveform, adapter).draw()` 依同一套 Beat Grid 座標繪製：短音樂只佔有音訊的區段，拍點參考線與 POSE Track 對齊，Canvas backing width 上限維持 16384px，隱藏時不重畫。視圖不保存 BPM、拍點或縮放副本；每次 draw 透過 getter／回呼讀取當前資料。主程式保留 loading／error 樣式、媒體事件、拖曳尋位及重繪時機。
 
 波形單元測試涵蓋正負峰值、補零、快取失效、失敗清理、解碼競態、短音訊比例、拍點對齊與 Canvas 尺寸上限；瀏覽器回歸繼續使用真實 WAV 驗證 Web Audio 解碼及播放。
+
+## 歷史與專案儲存
+
+`createHistory()` 擁有私有堆疊，保留 50 筆上限與編輯後截斷 Redo 分支。捕捉及還原資料皆複製，避免場景操作污染歷史；還原期間忽略 push，finally 保證即使還原拋錯仍解除重入保護。播放時 Undo／Redo 仍被阻擋。按鈕與快捷鍵留在主程式。
+
+`createSnapshots()` 明確分開 `captureHistory()` 與 `captureProject()`。歷史維持原有欄位範圍，沒有擴張為完整場景快照；專案快照保留 schemaVersion 1、savedAt、軌跡與律動欄位，回傳獨立可序列化副本。音訊檔、素材庫及 UI 偏好仍不隨專案檔儲存。
+
+`createAutosave()` 注入 storage、快照、計時器及成功／失敗回呼，保留 `tuttingAutosave_v1` 與 1500ms 延遲。讀取時忽略無效 JSON、不同版本及原規則不接受的空資料；足底固定啟用的空拍點存檔仍可還原。是否還原與取消後清除的確認介面仍由主程式負責。
+
+`createProjectFiles()` 保留檔案驗證、覆蓋確認、匯入後記錄歷史及排程存檔的順序。`restoreSnapshot()` 與 `restoreTimelineData()` 暫留主程式：它們依序還原 Wave、LookAt、軌跡、骨架及 UI；後续拆分各功能 controller 時再逐步轉為模組回呼。
+
+第一批涵蓋歷史、快照產生、自動存檔與專案檔案控制；偏好設定及場景還原協調尚待拆分。完整批次進度見 [refactor-roadmap.md](refactor-roadmap.md)。

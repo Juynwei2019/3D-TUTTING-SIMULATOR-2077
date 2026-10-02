@@ -1,3 +1,7 @@
+import { createHistory } from "./history/history-controller.js";
+import { createSnapshots } from "./history/snapshot.js";
+import { createAutosave } from "./storage/autosave.js";
+import { createProjectFiles } from "./storage/project-file.js";
 import { createWaveform } from "./timeline/waveform.js";
 import { createWaveformView } from "./ui/waveform-view.js";
 import { createTimelineAudio } from "./timeline/audio-controller.js";
@@ -1109,13 +1113,6 @@ let poseIndex = 0; // 僅供 Undo/Redo 歷史快照結構相容用途
 // ---- 鏡頭預設 / Undo-Redo / 自動存檔 狀態 ----
 let modelHeight = 2; // loadModel() 完成後同步成實際使用的身高常數，供鏡頭預設換算距離
 let cameraTween = null; // {fromPos, toPos, fromTarget, toTarget, start, duration}
-let historyStack = [];
-let historyIndex = -1;
-let restoringHistory = false;
-const HISTORY_MAX = 50;
-let autoSaveTimer = null;
-const AUTOSAVE_KEY = "tuttingAutosave_v1";
-const AUTOSAVE_SCHEMA_VERSION = 1;
 
 // ---- 洋蔥皮（Onion Skinning）狀態 ----
 // ghostPrev/ghostNext 是用 SkeletonUtils.clone(model) 複製出的獨立骨架半透明殘影，
@@ -5132,35 +5129,11 @@ function symmetrizePose(){
 // 律動庫項目本身（勾關節/振幅波形等）跟其他素材庫一樣，刪除時走 confirm() 對話框而不進這裡，
 // 兩者是不同層級的保護：素材庫刪除用「確認」防呆，時間軸上的排序操作用「復原」防呆。
 function snapshotAngleState(){
-  const targetClone = poseController.snapshotTarget();
-  return {
-    tuttingGenerator: snapshotTG(),
-    generationRules: snapshotGenerationRules(),
-    waveClips: waveClone(waveClips),
-    waving: cleanWave(waveConfig),
-    lookAtPath: cleanLAPath(laPathConfig),
-    torsoLookAt: snapshotTorsoLookAt(),
-    handAim: snapshotHandAim(),
-    poleEditor: snapshotPoleEditor(),
-    target: targetClone,
-    footPlant: snapshotFootPlant(),
-    keyframes: JSON.parse(JSON.stringify(keyframes)),
-    grooveSequence: JSON.parse(JSON.stringify(grooveSequence)), // 律動序列跟拍點清單共用同一套 undo/redo，見下方 restoreSnapshot
-    kfEditingIndex,
-    poseIndex,
-    kfPendingEasing,
-    kfPendingBeats
-  };
+  return snapshots.captureHistory();
 }
 
 function pushHistory(){
-  if (restoringHistory) return;
-  const snap = snapshotAngleState();
-  historyStack = historyStack.slice(0, historyIndex + 1);
-  historyStack.push(snap);
-  if (historyStack.length > HISTORY_MAX) historyStack.shift();
-  historyIndex = historyStack.length - 1;
-  updateUndoRedoButtons();
+  return history.push();
 }
 
 function restoreSnapshot(snap){
@@ -5168,7 +5141,6 @@ function restoreSnapshot(snap){
   waveClips=cleanWaveClips(snap.waveClips);waveClipSelected=null;waveTrackActive=false;
   restoreWave(snap.waving);
   restoreLAPath(snap.lookAtPath);
-  restoringHistory = true;
   poseController.restoreTarget(snap.target);
   restoreFootPlant(snap.footPlant);
   restorePoleEditor(snap.poleEditor);
@@ -5189,28 +5161,21 @@ function restoreSnapshot(snap){
   renderKeyframeChips();
   renderGrooveSeqChips();
   scheduleAutoSave();
-  restoringHistory = false;
 }
 
 function undo(){
-  if (kfPlaying || historyIndex <= 0) return;
-  historyIndex--;
-  restoreSnapshot(historyStack[historyIndex]);
-  updateUndoRedoButtons();
+  return history.undo();
 }
 
 function redo(){
-  if (kfPlaying || historyIndex >= historyStack.length - 1) return;
-  historyIndex++;
-  restoreSnapshot(historyStack[historyIndex]);
-  updateUndoRedoButtons();
+  return history.redo();
 }
 
 function updateUndoRedoButtons(){
   const u = document.getElementById("undoBtn");
   const r = document.getElementById("redoBtn");
-  if (u) u.disabled = historyIndex <= 0;
-  if (r) r.disabled = historyIndex >= historyStack.length - 1;
+  if (u) u.disabled = !history.canUndo;
+  if (r) r.disabled = !history.canRedo;
 }
 
 function bindHistoryUI(){
@@ -5248,54 +5213,17 @@ function bindHistoryUI(){
 // 路徑模式、BPM、目前選取中的Easing/拍數預設值。不存IK開關/即時marker狀態，
 // 理由跟undo一樣：那些狀態要正確復原需要連動重建一堆求解邏輯，複雜度不成比例。
 function scheduleAutoSave(){
-  clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(doAutoSave, 1500);
+  return autosave.schedule();
 }
 
 // 組出一份完整的「編舞資料快照」——自動存檔與手動匯出共用同一個格式，
 // 這樣匯出的檔案將來也能直接被拿來當自動存檔還原，兩條路徑資料互通。
 function snapshotTimelineData(){
-  const data = {
-    schemaVersion: AUTOSAVE_SCHEMA_VERSION,
-    tuttingGenerator: snapshotTG(),
-    generationRules: snapshotGenerationRules(),
-    waveClips: waveClone(waveClips),
-    waving: cleanWave(waveConfig),
-    lookAtPath: cleanLAPath(laPathConfig),
-    torsoLookAt: snapshotTorsoLookAt(),
-    handAim: snapshotHandAim(),
-    poleEditor: snapshotPoleEditor(),
-    footPlant: snapshotFootPlant(),
-    savedAt: Date.now(),
-    keyframes,
-    trajPoints: {},
-    trajMode: TRAJ_MODE,
-    trajClosed: TRAJ_CLOSED,
-    bpm,
-    kfPendingEasing,
-    kfPendingBeats,
-    grooveJoints: Array.from(grooveJointSet),
-    grooveCustom: grooveCustomParams,
-    grooveSquatEnabled,
-    grooveSquatCustom,
-    grooveWarmupEnabled,
-    grooveWarmupBeats,
-    grooveWarmupCurve,
-    grooveSequence // 律動序列是編舞的一部分（哪幾拍用哪個律動庫項目），存進專案檔；律動庫本身仍存 localStorage，不隨專案檔走
-  };
-  for (const limb of IK_LIMB_KEYS){
-    data.trajPoints[limb] = trajPointMeshes[limb].map(m => ({ x:m.position.x, y:m.position.y, z:m.position.z }));
-  }
-  return data;
+  return snapshots.captureProject();
 }
 
 function doAutoSave(){
-  try {
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshotTimelineData()));
-    showAutosaveIndicator();
-  } catch (e){
-    console.warn("自動存檔失敗：", e);
-  }
+  return autosave.save();
 }
 
 function showAutosaveIndicator(){
@@ -5418,13 +5346,8 @@ function restoreTimelineData(data){
 
 // 頁面載入完成後檢查是否有自動存檔，詢問使用者是否還原（避免靜默覆蓋讓人誤以為是全新畫布）
 function tryLoadAutosave(){
-  let raw = null;
-  try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return; }
-  if (!raw) return;
-  let data;
-  try { data = JSON.parse(raw); } catch (e) { return; }
-  if (!data || data.schemaVersion !== AUTOSAVE_SCHEMA_VERSION) return;
-  if (!Array.isArray(data.keyframes) || (data.keyframes.length === 0 && !data.footPlant?.enabled)) return;
+  const data = autosave.read();
+  if (!data) return;
 
   const savedDate = data.savedAt ? new Date(data.savedAt) : null;
   const timeStr = savedDate
@@ -5434,7 +5357,7 @@ function tryLoadAutosave(){
     `偵測到自動存檔（${data.keyframes.length} 個拍點${timeStr ? "，" + timeStr : ""}），要還原上次的編輯進度嗎？\n按「取消」會保留目前的空白畫布，並清除這份自動存檔。`
   );
   if (!ok){
-    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+    autosave.clear();
     return;
   }
 
@@ -5445,37 +5368,12 @@ function tryLoadAutosave(){
 // 匯出：跟自動存檔同一份快照格式（snapshotTimelineData），直接下載成檔案，
 // 方便備份、分享給別人、或搬到別的瀏覽器/裝置。
 function exportTimeline(){
-  if (keyframes.length === 0){
-    alert("目前時間軸是空的，沒有可匯出的拍點。");
-    return;
-  }
-  const data = snapshotTimelineData();
-  downloadJSON(data, "tutting編舞_" + Date.now() + ".json");
+  return projectFiles.exportFile();
 }
 
 // 匯入：讀檔 → 基本結構驗證 → 詢問是否覆蓋目前時間軸 → 套用（與自動存檔還原共用 restoreTimelineData）。
 function importTimelineFromFile(file){
-  readJSONFile(file, (data) => {
-    if (!data || typeof data !== "object" || !Array.isArray(data.keyframes)){
-      alert("匯入失敗：這個檔案不是有效的「編舞時間軸」JSON（缺少 keyframes 陣列）。");
-      return;
-    }
-    if (data.schemaVersion !== AUTOSAVE_SCHEMA_VERSION){
-      alert("匯入失敗：檔案版本（schemaVersion）不符，可能是舊版或不相容的檔案。");
-      return;
-    }
-    if (data.keyframes.length === 0){
-      alert("這個檔案裡的時間軸是空的，沒有可匯入的拍點。");
-      return;
-    }
-    const ok = confirm(
-      `即將匯入 ${data.keyframes.length} 個拍點，這會覆蓋目前時間軸上的全部內容（含拍點與軌跡控制點），此動作無法復原（可用 Ctrl+Z 復原）。確定要匯入嗎？`
-    );
-    if (!ok) return;
-    restoreTimelineData(data);
-    pushHistory();
-    scheduleAutoSave();
-  });
+  return projectFiles.importFile(file);
 }
 
 // ---- Keyframe 拍點時間軸 ----
@@ -10639,6 +10537,54 @@ const waveformView = createWaveformView(waveform, {
   timelineBeatToAudioTime,
   get keyframes(){ return keyframes; },
   keyframeStartBeat,
+});
+
+const snapshots = createSnapshots({
+  get poseController(){ return poseController; },
+  get snapshotTG(){ return snapshotTG; },
+  get snapshotGenerationRules(){ return snapshotGenerationRules; },
+  get waveClone(){ return waveClone; },
+  get waveClips(){ return waveClips; },
+  get cleanWave(){ return cleanWave; },
+  get waveConfig(){ return waveConfig; },
+  get cleanLAPath(){ return cleanLAPath; },
+  get laPathConfig(){ return laPathConfig; },
+  get snapshotTorsoLookAt(){ return snapshotTorsoLookAt; },
+  get snapshotHandAim(){ return snapshotHandAim; },
+  get snapshotPoleEditor(){ return snapshotPoleEditor; },
+  get snapshotFootPlant(){ return snapshotFootPlant; },
+  get keyframes(){ return keyframes; },
+  get grooveSequence(){ return grooveSequence; },
+  get kfEditingIndex(){ return kfEditingIndex; },
+  get poseIndex(){ return poseIndex; },
+  get kfPendingEasing(){ return kfPendingEasing; },
+  get kfPendingBeats(){ return kfPendingBeats; },
+  get TRAJ_MODE(){ return TRAJ_MODE; },
+  get TRAJ_CLOSED(){ return TRAJ_CLOSED; },
+  get bpm(){ return bpm; },
+  get grooveJointSet(){ return grooveJointSet; },
+  get grooveCustomParams(){ return grooveCustomParams; },
+  get grooveSquatEnabled(){ return grooveSquatEnabled; },
+  get grooveSquatCustom(){ return grooveSquatCustom; },
+  get grooveWarmupEnabled(){ return grooveWarmupEnabled; },
+  get grooveWarmupBeats(){ return grooveWarmupBeats; },
+  get grooveWarmupCurve(){ return grooveWarmupCurve; },
+  get IK_LIMB_KEYS(){ return IK_LIMB_KEYS; },
+  get trajPointMeshes(){ return trajPointMeshes; },
+});
+const history = createHistory({
+  capture: snapshotAngleState, restore: restoreSnapshot,
+  isBlocked: () => kfPlaying, onChange: updateUndoRedoButtons,
+});
+const autosave = createAutosave({
+  getStorage: () => localStorage, capture: snapshotTimelineData,
+  onSaved: showAutosaveIndicator,
+  onError: error => console.warn("自動存檔失敗：", error),
+});
+const projectFiles = createProjectFiles({
+  getKeyframes: () => keyframes, snapshotTimelineData, downloadJSON, readJSONFile,
+  restoreTimelineData, pushHistory, scheduleAutoSave,
+  alert: message => alert(message), confirm: message => confirm(message),
 });
 
 init();
