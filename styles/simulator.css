@@ -705,3 +705,13 @@
   .touchTimelineEditing .timelineResizeHandle, .touchTimelineEditing .waveResize { pointer-events:auto; width:24px; touch-action:none; }
   .customTooltip { display:none; }
 }
+
+.fingerTutPanel { border:1px solid #345063; border-radius:10px; padding:12px; margin-bottom:12px; background:#101a28; }
+.fingerTutPanel .row { flex-wrap:wrap; }
+#fingerTutToggle[aria-pressed=true] { background:#00c7bd; color:#07151a; }
+.fingerTutSlider { display:grid; grid-template-columns:72px minmax(0,1fr) 42px; gap:8px; align-items:center; margin:8px 0; font-size:12px; }
+.fingerTutSlider input { width:100%; min-width:0; background:transparent; border:0; padding:0; accent-color:#00c7bd; }
+.fingerTutSlider output { text-align:right; }
+.fingerTutSlider input::-webkit-slider-runnable-track { height:6px; border-radius:999px; background:#345063; }
+.fingerTutSlider input::-webkit-slider-thumb { margin-top:-9px; }
+.fingerTutSlider input::-moz-range-track { height:6px; border-radius:999px; background:#345063; }

@@ -929,6 +929,15 @@
     <div class="tabPanel" data-tab="grabBox" id="tabGrabBox"></div>
 
     <div class="tabPanel" data-tab="fingers" id="tabFingers">
+      <section class="fingerTutPanel" aria-label="FingerTut 胸前編輯模式">
+        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false">開啟 FingerTut</button><button id="fingerTutFocus" type="button" disabled>雙手特寫</button></div>
+        <p id="fingerTutStatus" class="small" role="status"></p>
+        <label class="fingerTutSlider" for="fingerTut_height">高度<input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
+        <label class="fingerTutSlider" for="fingerTut_distance">前後距離<input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
+        <label class="fingerTutSlider" for="fingerTut_spacing">雙手間距<input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
+        <div class="row"><button id="fingerTutRecenter" type="button" disabled>重新胸前擺位</button><button id="fingerTutRestore" type="button" disabled>還原進入前姿勢</button></div>
+        <p class="small">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</p>
+      </section>
       <div class="panelTitle" style="display:flex; align-items:center; gap:6px;">手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。
         <span class="kfInfoIcon" title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響">⚠️</span>
         <button id="fingerFloatBtn" type="button" style="margin-left:auto; font-size:10px; padding:4px 8px;">🗗 浮動視窗</button>

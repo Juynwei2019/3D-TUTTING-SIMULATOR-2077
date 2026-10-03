@@ -66,3 +66,5 @@ node node_modules/playwright-core/cli.js show-trace path/to/trace.zip
 自動驗證不會部署或合併程式碼。若要阻止未通過檢查的 Pull Request 合併，可另設定 `main` 的分支保護，要求 **Tests, build and browser regression** 檢查通過。
 
 手機布局測試沿用桌面瀏覽器測試下載的 `.cache/Xbot.glb`，請先執行 `test:browser`。目前支援手機可收合底部／橫向側面板；已提供 POSE／GROOVE 前移／後移與拖曳編輯開關；實機音訊／效能仍待後續驗證，詳見 [手機評估](docs/mobile-readiness.md)。
+
+FingerTut：到「手指」分頁按「開啟 FingerTut」，自動將雙手擺到胸前、掌心朝下並切換雙手特寫。支援高度／距離／間距調整、Undo／Redo 與還原進入前姿勢。使用方式與測試截圖見 [FingerTut 模式](docs/fingertut-mode.md)。

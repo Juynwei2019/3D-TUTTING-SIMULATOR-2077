@@ -1,3 +1,4 @@
+import { createFingerTut } from "./fingertut/controller.js";
 import { bindTouchTimelineUI } from "./ui/touch-timeline.js";
 import { initMobileLayout } from "./ui/mobile-layout.js";
 import { createCameraController } from "./scene/camera-controller.js";
@@ -2147,14 +2148,11 @@ function symmetrizePose(){
 }
 
 // ---- Undo / Redo（角度層級：關節角度＋拍點時間軸資料＋律動序列）----
-// 刻意不涵蓋 IK 目標球/極向球位置、IK 開關狀態、身體(model)即時位置——
-// 這些狀態要正確復原需要連動重建一堆求解邏輯（見各 setXxxEnabled 函式），
-// 複雜度/風險不成比例，先聚焦在最常誤操作、價值最高的
-// 「姿勢庫切換／JSON套用／拍點增刪改／律動序列增刪改排序」這幾類動作。
-// 律動庫項目本身（勾關節/振幅波形等）跟其他素材庫一樣，刪除時走 confirm() 對話框而不進這裡，
-// 兩者是不同層級的保護：素材庫刪除用「確認」防呆，時間軸上的排序操作用「復原」防呆。
+// 姿勢／時間軸快照另包含 FingerTut 工作區狀態：雙臂與手指 IK、手掌朝向、
+// 模式參數、進入前姿勢與鏡頭，讓胸前擺位及還原可以 Undo／Redo。
+// 其餘 IK 與即時身體位置仍依各領域的既有快照契約處理。
 function snapshotAngleState(){
-  return snapshots.captureHistory();
+  return {...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot()};
 }
 
 function pushHistory(){
@@ -2171,6 +2169,7 @@ function restoreSnapshot(snap){
   restorePoleEditor(snap.poleEditor);
   restoreHandAim(snap.handAim);
   restoreTorsoLookAt(snap.torsoLookAt);
+  fingerTutController.restoreSnapshot(snap.fingerTut);
   keyframes = JSON.parse(JSON.stringify(snap.keyframes));
   grooveSequence = JSON.parse(JSON.stringify(snap.grooveSequence || [])); // 舊快照(修正前存的)沒有這個欄位時，退回空序列，不影響復原其他狀態
   kfEditingIndex = snap.kfEditingIndex;
@@ -2236,7 +2235,7 @@ function bindHistoryUI(){
 // ---- 自動存檔（localStorage）----
 // 只存「資料層」：拍點時間軸(keyframes，含traj metadata)、軌跡控制點座標、
 // 路徑模式、BPM、目前選取中的Easing/拍數預設值。不存IK開關/即時marker狀態，
-// 理由跟undo一樣：那些狀態要正確復原需要連動重建一堆求解邏輯，複雜度不成比例。
+// FingerTut 是編輯工作區模式；成果需新增拍點／儲存手勢，工作區開關與鏡頭不隨專案存檔。
 function scheduleAutoSave(){
   return autosave.schedule();
 }
@@ -2268,6 +2267,7 @@ function showAutosaveIndicator(){
 // 手動匯入檔案共用同一套邏輯，只有「資料從哪裡來、要不要跳確認框」不一樣。
 // 呼叫前務必先確認 data 已通過基本驗證（見 tryLoadAutosave / importTimelineFromFile）。
 function restoreTimelineData(data){
+  fingerTutController.clear();
   tgCancelPreview();restoreGenerationRules(data.generationRules);restoreTG(data.tuttingGenerator);
   waveClips=cleanWaveClips(data.waveClips);waveClipSelected=null;waveTrackActive=false;
   restoreWave(data.waving);
@@ -3377,6 +3377,7 @@ function bindTopUI(){
   bindTouchTimelineUI((kind, direction) => timelineReorderController.stepTimelineSelection(kind, direction));
 
   initUITabs();
+  fingerTutController.bind();
   initEasingGallery();
   initUIVisibility();
   initUIResize();
@@ -4376,6 +4377,43 @@ const spineController = createSpineController({
   get setLookAtEnabled(){ return setLookAtEnabled; },
   get selectedIK(){ return selectedIK; },
   get deselectJoint(){ return deselectJoint; },
+});
+
+const fingerTutController = createFingerTut({
+  get bones(){return bones;}, get model(){return model;}, get modelHeight(){return modelHeight;},
+  pose:poseController, pushHistory, save:scheduleAutoSave,
+  isGrabbing:()=>Object.values(grabBoxCore?.getState().grabbed||{}).some(Boolean),
+  fitDistance:(w,h,m)=>cameraController.computeFitDistance(w,h,m),
+  focusInset:()=>window.matchMedia('(pointer:coarse)').matches?0:.1,
+  captureCamera:()=>({position:camera.position.toArray(),target:controls.target.toArray(),displayCollapsed:document.getElementById('displayTogglesPanel')?.classList.contains('collapsed')||false}),
+  restoreCamera(state){cameraTween=null;camera.position.fromArray(state.position);controls.target.fromArray(state.target);if(typeof state.displayCollapsed==='boolean')setDisplayTogglesCollapsed(state.displayCollapsed);controls.update();},
+  stop(){
+    if(kfPlaying)stopKeyframePlayback();
+    if(waveRun)stopWave();
+    tgCancelPreview();
+    if(groovePreviewEnabled)document.getElementById('groovePreviewBtn').click();
+  },
+  prepare(){
+    for(const limb of ['rArm','lArm']){setIKEnabled(limb,false);setLookAtEnabled(limb==='rArm'?'rHand':'lHand',false);}
+    for(const id of FINGER_IDS)setFingerIKEnabled(id,false);
+    deselectJoint();
+  },
+  captureRig(){
+    return { arms:Object.fromEntries(['rArm','lArm'].map(id=>[id,{enabled:ikEnabled[id],orient:effectorOrientEnabled[id],target:ikTargetMeshes[id]?.position.toArray(),quaternion:ikTargetMeshes[id]?.quaternion.toArray(),pole:ikPoleMeshes[id]?.position.toArray()}])),
+      fingers:Object.fromEntries(FINGER_IDS.map(id=>[id,{enabled:fingerIKEnabled[id],target:fingerIKTargetMeshes[id]?.position.toArray()}])),handAim:snapshotHandAim() };
+  },
+  restoreRig(state){
+    if(!state)return;
+    restoreHandAim(state.handAim);
+    for(const [id,s]of Object.entries(state.arms)){
+      setIKEnabled(id,s.enabled);effectorOrientEnabled[id]=s.orient;
+      if(s.target)ikTargetMeshes[id].position.fromArray(s.target);
+      if(s.quaternion)ikTargetMeshes[id].quaternion.fromArray(s.quaternion);
+      if(s.pole)ikPoleMeshes[id].position.fromArray(s.pole);
+    }
+    for(const [id,s]of Object.entries(state.fingers)){setFingerIKEnabled(id,s.enabled);if(s.target)fingerIKTargetMeshes[id].position.fromArray(s.target);}
+    updateEffectorOrientButtons();rebuildIKDrivenKeys();
+  }
 });
 
 const fingerController = createFingerController({

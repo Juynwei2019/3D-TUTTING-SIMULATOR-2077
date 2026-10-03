@@ -45,6 +45,9 @@ jobs:
       - name: Run mobile layout regression
         run: npm run test:mobile
 
+      - name: Run FingerTut regression
+        run: npm run test:fingertut
+
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

@@ -229,3 +229,13 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 `interaction/pointer-tap.js` 是不依賴 DOM 的點選手勢狀態機；`scene/selection.js` 結合 window 的 pointer 結束／取消與失焦事件，避免多指及拖曳後誤選。`interaction/gizmo-touch.js` 處理控制環取消及雙指操作的停用／恢復，不使用 Three.js 私有 API。
 
 `ui/touch-timeline.js` 綁定觸控工具列與拖曳編輯模式；`timeline/reorder.js` 的 `stepTimelineSelection()` 使用既有排序及 history callback。resize／Range／scrub／Wave 編輯均限制 pointer ID，並處理取消。觸控裝置預設保留捲動，開啟編輯模式才使用專用拖曳區域；桌面滑鼠路徑不需此開關。
+
+## FingerTut 胸前編輯模式
+
+`src/fingertut/controller.js` 負責胸部座標基準、一次性雙臂擺位、模型手掌方向校正、雙手取景與模式介面。直接複用兩節 IK 的數學，但結果同步至 FK target/current，不增加動畫循環，也不持續鎖定手掌。
+
+主程式 adapter 協調停止播放／Wave／律動預覽、解除手臂與手指 IK／手掌朝向、保存及還原 IK 目標與鏡頭。歷史快照擴充 `fingerTut` 工作區狀態；匯入專案清除本次模式與還原點。工作區模式不寫入專案格式，姿勢成果使用既有拍點／手勢庫保存。扶握箱接管雙手時，需先解除扶握，以免破壞既有扶握關係。
+
+模式進入、位置調整、退出、還原均記錄前後狀態；同值滑桿事件不重複記錄。還原原先啟用的 IK 後，既有求解器恢復執行。
+
+只有跨越 FingerTut 操作版本的 Undo／Redo 才還原該工作區的 IK 與鏡頭；一般姿勢／時間軸 Undo 保留使用者目前鏡頭與扶握關係。
