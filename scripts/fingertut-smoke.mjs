@@ -6,7 +6,7 @@ import { resolve,extname,sep } from 'node:path';
 import { chromium } from 'playwright-core';
 const root=resolve('.'),model=await readFile('.cache/Xbot.glb');
 assert.equal(createHash('sha256').update(model).digest('hex'),'002f8d269de68e5dce3d25195caf390d1aa359bbfaae3fcf4c8dc78ec36c3ba5');
-const probe=`\nwindow.__fingerTutTest={fingerTutController,poseController,undo,redo,setIKEnabled,setFingerIKEnabled,get bones(){return bones;},get camera(){return camera;},get controls(){return controls;},get playing(){return kfPlaying;},get height(){return modelHeight;},get rig(){return fingerTutController.snapshot().rig;},startPlayback(){const angles=poseController.snapshotTarget();keyframes=[{angles,beats:4,easing:'linear'},{angles,beats:4,easing:'linear'}];toggleKeyframePlayback();}};`;
+const probe=`\nwindow.__fingerTutTest={fingerTutController,poseController,undo,redo,setIKEnabled,setFingerIKEnabled,get bones(){return bones;},get camera(){return camera;},get controls(){return controls;},get playing(){return kfPlaying;},get height(){return modelHeight;},snapshotAngleState,snapshotTimelineData,selectJoint,get rig(){return fingerTutController.snapshot().rig;},startPlayback(){const angles=poseController.snapshotTarget();keyframes=[{angles,beats:4,easing:'linear'},{angles,beats:4,easing:'linear'}];toggleKeyframePlayback();}};`;
 const server=createServer(async(req,res)=>{try{
   const pathname=new URL(req.url,'http://localhost').pathname,path=resolve(root,'.'+pathname);
   if(!path.startsWith(root+sep)){res.writeHead(403).end();return;}
@@ -49,6 +49,10 @@ try{for(const entry of entries)for(const viewport of viewports){
     const before=await page.evaluate(()=>({pose:window.__fingerTutTest.poseController.snapshotTarget(),state:window.__fingerTutTest.fingerTutController.snapshot()}));
     await page.evaluate(()=>window.__fingerTutTest.startPlayback());
     assert.equal(await page.evaluate(()=>window.__fingerTutTest.playing),true);
+    assert.equal(await page.evaluate(()=>{
+      const selector=document.getElementById('languageSelect');selector.value='en';selector.dispatchEvent(new Event('change',{bubbles:true}));
+      const playing=window.__fingerTutTest.playing;selector.value='zh-Hant';selector.dispatchEvent(new Event('change',{bubbles:true}));return playing;
+    }),true,'language switching keeps playback running');
     await press('#fingerTutToggle');
     assert.equal(await page.evaluate(()=>window.__fingerTutTest.playing),false);
     await page.waitForFunction(()=>document.getElementById('fingerTutToggle').getAttribute('aria-pressed')==='true');
@@ -144,6 +148,63 @@ try{for(const entry of entries)for(const viewport of viewports){
     assert.equal(await page.locator('#fingerTut_flip').inputValue(),'35');
     await page.locator('#fingerTutPreset').scrollIntoViewIfNeeded();
     await page.screenshot({path:`test-results/fingertut/${label}-orientation.png`});
+    // Language switches must preserve the editing session and user-authored text.
+    await page.evaluate(()=>{
+      window.__fingerTutTest.selectJoint('rIndex2');
+      document.getElementById('poseLibNameInput').value='自訂姿勢 English';
+      document.getElementById('poseLibSaveBtn').click();
+      document.getElementById('poseLibNameInput').value='尚未儲存 English';
+    });
+    const languageBefore=await page.evaluate(()=>({pose:window.__fingerTutTest.snapshotAngleState(),project:window.__fingerTutTest.snapshotTimelineData(),selected:document.getElementById('selectedLabel').textContent,custom:document.querySelector('#poseLibList .selName').textContent}));
+    await page.locator('#languageSelect').selectOption('en');
+    assert.equal(await page.locator('html').getAttribute('lang'),'en');
+    assert.equal(await page.locator('.tabBtn[data-tab=fingers]').textContent(),'Fingers');
+    assert.equal(await page.locator('#fingerTutToggle').textContent(),'Exit FingerTut');
+    assert.equal(await page.locator('#selectedLabel').textContent(),'Right hand Index · Mid');
+    assert.equal(await page.locator('.fingerJointBtn[data-jointkey=rIndex2]').textContent(),'Mid');
+    assert.match(await page.locator('.fingerJointBtn[data-jointkey=rIndex2]').getAttribute('title'),/Right hand Index/);
+    assert.match(await page.locator('#fingerTutStatus').textContent(),/Hands are at chest level/);
+    const languageAfter=await page.evaluate(()=>({pose:window.__fingerTutTest.snapshotAngleState(),project:window.__fingerTutTest.snapshotTimelineData(),custom:document.querySelector('#poseLibList .selName').textContent}));
+    assert.deepEqual(languageAfter.pose,languageBefore.pose,'language preserves pose, rig, camera, selection and FingerTut revision');
+    // Each export records its own timestamp; compare the actual project data.
+    delete languageAfter.project.savedAt;delete languageBefore.project.savedAt;
+    assert.deepEqual(languageAfter.project,languageBefore.project,'language preserves project schema and timeline');
+    assert.equal(languageAfter.custom,languageBefore.custom,'custom library names are not translated');
+    assert.equal(await page.locator('#poseLibNameInput').inputValue(),'尚未儲存 English');
+    await page.locator('#fingerTutSide').selectOption('both');
+    assert.equal(await page.locator('#fingerTut_flipValue').textContent(),'Mixed');
+    await page.locator('#fingerTutSide').selectOption('r');
+    if(mobile){
+      await press('#mobilePanelToggle');
+      assert.equal(await page.locator('#mobilePanelToggle').textContent(),'Expand ▴');
+      const bounds=await page.locator('#languageSelect').boundingBox();assert.ok(bounds.height>=44&&bounds.x>=0&&bounds.x+bounds.width<=viewport.width);
+      assert.equal(await page.evaluate(()=>{
+        const panel=document.getElementById('ui').getBoundingClientRect();
+        return ['languageSelect','mobilePanelToggle','uiHideBtn'].every(id=>{
+          const r=document.getElementById(id).getBoundingClientRect();return r.x>=panel.x&&r.right<=panel.right;
+        });
+      }),true,'all collapsed drawer controls remain inside the panel');
+      await page.locator('#languageSelect').selectOption('zh-Hant');
+      assert.equal(await page.locator('#mobilePanelToggle').textContent(),'展開面板 ▴');
+      await press('#mobilePanelToggle');await page.locator('#languageSelect').selectOption('en');
+    }
+    await press('#fingerFloatBtn');
+    assert.equal(await page.locator('.floatablePanelTitle').textContent(),'✋ Finger FK / IK');
+    await page.locator('#languageSelect').selectOption('zh-Hant');
+    assert.equal(await page.locator('.floatablePanelTitle').textContent(),'✋ 手指 FK／IK');
+    assert.equal(await page.locator('#fingerFloatBtn').textContent(),'📌 收合回面板');
+    // On narrow screens the floating content covers the original tab button.
+    await press('.floatablePanelDockBtn');
+    await page.locator('#languageSelect').selectOption('en');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'English layout fits viewport');
+    assert.equal(await page.evaluate(()=>Array.from(document.querySelectorAll('.fingerTutSlider')).every(label=>{
+      const text=label.querySelector('span'),input=label.querySelector('input');
+      return text.scrollWidth<=text.clientWidth && text.getBoundingClientRect().right<=input.getBoundingClientRect().left;
+    })),true,'English slider labels do not overlap controls');
+    await page.locator('#fingerTutPreset').scrollIntoViewIfNeeded();
+    await page.screenshot({path:`test-results/fingertut/${label}-english.png`});
+    await page.locator('#languageSelect').selectOption('zh-Hant');
+    // Existing Undo/Redo assertions below also prove switching adds no history entries.
     const beforeSpacing=await page.evaluate(()=>window.__readPalms());
     await page.locator('#fingerTut_spacing').fill('32');await page.locator('#fingerTut_spacing').dispatchEvent('change');
     assert.equal(await page.locator('#fingerTut_spacingValue').textContent(),'32%');
@@ -157,8 +218,16 @@ try{for(const entry of entries)for(const viewport of viewports){
     await press('#fingerTutRestore');
     assert.deepEqual(normalize(await page.evaluate(()=>window.__restoredPose)),before.pose,'restore original pose');
     assert.deepEqual(await page.evaluate(()=>window.__fingerTutTest.rig),before.state.rig,'restore original IK targets and flags');
+    await page.locator('#languageSelect').selectOption('en');
+    await page.reload();await page.waitForFunction(()=>document.getElementById('loading').style.display==='none');
+    assert.equal(await page.locator('html').getAttribute('lang'),'en','language preference survives reload');
+    assert.equal(await page.locator('#languageSelect').inputValue(),'en');
+    assert.equal(await page.locator('#fingerTutToggle').textContent(),'Enable FingerTut');
+    assert.equal(await page.locator('#spaceBtn').textContent(),'Space: Local');
+    await page.locator('#languageSelect').selectOption('zh-Hant');
+    assert.equal(await page.locator('html').getAttribute('lang'),'zh-Hant');
     assert.deepEqual(errors,[]);
-    results.push({label,hands:placed.hands,checks:'pose preserved, chest placement, palm down, Undo/Redo, spacing, palm presets, single hand, wrist angles, orientation Undo/Redo, reposition preservation, exit, restore, no runtime errors'});
+    results.push({label,hands:placed.hands,checks:'pose preserved, chest placement, palm down, Undo/Redo, spacing, palm presets, single hand, wrist angles, orientation Undo/Redo, reposition preservation, exit, restore, bilingual UI, state and custom name preservation, floating/mobile labels, preference reload, no runtime errors'});
     console.log('PASS '+label);
   }catch(e){console.error('::error title=FingerTut regression::'+`${label}: ${e.stack||e}`.replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A'));await page.screenshot({path:`test-results/fingertut/${label}-failure.png`});throw e;}finally{await context.close();}
 }

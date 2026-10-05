@@ -1,3 +1,4 @@
+import { t, onLanguageChange } from "../i18n/index.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createFloatingPanels(context){
   function initUIResize(){
@@ -108,10 +109,15 @@ export function createFloatingPanels(context){
       return clampRect(rect.left, rect.top, rect.width, rect.height);
     }
 
+    function syncFloatLanguage(){
+      const floating=ui.classList.contains('uiFloating');
+      floatBtn.textContent=t(floating?'📌 貼底面板':'🗗 浮動面板');
+      floatBtn.title=t(floating?'切換回貼底整版寬的面板':'切換成可拖曳移動、可縮放大小的浮動面板');
+    }
+    onLanguageChange(syncFloatLanguage);
     function setFloating(floating, save){
       ui.classList.toggle("uiFloating", floating);
-      floatBtn.textContent = floating ? "📌 貼底面板" : "🗗 浮動面板";
-      floatBtn.title = floating ? "切換回貼底整版寬的面板" : "切換成可拖曳移動、可縮放大小的浮動面板";
+      syncFloatLanguage();
       if (floating){
         applyRect(getSavedRect(), false);
       } else {
@@ -219,12 +225,15 @@ export function createFloatingPanels(context){
     grip.className = "grip";
     const titleSpan = document.createElement("span");
     titleSpan.className = "floatablePanelTitle";
-    titleSpan.textContent = title;
+    titleSpan.dataset.i18n=title;
+    titleSpan.textContent = t(title);
     const dockBtn = document.createElement("button");
     dockBtn.type = "button";
     dockBtn.className = "floatablePanelDockBtn";
-    dockBtn.textContent = "📌 收合回面板";
-    dockBtn.setAttribute("data-tooltip", "收合回原本的分頁");
+    dockBtn.dataset.i18n="📌 收合回面板";
+    dockBtn.textContent = t("📌 收合回面板");
+    dockBtn.setAttribute("data-i18n-data-tooltip", "收合回原本的分頁");
+    dockBtn.setAttribute("data-tooltip", t("收合回原本的分頁"));
     header.appendChild(grip);
     header.appendChild(titleSpan);
     header.appendChild(dockBtn);
@@ -234,7 +243,8 @@ export function createFloatingPanels(context){
 
     const resizeHandle = document.createElement("div");
     resizeHandle.className = "floatablePanelResizeHandle";
-    resizeHandle.setAttribute("data-tooltip", "拖曳調整大小");
+    resizeHandle.setAttribute("data-i18n-data-tooltip", "拖曳調整大小");
+    resizeHandle.setAttribute("data-tooltip", t("拖曳調整大小"));
 
     panel.appendChild(header);
     panel.appendChild(body);
@@ -380,16 +390,17 @@ export function createFloatingPanels(context){
 
     function syncLabel(){
       const on = floatable.isFloating();
-      btn.textContent = on ? "📌 收合回面板" : "🗗 浮動視窗";
-      btn.setAttribute("data-tooltip", on
+      btn.textContent = t(on ? "📌 收合回面板" : "🗗 浮動視窗");
+      btn.setAttribute("data-tooltip", t(on
         ? "收合回「手指」分頁裡"
-        : "彈出成獨立的浮動視窗，可拖曳移動、拖右下角調整大小，編輯手指時不用被主面板卡住");
+        : "彈出成獨立的浮動視窗，可拖曳移動、拖右下角調整大小，編輯手指時不用被主面板卡住"));
     }
     btn.onclick = () => { floatable.toggle(); };
 
     let restoreFloating = false;
     try { restoreFloating = context.preferences.getItem("tuttingFingerFloatRect_on") === "1"; } catch (e) {}
     if (restoreFloating) floatable.toggle(true);
+    onLanguageChange(syncLabel);
     syncLabel();
   }
   return { initUIResize, initUIFloat, makeFloatablePanel, initFingerFloatPanel };

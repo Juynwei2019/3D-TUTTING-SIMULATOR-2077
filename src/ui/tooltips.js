@@ -1,3 +1,4 @@
+import { onLanguageChange } from "../i18n/index.js";
 // ======================================================================
 // 全站自訂 Tooltip：取代所有原生 title 屬性的瀏覽器內建提示框。
 // 用 document 層級事件委派攔截 mouseover/focusin，不管是寫死在 HTML 裡的
@@ -88,6 +89,7 @@ function initGlobalTooltips(){
   });
   document.addEventListener("scroll", hideTooltip, true);
   window.addEventListener("resize", hideTooltip);
+  onLanguageChange(() => {clearTimeout(showTimer);hideTooltip();});
 }
 
 export { initGlobalTooltips };

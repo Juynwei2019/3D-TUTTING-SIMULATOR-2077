@@ -9,12 +9,12 @@
 <body>
 <div id="canvasHolder"></div>
 <div id="splitViewPanes"></div>
-<div id="loading">載入 Xbot 模型中…</div>
+<div id="loading"><span data-i18n="載入 Xbot 模型中…">載入 Xbot 模型中…</span></div>
 <div id="title">TUTTING 3D SIMULATOR</div>
 
 <div id="selectedStatusBox">
-  <span>目前選取：</span>
-  <span id="selectedLabel">未選取</span>
+  <span><span data-i18n="目前選取：">目前選取：</span></span>
+  <span id="selectedLabel"><span data-i18n="未選取">未選取</span></span>
   <span id="selectedAngles"></span>
 </div>
 
@@ -23,20 +23,20 @@
      跟右上角的「分割視窗」預覽面板同樣的「疊在3D畫面上的浮動控制面板」定位方式，可收合避免擋畫面。 -->
 <div id="displayTogglesPanel">
   <div id="displayTogglesHeader">
-    <span class="dtTitle">👁 顯示</span>
-    <button id="displayTogglesCollapseBtn" type="button" title="收合/展開">▾</button>
+    <span class="dtTitle"><span data-i18n="👁 顯示">👁 顯示</span></span>
+    <button id="displayTogglesCollapseBtn" type="button" title="收合/展開" data-i18n-title="收合/展開">▾</button>
   </div>
   <div id="displayTogglesBody">
-    <label><input type="checkbox" id="showBodyJointsChk" checked> 身體關節球</label>
-    <label><input type="checkbox" id="showHandJointsChk" checked> 手部關節球</label>
-    <label><input type="checkbox" id="showSkeletonChk" checked> 骨架</label>
-    <label><input type="checkbox" id="handCollisionVizCb"> 碰撞膠囊體（除錯視覺化）
+    <label><input type="checkbox" id="showBodyJointsChk" checked> <span data-i18n="身體關節球">身體關節球</span></label>
+    <label><input type="checkbox" id="showHandJointsChk" checked> <span data-i18n="手部關節球">手部關節球</span></label>
+    <label><input type="checkbox" id="showSkeletonChk" checked> <span data-i18n="骨架">骨架</span></label>
+    <label><input type="checkbox" id="handCollisionVizCb"> <span data-i18n="碰撞膠囊體（除錯視覺化）">碰撞膠囊體（除錯視覺化）</span>
       <span class="kfInfoIcon" title="把軀幹4段＋腿部4段共8段膠囊體（青色）、頭部球（青色）跟手掌的碰撞球（橘色）畫出來，方便邊看邊調半徑。跟「手部-身體碰撞回彈」開關是獨立的——只想看形狀、還不想讓手真的被推開時可以只開這個。半徑滑桿在「手腳IK」分頁的「進階/阻尼設定」裡。">ⓘ</span>
     </label>
-    <label><input type="checkbox" id="showPerfPanelChk" checked> 效能面板（FPS／Draw Call）
+    <label><input type="checkbox" id="showPerfPanelChk" checked> <span data-i18n="效能面板（FPS／Draw Call）">效能面板（FPS／Draw Call）</span>
       <span class="kfInfoIcon" title="左下角顯示：「畫面 fps」＝實際呼叫 renderer.render() 的頻率（閒置降頻時會掉到約10fps）；「主循環 fps」＝ requestAnimationFrame 被排程呼叫的頻率（通常維持~60fps不受降頻影響，兩者的落差就是降頻機制省下來的量）；單幀耗時、Draw Calls、三角形數則來自 renderer.info，可用來抓效能瓶頸。">ⓘ</span>
     </label>
-    <label><input type="checkbox" id="onionSkinChkDisplay"> 洋蔥皮預覽
+    <label><input type="checkbox" id="onionSkinChkDisplay"> <span data-i18n="洋蔥皮預覽">洋蔥皮預覽</span>
       <span class="kfInfoIcon" title="半透明顯示前一拍/後一拍；播放中則顯示目前過渡區段再前後一拍。只在「時間軸」分頁、且有選取拍點時才會實際顯示殘影，跟時間軸分頁裡的同名開關同步。">ⓘ</span>
     </label>
   </div>
@@ -52,68 +52,69 @@
 <div id="timelineDragHud"></div>
 
 <div id="ui" style="display:none">
-  <div id="uiDragHandle" title="拖曳移動面板（雙擊重置位置與大小）"><div class="grip"></div><span class="uiDragHandleLabel">⣿ 拖曳移動面板</span></div>
-  <div id="uiResizeHandle" title="拖曳調整面板高度"><div class="grip"></div></div>
+  <div id="uiDragHandle" title="拖曳移動面板（雙擊重置位置與大小）" data-i18n-title="拖曳移動面板（雙擊重置位置與大小）"><div class="grip"></div><span class="uiDragHandleLabel"><span data-i18n="⣿ 拖曳移動面板">⣿ 拖曳移動面板</span></span></div>
+  <div id="uiResizeHandle" title="拖曳調整面板高度" data-i18n-title="拖曳調整面板高度"><div class="grip"></div></div>
   <div id="uiTopBtnRow">
+    <select id="languageSelect" aria-label="語言" data-i18n-aria-label="語言"><option value="zh-Hant">繁體中文</option><option value="en">English</option></select>
     <button id="mobilePanelToggle" class="uiTopBtn" type="button" aria-expanded="true" aria-controls="uiCommon uiTabBar uiTabBody">收合面板 ▾</button>
-    <button id="uiFloatBtn" class="uiTopBtn" title="切換成可拖曳/縮放的浮動面板">🗗 浮動面板</button>
-    <button id="uiHideBtn" class="uiTopBtn" title="隱藏面板（快速鍵 H）">隱藏面板 ▾</button>
+    <button id="uiFloatBtn" class="uiTopBtn" title="切換成可拖曳/縮放的浮動面板" data-i18n-title="切換成可拖曳/縮放的浮動面板">🗗 浮動面板</button>
+    <button id="uiHideBtn" class="uiTopBtn" title="隱藏面板（快速鍵 H）" data-i18n-title="隱藏面板（快速鍵 H）" data-i18n="隱藏面板 ▾">隱藏面板 ▾</button>
   </div>
-  <div id="uiFloatResizeHandle" title="拖曳調整面板大小"></div>
+  <div id="uiFloatResizeHandle" title="拖曳調整面板大小" data-i18n-title="拖曳調整面板大小"></div>
 
   <div id="uiCommon">
     <div id="selectedBar">
       <button id="spaceBtn">座標：本地</button>
-      <label id="snapLabel" style="margin-left:4px;">貼合角度</label>
+      <label id="snapLabel" style="margin-left:4px;"><span data-i18n="貼合角度">貼合角度</span></label>
       <select id="snapSelect">
-        <option value="0">關閉</option>
+        <option value="0" data-i18n="關閉">關閉</option>
         <option value="15" selected>15°</option>
         <option value="30">30°</option>
         <option value="45">45°</option>
         <option value="90">90°</option>
       </select>
-      <button id="deselectBtn">取消選取</button>
+      <button id="deselectBtn" data-i18n="取消選取">取消選取</button>
       <button id="zeroJointBtn">此關節歸零</button>
       <button id="ikModeBtn" style="display:none;">切換：位置</button>
       <span style="width:1px; align-self:stretch; background:#26264a; margin:0 4px;"></span>
-      <button id="mirrorBtn" title="左右鏡像目前姿勢；若肢體有開啟IK，鏡像後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK">🪞 鏡像姿勢</button>
-      <button id="symmetrizeBtn" title="以右手/右腳目前角度為準，把左手/左腳套成鏡射後的對稱姿勢（右側不變）；若肢體有開啟IK，套用後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK">⚖ 對稱姿勢</button>
+      <button id="mirrorBtn" title="左右鏡像目前姿勢；若肢體有開啟IK，鏡像後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n-title="左右鏡像目前姿勢；若肢體有開啟IK，鏡像後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n="🪞 鏡像姿勢">🪞 鏡像姿勢</button>
+      <button id="symmetrizeBtn" title="以右手/右腳目前角度為準，把左手/左腳套成鏡射後的對稱姿勢（右側不變）；若肢體有開啟IK，套用後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n-title="以右手/右腳目前角度為準，把左手/左腳套成鏡射後的對稱姿勢（右側不變）；若肢體有開啟IK，套用後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n="⚖ 對稱姿勢">⚖ 對稱姿勢</button>
       <span style="width:1px; align-self:stretch; background:#26264a; margin:0 4px;"></span>
-      <button id="undoBtn" title="復原（Ctrl+Z）">↶ 復原</button>
-      <button id="redoBtn" title="重做（Ctrl+Shift+Z）">↷ 重做</button>
-      <label style="margin-left:2px;">鏡頭</label>
-      <select id="camSelect" title="切換鏡頭視角">
-        <option value="front">正面</option>
-        <option value="back">背面</option>
-        <option value="left">左側</option>
-        <option value="right">右側</option>
-        <option value="top">俯視</option>
+      <button id="undoBtn" title="復原（Ctrl+Z）" data-i18n-title="復原（Ctrl+Z）" data-i18n="↶ 復原">↶ 復原</button>
+      <button id="redoBtn" title="重做（Ctrl+Shift+Z）" data-i18n-title="重做（Ctrl+Shift+Z）" data-i18n="↷ 重做">↷ 重做</button>
+      <label style="margin-left:2px;"><span data-i18n="鏡頭">鏡頭</span></label>
+      <select id="camSelect" title="切換鏡頭視角" data-i18n-title="切換鏡頭視角">
+        <option value="front" data-i18n="正面">正面</option>
+        <option value="back" data-i18n="背面">背面</option>
+        <option value="left" data-i18n="左側">左側</option>
+        <option value="right" data-i18n="右側">右側</option>
+        <option value="top" data-i18n="俯視">俯視</option>
         <option value="iso">45°</option>
-        <option value="rhand">右手特寫</option>
-        <option value="lhand">左手特寫</option>
+        <option value="rhand" data-i18n="右手特寫">右手特寫</option>
+        <option value="lhand" data-i18n="左手特寫">左手特寫</option>
       </select>
-      <button id="resetBtn">重置全部</button>
+      <button id="resetBtn" data-i18n="重置全部">重置全部</button>
     </div>
   </div>
 
   <div id="uiTabBar">
-    <button class="tabBtn active" data-tab="poseLib">動作姿勢庫</button>
-    <button class="tabBtn" data-tab="gestureLib">掌指手勢庫</button>
-    <button class="tabBtn" data-tab="moveLib">招式庫</button>
+    <button class="tabBtn active" data-tab="poseLib" data-i18n="動作姿勢庫">動作姿勢庫</button>
+    <button class="tabBtn" data-tab="gestureLib" data-i18n="掌指手勢庫">掌指手勢庫</button>
+    <button class="tabBtn" data-tab="moveLib" data-i18n="招式庫">招式庫</button>
     <button class="tabBtn" data-tab="json">JSON</button>
-    <button class="tabBtn" data-tab="keyframe">時間軸</button>
-    <button class="tabBtn" data-tab="groove">節奏與律動</button>
+    <button class="tabBtn" data-tab="keyframe" data-i18n="時間軸">時間軸</button>
+    <button class="tabBtn" data-tab="groove" data-i18n="節奏與律動">節奏與律動</button>
     <button class="tabBtn" data-tab="waving">Waving</button>
-    <button class="tabBtn" data-tab="ik">手腳 IK</button>
+    <button class="tabBtn" data-tab="ik" data-i18n="手腳 IK">手腳 IK</button>
     <button class="tabBtn" data-tab="lookAt">LookAt</button>
-    <button class="tabBtn" data-tab="splitView">分割視窗</button>
-    <button class="tabBtn" data-tab="grabBox">扶握箱</button>
-    <button class="tabBtn" data-tab="fingers">手指</button>
-    <button class="tabBtn" data-tab="traj">軌跡</button>
-    <button class="tabBtn" data-tab="overview">關節總覽</button>
-    <button class="tabBtn" data-tab="jointLimits">關節限制</button>
-    <button class="tabBtn" data-tab="tuttingGen">Tutting 生成器</button>
-    <button class="tabBtn" data-tab="easingGallery">Easing 圖鑑</button>
+    <button class="tabBtn" data-tab="splitView" data-i18n="分割視窗">分割視窗</button>
+    <button class="tabBtn" data-tab="grabBox" data-i18n="扶握箱">扶握箱</button>
+    <button class="tabBtn" data-tab="fingers" data-i18n="手指">手指</button>
+    <button class="tabBtn" data-tab="traj" data-i18n="軌跡">軌跡</button>
+    <button class="tabBtn" data-tab="overview" data-i18n="關節總覽">關節總覽</button>
+    <button class="tabBtn" data-tab="jointLimits" data-i18n="關節限制">關節限制</button>
+    <button class="tabBtn" data-tab="tuttingGen" data-i18n="Tutting 生成器">Tutting 生成器</button>
+    <button class="tabBtn" data-tab="easingGallery" data-i18n="Easing 圖鑑">Easing 圖鑑</button>
   </div>
 
   <div id="uiTabBody">
@@ -929,31 +930,31 @@
     <div class="tabPanel" data-tab="grabBox" id="tabGrabBox"></div>
 
     <div class="tabPanel" data-tab="fingers" id="tabFingers">
-      <section class="fingerTutPanel" aria-label="FingerTut 胸前編輯模式">
-        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false">開啟 FingerTut</button><button id="fingerTutFocus" type="button" disabled>雙手特寫</button></div>
+      <section class="fingerTutPanel" aria-label="FingerTut 胸前編輯模式" data-i18n-aria-label="FingerTut 胸前編輯模式">
+        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false">開啟 FingerTut</button><button id="fingerTutFocus" type="button" disabled data-i18n="雙手特寫">雙手特寫</button></div>
         <p id="fingerTutStatus" class="small" role="status"></p>
-        <label class="fingerTutSlider" for="fingerTut_height">高度<input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
-        <label class="fingerTutSlider" for="fingerTut_distance">前後距離<input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
-        <label class="fingerTutSlider" for="fingerTut_spacing">雙手間距<input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
-        <div class="row"><label for="fingerTutSide">調整手掌</label><select id="fingerTutSide" disabled><option value="both">雙手</option><option value="r">右手</option><option value="l">左手</option></select><label for="fingerTutPreset">朝向</label><select id="fingerTutPreset" disabled><option value="down">掌心朝下</option><option value="up">掌心朝上</option><option value="in">掌心相對</option><option value="out">掌心朝外</option><option value="camera">朝向鏡頭</option><option value="mixed" disabled>左右不同</option></select></div>
-        <label class="fingerTutSlider" for="fingerTut_flip">掌心翻轉<input id="fingerTut_flip" type="range" min="-180" max="180" step="1" value="0" disabled><output id="fingerTut_flipValue">0°</output></label>
-        <label class="fingerTutSlider" for="fingerTut_tilt">指尖抬低<input id="fingerTut_tilt" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_tiltValue">0°</output></label>
-        <label class="fingerTutSlider" for="fingerTut_yaw">左右偏轉<input id="fingerTut_yaw" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_yawValue">0°</output></label>
-        <div class="row"><button id="fingerTutPalmReset" type="button" disabled>重置手掌朝向</button></div>
-        <p class="small">角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。</p>
-        <div class="row"><button id="fingerTutRecenter" type="button" disabled>重新胸前擺位</button><button id="fingerTutRestore" type="button" disabled>還原進入前姿勢</button></div>
-        <p class="small">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</p>
+        <label class="fingerTutSlider" for="fingerTut_height"><span data-i18n="高度">高度</span><input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
+        <label class="fingerTutSlider" for="fingerTut_distance"><span data-i18n="前後距離">前後距離</span><input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
+        <label class="fingerTutSlider" for="fingerTut_spacing"><span data-i18n="雙手間距">雙手間距</span><input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
+        <div class="row"><label for="fingerTutSide"><span data-i18n="調整手掌">調整手掌</span></label><select id="fingerTutSide" disabled><option value="both" data-i18n="雙手">雙手</option><option value="r" data-i18n="右手">右手</option><option value="l" data-i18n="左手">左手</option></select><label for="fingerTutPreset"><span data-i18n="朝向">朝向</span></label><select id="fingerTutPreset" disabled><option value="down" data-i18n="掌心朝下">掌心朝下</option><option value="up" data-i18n="掌心朝上">掌心朝上</option><option value="in" data-i18n="掌心相對">掌心相對</option><option value="out" data-i18n="掌心朝外">掌心朝外</option><option value="camera" data-i18n="朝向鏡頭">朝向鏡頭</option><option value="mixed" disabled data-i18n="左右不同">左右不同</option></select></div>
+        <label class="fingerTutSlider" for="fingerTut_flip"><span data-i18n="掌心翻轉">掌心翻轉</span><input id="fingerTut_flip" type="range" min="-180" max="180" step="1" value="0" disabled><output id="fingerTut_flipValue">0°</output></label>
+        <label class="fingerTutSlider" for="fingerTut_tilt"><span data-i18n="指尖抬低">指尖抬低</span><input id="fingerTut_tilt" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_tiltValue">0°</output></label>
+        <label class="fingerTutSlider" for="fingerTut_yaw"><span data-i18n="左右偏轉">左右偏轉</span><input id="fingerTut_yaw" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_yawValue">0°</output></label>
+        <div class="row"><button id="fingerTutPalmReset" type="button" disabled data-i18n="重置手掌朝向">重置手掌朝向</button></div>
+        <p class="small"><span data-i18n="角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。">角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。</span></p>
+        <div class="row"><button id="fingerTutRecenter" type="button" disabled data-i18n="重新胸前擺位">重新胸前擺位</button><button id="fingerTutRestore" type="button" disabled data-i18n="還原進入前姿勢">還原進入前姿勢</button></div>
+        <p class="small"><span data-i18n="百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</span></p>
       </section>
-      <div class="panelTitle" style="display:flex; align-items:center; gap:6px;">手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。
-        <span class="kfInfoIcon" title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響">⚠️</span>
+      <div class="panelTitle" style="display:flex; align-items:center; gap:6px;"><span data-i18n="手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。">手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。</span>
+        <span class="kfInfoIcon" title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響" data-i18n-title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響">⚠️</span>
         <button id="fingerFloatBtn" type="button" style="margin-left:auto; font-size:10px; padding:4px 8px;">🗗 浮動視窗</button>
       </div>
       <div class="fingerHandGrid">
         <div class="fingerHandCard" id="fingerCard_r">
-          <div class="fingerHandTitle">右手</div>
+          <div class="fingerHandTitle"><span data-i18n="右手">右手</span></div>
         </div>
         <div class="fingerHandCard" id="fingerCard_l">
-          <div class="fingerHandTitle">左手</div>
+          <div class="fingerHandTitle"><span data-i18n="左手">左手</span></div>
         </div>
       </div>
     </div>
@@ -1105,7 +1106,7 @@
   </div>
 </div>
 
-<button id="uiShowBtn" title="顯示面板（快速鍵 H）" style="display:none">☰ 面板</button>
+<button id="uiShowBtn" title="顯示面板（快速鍵 H）" data-i18n-title="顯示面板（快速鍵 H）" style="display:none" data-i18n="☰ 面板">☰ 面板</button>
 
 <script type="importmap">
 {

@@ -1,3 +1,5 @@
+import { t } from "../i18n/index.js";
+import { jointLabel, fingerLabel } from "../i18n/joint-labels.js";
 import { createPointerTap } from "../interaction/pointer-tap.js";
 import { LABEL_LOOKUP, IK_CHAINS, IK_LIMB_KEYS, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import * as THREE from "three";
@@ -114,7 +116,7 @@ export function createSceneSelection(context){
       const m=context.laCustomMeshes[context.selectedIK.index];if(!m)return;
       label.textContent='LookAt 控制點 P'+(context.selectedIK.index+1);angles.textContent='X '+m.position.x.toFixed(3)+' Y '+m.position.y.toFixed(3)+' Z '+m.position.z.toFixed(3);
       for(const el of [spaceBtn,snapLabel,snapSelect,document.getElementById('ikModeBtn')])if(el)el.style.display='none';
-      if(zeroBtn){zeroBtn.disabled=true;zeroBtn.textContent='請由控制點清單刪除';}return;
+      if(zeroBtn){zeroBtn.disabled=true;zeroBtn.textContent=t('請由控制點清單刪除');}return;
     }
     if (context.selectedIK){
       let labelText, mesh;
@@ -127,7 +129,7 @@ export function createSceneSelection(context){
         mesh = context.lookAtTargetMesh[name];
       } else if (context.selectedIK.limb.startsWith(FINGER_IK_PREFIX)){
         const fingerId = context.selectedIK.limb.slice(FINGER_IK_PREFIX.length);
-        labelText = `${FINGER_IK_CHAINS[fingerId].label}・指尖目標球`;
+        labelText = t('{finger}・指尖目標球',{finger:fingerLabel(fingerId)});
         mesh = context.fingerIKTargetMeshes[fingerId];
       } else if (context.selectedIK.limb === "body"){
         labelText = "身體位置（整個角色，控制環顯示於髖部）";
@@ -148,7 +150,7 @@ export function createSceneSelection(context){
       if (spaceBtn) spaceBtn.style.display = "none";
       if (snapLabel) snapLabel.style.display = "none";
       if (snapSelect) snapSelect.style.display = "none";
-      if (zeroBtn) zeroBtn.textContent = "重置此球位置";
+      if (zeroBtn) zeroBtn.textContent = t("重置此球位置");
 
       // 「位置/朝向」切換按鈕：只有手腳IK的目標球、且該肢體有開啟Effector朝向控制時才顯示，
       // 其他標記球（脊椎/look-at/極向球/身體）旋轉環拖了也沒有對應的求解邏輯讀取，顯示了只會困惑使用者
@@ -157,7 +159,7 @@ export function createSceneSelection(context){
       if (ikModeBtn){
         if (isArmLegTarget && context.effectorOrientEnabled[context.selectedIK.limb]){
           ikModeBtn.style.display = "";
-          ikModeBtn.textContent = "切換：" + (context.transformControlsIK.getMode() === "translate" ? "位置" : "朝向");
+          ikModeBtn.textContent = t(context.transformControlsIK.getMode() === "translate" ? "切換：位置" : "切換：朝向");
         } else {
           ikModeBtn.style.display = "none";
           context.transformControlsIK.setMode("translate"); // 離開這類標記球時強制切回位置模式，避免殘留旋轉模式影響其他標記球
@@ -169,16 +171,16 @@ export function createSceneSelection(context){
     if (spaceBtn) spaceBtn.style.display = "";
     if (snapLabel) snapLabel.style.display = "";
     if (snapSelect) snapSelect.style.display = "";
-    if (zeroBtn) zeroBtn.textContent = "此關節歸零";
+    if (zeroBtn) zeroBtn.textContent = t("此關節歸零");
     const ikModeBtnHide = document.getElementById("ikModeBtn");
     if (ikModeBtnHide) ikModeBtnHide.style.display = "none";
 
     if (!context.selectedKey){
-      label.textContent = "未選取";
+      label.textContent = t("未選取");
       angles.textContent = "";
       return;
     }
-    label.textContent = LABEL_LOOKUP[context.selectedKey] || context.selectedKey;
+    label.textContent = jointLabel(context.selectedKey);
     const a = context.poseController.getTarget(context.selectedKey) || [0,0,0];
     angles.textContent = `X ${a[0].toFixed(1)}°  Y ${a[1].toFixed(1)}°  Z ${a[2].toFixed(1)}°`;
   }

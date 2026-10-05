@@ -1,3 +1,4 @@
+import { t, onLanguageChange } from "../i18n/index.js";
 import * as THREE from 'three';
 import { solveTwoBoneIK } from '../ik/two-bone.js';
 import { applyBoneWorldQuatLock } from '../math/quaternions.js';
@@ -16,6 +17,7 @@ export function fingerTutFrame(bones){
 
 // One-shot posing: leaves FK available and does not add a per-frame solver.
 export function createFingerTut(context){
+  let blocked=false;
   let active=false, settings={...FINGERTUT_DEFAULTS}, before=null, revision=0, editSide='both';
   let orientations={r:defaultPalmOrientation(),l:defaultPalmOrientation()};
   const clone=value=>JSON.parse(JSON.stringify(value));
@@ -23,9 +25,11 @@ export function createFingerTut(context){
   function canPlace(){
     if(!ready())return false;
     if(context.isGrabbing?.()){
-      if(typeof document!=='undefined')document.getElementById('fingerTutStatus').textContent='請先在扶握箱分頁解除雙手扶握，再進行胸前擺位。';return false;
+      blocked=true;
+      if(typeof document!=='undefined')document.getElementById('fingerTutStatus').textContent=t('請先在扶握箱分頁解除雙手扶握，再進行胸前擺位。');
+      return false;
     }
-    return true;
+    blocked=false;return true;
   }
   function captureWorkspace(){return {pose:context.pose.snapshotTarget(),rig:context.captureRig(),camera:context.captureCamera()};}
   function restoreWorkspace(state){
@@ -65,7 +69,7 @@ export function createFingerTut(context){
     }
     context.model.updateWorldMatrix(true,true);focus();
   }
-  function change(action){context.pushHistory();action();revision++;context.pushHistory();context.save();updateUI();}
+  function change(action){blocked=false;context.pushHistory();action();revision++;context.pushHistory();context.save();updateUI();}
   function enter(){
     if(active||!canPlace())return false;
     change(()=>{context.stop();before=captureWorkspace();active=true;place();});return true;
@@ -110,7 +114,7 @@ export function createFingerTut(context){
   function updateUI(){
     if(typeof document==='undefined')return;
     const toggle=document.getElementById('fingerTutToggle');if(!toggle)return;
-    toggle.setAttribute('aria-pressed',String(active));toggle.textContent=active?'退出 FingerTut':'開啟 FingerTut';
+    toggle.setAttribute('aria-pressed',String(active));toggle.textContent=t(active?'退出 FingerTut':'開啟 FingerTut');
     document.getElementById('fingerTutRestore').disabled=!before;
     for(const key of Object.keys(settings)){
       const input=document.getElementById('fingerTut_'+key);input.value=settings[key];input.disabled=!active;
@@ -122,12 +126,12 @@ export function createFingerTut(context){
     preset.value=sides.every(s=>orientations[s].preset===first.preset)?first.preset:'mixed';
     for(const key of ['flip','tilt','yaw']){
       const input=document.getElementById('fingerTut_'+key);input.disabled=!active;input.value=first[key];
-      document.getElementById('fingerTut_'+key+'Value').textContent=sides.every(s=>orientations[s][key]===first[key])?first[key]+'°':'不同';
+      document.getElementById('fingerTut_'+key+'Value').textContent=sides.every(s=>orientations[s][key]===first[key])?first[key]+'°':t('不同');
     }
     document.getElementById('fingerTutPalmReset').disabled=!active;
     document.getElementById('fingerTutRecenter').disabled=!active;
     document.getElementById('fingerTutFocus').disabled=!active;
-    document.getElementById('fingerTutStatus').textContent=active?'已擺到胸前，可自由編輯手指。調整位置會保留手掌朝向；退出保留姿勢。':'開啟後自動擺位並切換雙手特寫；保留目前手勢。';
+    document.getElementById('fingerTutStatus').textContent=t(blocked?'請先在扶握箱分頁解除雙手扶握，再進行胸前擺位。':active?'已擺到胸前，可自由編輯手指。調整位置會保留手掌朝向；退出保留姿勢。':'開啟後自動擺位並切換雙手特寫；保留目前手勢。');
   }
   function bind(){
     document.getElementById('fingerTutToggle').onclick=()=>active?exit():enter();
@@ -145,13 +149,15 @@ export function createFingerTut(context){
     document.getElementById('fingerTutPreset').onchange=e=>{if(PALM_PRESETS.includes(e.target.value))editOrientation({preset:e.target.value,flip:0,tilt:0,yaw:0});};
     for(const key of ['flip','tilt','yaw'])document.getElementById('fingerTut_'+key).onchange=e=>editOrientation({[key]:Number(e.target.value)});
     document.getElementById('fingerTutPalmReset').onclick=()=>editOrientation(defaultPalmOrientation());
+    onLanguageChange(updateUI);
     updateUI();
   }
   return {enter,exit,restore,adjust,setOrientation,focus,bind,get active(){return active;},
-    clear(){active=false;before=null;orientations={r:defaultPalmOrientation(),l:defaultPalmOrientation()};editSide='both';revision++;updateUI();},
+    clear(){blocked=false;active=false;before=null;orientations={r:defaultPalmOrientation(),l:defaultPalmOrientation()};editSide='both';revision++;updateUI();},
     snapshot:()=>clone({active,settings,before,revision,orientations,editSide,rig:context.captureRig(),camera:context.captureCamera()}),
     restoreSnapshot(state){
       if(!state)return;
+      blocked=false;
       const changed=revision!==(state.revision||0);
       active=!!state.active;settings={...FINGERTUT_DEFAULTS,...state.settings};before=clone(state.before);revision=state.revision||0;
       orientations={r:cleanPalmOrientation(state.orientations?.r),l:cleanPalmOrientation(state.orientations?.l)};

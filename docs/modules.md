@@ -241,3 +241,7 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 只有跨越 FingerTut 操作版本的 Undo／Redo 才還原該工作區的 IK 與鏡頭；一般姿勢／時間軸 Undo 保留使用者目前鏡頭與扶握關係。
 
 手掌朝向數學位於 `src/fingertut/orientation.js`：模型掌面校正、胸部座標預設、鏡像角度及固定鏡頭方向。Controller 分別保存左右手朝向，方向編輯只更新所選手腕，位置重排重用已保存朝向；工作區歷史快照向後相容缺少朝向的舊狀態。
+
+## 語言切換
+
+`i18n/index.js` 提供偏好容錯、翻譯與即時訂閱，`i18n/messages.js` 管理第一批對照，`i18n/joint-labels.js` 產生顯示用名稱。DOM 只更新有標記的文字與屬性；FingerTut、選取提示、手機與浮動面板更新動態文字，領域資料與專案 schema 保持不變。範圍與驗證見 [language-switching.md](language-switching.md)。

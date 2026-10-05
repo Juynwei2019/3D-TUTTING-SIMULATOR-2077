@@ -1,3 +1,4 @@
+import { bindLanguageUI, onLanguageChange, t } from "./i18n/index.js";
 import { createFingerTut } from "./fingertut/controller.js";
 import { bindTouchTimelineUI } from "./ui/touch-timeline.js";
 import { initMobileLayout } from "./ui/mobile-layout.js";
@@ -2257,7 +2258,8 @@ function showAutosaveIndicator(){
   const hh = String(now.getHours()).padStart(2, "0");
   const mm = String(now.getMinutes()).padStart(2, "0");
   const ss = String(now.getSeconds()).padStart(2, "0");
-  el.textContent = `已自動儲存 ${hh}:${mm}:${ss}`;
+  el.dataset.time = `${hh}:${mm}:${ss}`;
+  el.textContent = t("已自動儲存 {time}", {time:el.dataset.time});
   el.style.opacity = "1";
   clearTimeout(showAutosaveIndicator._t);
   showAutosaveIndicator._t = setTimeout(() => { el.style.opacity = "0"; }, 2000);
@@ -3357,7 +3359,7 @@ function bindTopUI(){
   document.getElementById("spaceBtn").onclick = () => {
     const isLocal = transformControls.space === "local";
     transformControls.setSpace(isLocal ? "world" : "local");
-    document.getElementById("spaceBtn").textContent = "座標：" + (isLocal ? "世界" : "本地");
+    document.getElementById("spaceBtn").textContent = t(isLocal ? "座標：世界" : "座標：本地");
   };
   document.getElementById("snapSelect").onchange = (e) => {
     const deg = parseFloat(e.target.value);
@@ -3395,6 +3397,14 @@ function bindTopUI(){
   bindJsonRefUI();
   initDisplayTogglesPanel();
   initPerfPanel();
+  function refreshCommonLanguage(){
+    document.getElementById('spaceBtn').textContent=t(transformControls.space==='world'?'座標：世界':'座標：本地');
+    const saved=document.getElementById('autosaveIndicator');
+    if(saved.dataset.time)saved.textContent=t('已自動儲存 {time}',{time:saved.dataset.time});
+    updateSelectedBar();
+  }
+  onLanguageChange(refreshCommonLanguage);
+  refreshCommonLanguage();
 }
 
 // ======================================================================
@@ -5633,6 +5643,7 @@ const animationLoopController = createAnimationLoop({
   get updateSplitViewPanes(){ return updateSplitViewPanes; },
 });
 
+bindLanguageUI();
 init();
 
 function bindTimelineUI(...args){

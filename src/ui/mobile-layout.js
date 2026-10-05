@@ -1,3 +1,4 @@
+import { t, onLanguageChange } from "../i18n/index.js";
 // CSS owns orientation and dimensions; this controller only owns drawer state.
 export function initMobileLayout({ onLayoutChange, onInitialLayout }){
   const panel = document.getElementById('ui');
@@ -18,7 +19,7 @@ export function initMobileLayout({ onLayoutChange, onInitialLayout }){
   function setCollapsed(collapsed){
     panel.classList.toggle('mobileCollapsed', collapsed);
     toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.textContent = collapsed ? '展開面板 ▴' : '收合面板 ▾';
+    toggle.textContent = t(collapsed ? '展開面板 ▴' : '收合面板 ▾');
     syncViewport();
   }
   toggle.addEventListener('click', () => setCollapsed(!panel.classList.contains('mobileCollapsed')));
@@ -26,6 +27,7 @@ export function initMobileLayout({ onLayoutChange, onInitialLayout }){
   mobile.addEventListener('change', () => { if (!mobile.matches) setCollapsed(false); else syncViewport(); });
   document.getElementById('uiShowBtn').addEventListener('click', () => setCollapsed(false));
   new MutationObserver(syncViewport).observe(panel, { attributes:true, attributeFilter:['style'] });
+  onLanguageChange(() => { toggle.textContent=t(panel.classList.contains('mobileCollapsed')?'展開面板 ▴':'收合面板 ▾'); });
   setCollapsed(false);
   onLayoutChange();
   if (mobile.matches) onInitialLayout();

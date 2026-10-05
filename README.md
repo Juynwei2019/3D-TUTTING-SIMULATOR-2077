@@ -2,6 +2,10 @@
 
 Three.js 人體姿勢與編舞工具。開發版本使用原生 ES Modules，保留既有介面、骨骼求解順序和存檔格式。
 
+## 語言切換
+
+主面板頂部可切換繁體中文／English，偏好會自動記憶。第一批涵蓋分頁、共用操作及 FingerTut；其他分頁內容分批翻譯。詳見 [語言切換與驗證](docs/language-switching.md)。
+
 ## 開發
 
 需要 Node.js 20 以上及 Python 3。
