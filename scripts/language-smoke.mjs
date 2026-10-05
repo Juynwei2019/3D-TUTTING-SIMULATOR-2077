@@ -129,7 +129,9 @@ try{for(const entry of entries)for(const viewport of viewports){
    await page.screenshot({path:`test-results/language/${label}-limits-en.png`});
    await page.locator('#jlFilterInput').fill('');
    // A migrated icon tooltip keeps its localized accessible name, without a native title.
-   const tooltip=page.locator('#jointLimitGroups input').first();await tooltip.scrollIntoViewIfNeeded();await tooltip.focus();
+   const tooltip=page.locator('#jointLimitGroups input').first();await tooltip.scrollIntoViewIfNeeded();
+   // Flush scroll events before focus: scrolling intentionally dismisses global tooltips.
+   await tooltip.evaluate(async el=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));el.focus({preventScroll:true});});
    await page.waitForFunction(()=>document.querySelector('.customTooltip.visible'));
    await page.evaluate(()=>window.__switchAndCompare('zh-Hant'));
    assert.equal(await tooltip.getAttribute('title'),null);
