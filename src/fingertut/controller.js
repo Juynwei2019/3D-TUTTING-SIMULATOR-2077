@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { solveTwoBoneIK } from '../ik/two-bone.js';
 import { applyBoneWorldQuatLock } from '../math/quaternions.js';
+import { defaultPalmOrientation, cleanPalmOrientation, PALM_PRESETS, palmWorldQuaternion } from './orientation.js';
 
 export const FINGERTUT_DEFAULTS = { height:-2, distance:22, spacing:24 };
 export function fingerTutFrame(bones){
@@ -15,7 +16,8 @@ export function fingerTutFrame(bones){
 
 // One-shot posing: leaves FK available and does not add a per-frame solver.
 export function createFingerTut(context){
-  let active=false, settings={...FINGERTUT_DEFAULTS}, before=null, revision=0;
+  let active=false, settings={...FINGERTUT_DEFAULTS}, before=null, revision=0, editSide='both';
+  let orientations={r:defaultPalmOrientation(),l:defaultPalmOrientation()};
   const clone=value=>JSON.parse(JSON.stringify(value));
   function ready(){return ['spine','spine2','neck',...['r','l'].flatMap(s=>['Arm','ForeArm','Hand','Middle1','Index1','Pinky1'].map(k=>s+k))].every(k=>context.bones[k]);}
   function canPlace(){
@@ -54,18 +56,7 @@ export function createFingerTut(context){
     const center=f.center.clone().addScaledVector(f.up,settings.height*h/100).addScaledVector(f.forward,settings.distance*h/100);
     for(const side of ['r','l']){
       const sign=side==='r'?-1:1,hand=context.bones[side+'Hand'];
-      // Calibrate against this model's palm geometry; do not assume a local bend axis.
-      const origin=hand.getWorldPosition(new THREE.Vector3());
-      const inverse=hand.getWorldQuaternion(new THREE.Quaternion()).invert();
-      const localFinger=context.bones[side+'Middle1'].getWorldPosition(new THREE.Vector3()).sub(origin).applyQuaternion(inverse).normalize();
-      const localAcross=context.bones[side+'Index1'].getWorldPosition(new THREE.Vector3()).sub(context.bones[side+'Pinky1'].getWorldPosition(new THREE.Vector3())).applyQuaternion(inverse);
-      localAcross.addScaledVector(localFinger,-localAcross.dot(localFinger)).normalize();
-      const localNormal=new THREE.Vector3().crossVectors(localAcross,localFinger).normalize();
-      const localBasis=new THREE.Matrix4().makeBasis(localAcross,localFinger,localNormal);
-      const finger=f.forward.clone().addScaledVector(f.up,-.12).normalize();
-      const across=f.right.clone().multiplyScalar(sign);
-      const normal=new THREE.Vector3().crossVectors(across,finger).normalize();
-      const desired=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(across,finger,normal).multiply(localBasis.invert()));
+      const desired=palmWorldQuaternion(context.bones,f,side,orientations[side]);
       const target=center.clone().addScaledVector(f.right,sign*settings.spacing*h/200);
       const pole=f.center.clone().addScaledVector(f.right,sign*h*.32).addScaledVector(f.up,-h*.18).addScaledVector(f.forward,h*.06);
       solveTwoBoneIK(context.bones[side+'Arm'],context.bones[side+'ForeArm'],hand,target,pole);
@@ -90,6 +81,32 @@ export function createFingerTut(context){
     if(Object.keys(next).every(k=>next[k]===settings[k]))return false;
     change(()=>{settings=next;place();});return true;
   }
+  function setOrientation(values,selection=editSide){
+    if(!active||!canPlace()||!['both','r','l'].includes(selection))return false;
+    const sides=selection==='both'?['r','l']:[selection],next=clone(orientations);
+    const frame=fingerTutFrame(context.bones);
+    for(const side of sides){
+      next[side]=cleanPalmOrientation({...orientations[side],...values});
+      if(values.preset==='camera'){
+        const camera=new THREE.Vector3().fromArray(context.captureCamera().position);
+        const palm=camera.sub(context.bones[side+'Hand'].getWorldPosition(new THREE.Vector3())).normalize();
+        next[side].cameraPalm=[palm.dot(frame.right),palm.dot(frame.up),palm.dot(frame.forward)];
+      }
+    }
+    if(JSON.stringify(next)===JSON.stringify(orientations))return false;
+    change(()=>{
+      context.stop();
+      for(const side of sides)context.prepareOrientation(side);
+      context.model.updateWorldMatrix(true,true);
+      orientations=next;
+      const currentFrame=fingerTutFrame(context.bones);
+      for(const side of sides){
+        applyBoneWorldQuatLock(context.bones[side+'Hand'],palmWorldQuaternion(context.bones,currentFrame,side,orientations[side]));
+        context.pose.syncFromBone(side+'Hand',{round:false});
+      }
+      context.model.updateWorldMatrix(true,true);
+    });return true;
+  }
   function updateUI(){
     if(typeof document==='undefined')return;
     const toggle=document.getElementById('fingerTutToggle');if(!toggle)return;
@@ -99,9 +116,18 @@ export function createFingerTut(context){
       const input=document.getElementById('fingerTut_'+key);input.value=settings[key];input.disabled=!active;
       document.getElementById('fingerTut_'+key+'Value').textContent=settings[key]+'%';
     }
+    const sides=editSide==='both'?['r','l']:[editSide],first=orientations[sides[0]];
+    const sideSelect=document.getElementById('fingerTutSide');sideSelect.value=editSide;sideSelect.disabled=!active;
+    const preset=document.getElementById('fingerTutPreset');preset.disabled=!active;
+    preset.value=sides.every(s=>orientations[s].preset===first.preset)?first.preset:'mixed';
+    for(const key of ['flip','tilt','yaw']){
+      const input=document.getElementById('fingerTut_'+key);input.disabled=!active;input.value=first[key];
+      document.getElementById('fingerTut_'+key+'Value').textContent=sides.every(s=>orientations[s][key]===first[key])?first[key]+'°':'不同';
+    }
+    document.getElementById('fingerTutPalmReset').disabled=!active;
     document.getElementById('fingerTutRecenter').disabled=!active;
     document.getElementById('fingerTutFocus').disabled=!active;
-    document.getElementById('fingerTutStatus').textContent=active?'已擺到胸前，可自由編輯手指。調整位置會重新擺位；退出保留姿勢。':'開啟後自動擺位並切換雙手特寫；保留目前手勢。';
+    document.getElementById('fingerTutStatus').textContent=active?'已擺到胸前，可自由編輯手指。調整位置會保留手掌朝向；退出保留姿勢。':'開啟後自動擺位並切換雙手特寫；保留目前手勢。';
   }
   function bind(){
     document.getElementById('fingerTutToggle').onclick=()=>active?exit():enter();
@@ -109,15 +135,27 @@ export function createFingerTut(context){
     document.getElementById('fingerTutRecenter').onclick=()=>{if(active&&canPlace())change(place);};
     document.getElementById('fingerTutFocus').onclick=()=>{if(ready())focus();};
     for(const key of Object.keys(settings))document.getElementById('fingerTut_'+key).onchange=e=>adjust({[key]:e.target.value});
+    document.getElementById('fingerTutSide').onchange=e=>{editSide=e.target.value;updateUI();};
+    const editOrientation=values=>{
+      if(!setOrientation(values)){
+        const status=document.getElementById('fingerTutStatus'),message=status.textContent;
+        updateUI();status.textContent=message;
+      }
+    };
+    document.getElementById('fingerTutPreset').onchange=e=>{if(PALM_PRESETS.includes(e.target.value))editOrientation({preset:e.target.value,flip:0,tilt:0,yaw:0});};
+    for(const key of ['flip','tilt','yaw'])document.getElementById('fingerTut_'+key).onchange=e=>editOrientation({[key]:Number(e.target.value)});
+    document.getElementById('fingerTutPalmReset').onclick=()=>editOrientation(defaultPalmOrientation());
     updateUI();
   }
-  return {enter,exit,restore,adjust,focus,bind,get active(){return active;},
-    clear(){active=false;before=null;revision++;updateUI();},
-    snapshot:()=>clone({active,settings,before,revision,rig:context.captureRig(),camera:context.captureCamera()}),
+  return {enter,exit,restore,adjust,setOrientation,focus,bind,get active(){return active;},
+    clear(){active=false;before=null;orientations={r:defaultPalmOrientation(),l:defaultPalmOrientation()};editSide='both';revision++;updateUI();},
+    snapshot:()=>clone({active,settings,before,revision,orientations,editSide,rig:context.captureRig(),camera:context.captureCamera()}),
     restoreSnapshot(state){
       if(!state)return;
       const changed=revision!==(state.revision||0);
       active=!!state.active;settings={...FINGERTUT_DEFAULTS,...state.settings};before=clone(state.before);revision=state.revision||0;
+      orientations={r:cleanPalmOrientation(state.orientations?.r),l:cleanPalmOrientation(state.orientations?.l)};
+      editSide=['both','r','l'].includes(state.editSide)?state.editSide:'both';
       // Ordinary pose/timeline undo must not move the camera or release a grab.
       if(changed){context.restoreRig(state.rig);context.restoreCamera(state.camera);}
       updateUI();

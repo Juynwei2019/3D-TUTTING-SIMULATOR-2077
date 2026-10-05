@@ -76,8 +76,79 @@ try{for(const entry of entries)for(const viewport of viewports){
     assert.deepEqual(await page.evaluate(()=>window.__fingerTutTest.rig),before.state.rig);
     await page.evaluate(()=>window.__fingerTutTest.redo());
     assert.equal(await page.evaluate(()=>window.__fingerTutTest.fingerTutController.active),true);
+    // Real wrist directions, fixed palm positions, and untouched finger angles.
+    await page.evaluate(()=>{
+      window.__readPalms=()=>{
+        const t=window.__fingerTutTest,point=k=>t.bones[k].getWorldPosition(t.bones[k].position.clone());
+        const right=point('lArm').sub(point('rArm')).normalize(),up=point('neck').sub(point('spine')).normalize();
+        return {pose:t.poseController.snapshotTarget(),camera:t.camera.position.toArray(),hands:['r','l'].map(side=>{
+          const wrist=point(side+'Hand'),finger=point(side+'Middle1').sub(wrist).normalize();
+          const palm=finger.clone().cross(point(side+'Index1').sub(point(side+'Pinky1'))).multiplyScalar(side==='r'?1:-1).normalize();
+          const camera=t.camera.position.clone().sub(wrist).normalize();
+          return {side,position:wrist.toArray(),quaternion:t.bones[side+'Hand'].getWorldQuaternion(t.bones[side+'Hand'].quaternion.clone()).toArray(),up:palm.dot(up),right:palm.dot(right),camera:palm.dot(camera)};
+        })};
+      };
+    });
+    await page.locator('#fingerTutSide').selectOption('r');
+    await page.evaluate(()=>{
+      window.__fingerTutTest.setFingerIKEnabled('rPinky',true);
+      document.getElementById('fingerTutPreset').addEventListener('change',()=>{window.__beforeWristChange=window.__readPalms();},{capture:true,once:true});
+    });
+    await page.locator('#fingerTutPreset').selectOption('up');
+    const conflict=await page.evaluate(()=>({before:window.__beforeWristChange,after:window.__readPalms(),rig:window.__fingerTutTest.rig}));
+    assert.equal(conflict.rig.fingers.rPinky.enabled,false,'wrist editing releases selected finger IK');
+    for(const key of Object.keys(conflict.before.pose).filter(k=>/(Thumb|Index|Middle|Ring|Pinky)/.test(k)))assert.deepEqual(normalize(conflict.after.pose[key]),normalize(conflict.before.pose[key]),'preserve current finger pose after releasing IK');
+    await page.locator('#fingerTutPreset').selectOption('down');
+    await page.locator('#fingerTutSide').selectOption('both');
+    const originalPalms=await page.evaluate(()=>window.__readPalms());
+    for(const preset of ['up','in','out','camera','down']){
+      await page.locator('#fingerTutPreset').selectOption(preset);
+      const state=await page.evaluate(()=>window.__readPalms());
+      for(let i=0;i<2;i++){
+        const hand=state.hands[i];
+        assert.ok(hand.position.every((v,j)=>Math.abs(v-originalPalms.hands[i].position[j])<1e-6),'wrist position stays fixed');
+        if(preset==='up')assert.ok(hand.up>.99);
+        if(preset==='down')assert.ok(hand.up<-.99);
+        if(preset==='in')assert.ok(hand.right*(hand.side==='r'?1:-1)>.99);
+        if(preset==='out')assert.ok(hand.right*(hand.side==='r'?1:-1)<-.99);
+        if(preset==='camera')assert.ok(hand.camera>.99);
+      }
+      for(const key of Object.keys(originalPalms.pose).filter(k=>/(Thumb|Index|Middle|Ring|Pinky)/.test(k)))assert.deepEqual(normalize(state.pose[key]),normalize(originalPalms.pose[key]));
+      assert.deepEqual(state.camera,originalPalms.camera,'orientation does not move camera');
+    }
+    await page.locator('#fingerTutSide').selectOption('r');
+    const leftBefore=await page.evaluate(()=>window.__readPalms());
+    await page.locator('#fingerTutPreset').selectOption('up');
+    const leftAfter=await page.evaluate(()=>window.__readPalms());
+    assert.ok(leftAfter.hands[1].quaternion.every((v,j)=>Math.abs(v-leftBefore.hands[1].quaternion[j])<1e-6),'right-hand edit leaves left hand alone');
+    assert.deepEqual(normalize(leftAfter.pose.lHand),normalize(leftBefore.pose.lHand),'unselected wrist target is unchanged');
+    await page.evaluate(()=>window.__fingerTutTest.undo());
+    assert.equal(await page.locator('#fingerTutPreset').inputValue(),'down');
+    await page.evaluate(()=>window.__fingerTutTest.redo());
+    assert.equal(await page.locator('#fingerTutPreset').inputValue(),'up');
+    for(const [key,value]of [['flip','35'],['tilt','20'],['yaw','25']]){
+      await page.locator('#fingerTut_'+key).fill(value);await page.locator('#fingerTut_'+key).dispatchEvent('change');
+    }
+    const rotated=await page.evaluate(()=>window.__readPalms());
+    await press('#fingerTutRecenter');
+    const recentered=await page.evaluate(()=>window.__readPalms());
+    for(let i=0;i<2;i++)assert.ok(recentered.hands[i].quaternion.every((v,j)=>Math.abs(v-rotated.hands[i].quaternion[j])<1e-6),'reposition preserves palm orientation');
+    await page.locator('#fingerTutSide').selectOption('both');
+    assert.equal(await page.locator('#fingerTutPreset').inputValue(),'mixed');
+    assert.equal(await page.locator('#fingerTut_flipValue').textContent(),'不同');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'orientation controls fit the viewport');
+    await page.locator('#fingerTutSide').selectOption('r');
+    await press('#fingerTutPalmReset');
+    assert.equal(await page.locator('#fingerTut_flip').inputValue(),'0');
+    await page.evaluate(()=>window.__fingerTutTest.undo());
+    assert.equal(await page.locator('#fingerTut_flip').inputValue(),'35');
+    await page.locator('#fingerTutPreset').scrollIntoViewIfNeeded();
+    await page.screenshot({path:`test-results/fingertut/${label}-orientation.png`});
+    const beforeSpacing=await page.evaluate(()=>window.__readPalms());
     await page.locator('#fingerTut_spacing').fill('32');await page.locator('#fingerTut_spacing').dispatchEvent('change');
     assert.equal(await page.locator('#fingerTut_spacingValue').textContent(),'32%');
+    const afterSpacing=await page.evaluate(()=>window.__readPalms());
+    for(let i=0;i<2;i++)assert.ok(afterSpacing.hands[i].quaternion.every((v,j)=>Math.abs(v-beforeSpacing.hands[i].quaternion[j])<1e-6),'spacing changes preserve palm orientation');
     await page.evaluate(()=>window.__fingerTutTest.undo());
     assert.equal(await page.locator('#fingerTut_spacing').inputValue(),'24');
     const pose=await page.evaluate(()=>window.__fingerTutTest.poseController.snapshotTarget());
@@ -87,7 +158,7 @@ try{for(const entry of entries)for(const viewport of viewports){
     assert.deepEqual(normalize(await page.evaluate(()=>window.__restoredPose)),before.pose,'restore original pose');
     assert.deepEqual(await page.evaluate(()=>window.__fingerTutTest.rig),before.state.rig,'restore original IK targets and flags');
     assert.deepEqual(errors,[]);
-    results.push({label,hands:placed.hands,checks:'pose preserved, chest placement, palm down, Undo/Redo, spacing, exit, restore, no runtime errors'});
+    results.push({label,hands:placed.hands,checks:'pose preserved, chest placement, palm down, Undo/Redo, spacing, palm presets, single hand, wrist angles, orientation Undo/Redo, reposition preservation, exit, restore, no runtime errors'});
     console.log('PASS '+label);
   }catch(e){console.error('::error title=FingerTut regression::'+`${label}: ${e.stack||e}`.replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A'));await page.screenshot({path:`test-results/fingertut/${label}-failure.png`});throw e;}finally{await context.close();}
 }

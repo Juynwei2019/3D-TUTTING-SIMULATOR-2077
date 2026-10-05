@@ -4398,6 +4398,12 @@ const fingerTutController = createFingerTut({
     for(const id of FINGER_IDS)setFingerIKEnabled(id,false);
     deselectJoint();
   },
+  prepareOrientation(side){
+    setIKEnabled(side+'Arm',false);
+    setLookAtEnabled(side+'Hand',false);
+    for(const id of FINGER_IDS.filter(id=>id[0]===side))setFingerIKEnabled(id,false);
+    deselectJoint();
+  },
   captureRig(){
     return { arms:Object.fromEntries(['rArm','lArm'].map(id=>[id,{enabled:ikEnabled[id],orient:effectorOrientEnabled[id],target:ikTargetMeshes[id]?.position.toArray(),quaternion:ikTargetMeshes[id]?.quaternion.toArray(),pole:ikPoleMeshes[id]?.position.toArray()}])),
       fingers:Object.fromEntries(FINGER_IDS.map(id=>[id,{enabled:fingerIKEnabled[id],target:fingerIKTargetMeshes[id]?.position.toArray()}])),handAim:snapshotHandAim() };

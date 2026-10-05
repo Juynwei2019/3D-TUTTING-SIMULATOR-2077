@@ -935,6 +935,12 @@
         <label class="fingerTutSlider" for="fingerTut_height">高度<input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
         <label class="fingerTutSlider" for="fingerTut_distance">前後距離<input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
         <label class="fingerTutSlider" for="fingerTut_spacing">雙手間距<input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
+        <div class="row"><label for="fingerTutSide">調整手掌</label><select id="fingerTutSide" disabled><option value="both">雙手</option><option value="r">右手</option><option value="l">左手</option></select><label for="fingerTutPreset">朝向</label><select id="fingerTutPreset" disabled><option value="down">掌心朝下</option><option value="up">掌心朝上</option><option value="in">掌心相對</option><option value="out">掌心朝外</option><option value="camera">朝向鏡頭</option><option value="mixed" disabled>左右不同</option></select></div>
+        <label class="fingerTutSlider" for="fingerTut_flip">掌心翻轉<input id="fingerTut_flip" type="range" min="-180" max="180" step="1" value="0" disabled><output id="fingerTut_flipValue">0°</output></label>
+        <label class="fingerTutSlider" for="fingerTut_tilt">指尖抬低<input id="fingerTut_tilt" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_tiltValue">0°</output></label>
+        <label class="fingerTutSlider" for="fingerTut_yaw">左右偏轉<input id="fingerTut_yaw" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_yawValue">0°</output></label>
+        <div class="row"><button id="fingerTutPalmReset" type="button" disabled>重置手掌朝向</button></div>
+        <p class="small">角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。</p>
         <div class="row"><button id="fingerTutRecenter" type="button" disabled>重新胸前擺位</button><button id="fingerTutRestore" type="button" disabled>還原進入前姿勢</button></div>
         <p class="small">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</p>
       </section>
