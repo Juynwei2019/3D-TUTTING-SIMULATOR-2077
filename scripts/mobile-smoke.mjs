@@ -137,6 +137,9 @@ try{
           assert.equal(await page.evaluate(()=>window.__touchSmoke.scrub),true);
           await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:8,x:wx+36,y:wy}]});
           await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+          // CDP acknowledgement can precede dispatch of pointercancel on the renderer.
+          // Still require the application to finish scrubbing, with a bounded wait.
+          await page.waitForFunction(()=>window.__touchSmoke.scrub===false, null, {timeout:5000});
           assert.equal(await page.evaluate(()=>window.__touchSmoke.scrub),false);
           await page.evaluate(()=>{
             const app=window.__touchSmoke,s=app.snapshotTimelineData(),base=s.keyframes[0];
