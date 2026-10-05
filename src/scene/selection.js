@@ -114,7 +114,7 @@ export function createSceneSelection(context){
     if(zeroBtn)zeroBtn.disabled=false;
     if(context.selectedIK?.role==='laPoint'){
       const m=context.laCustomMeshes[context.selectedIK.index];if(!m)return;
-      label.textContent='LookAt 控制點 P'+(context.selectedIK.index+1);angles.textContent='X '+m.position.x.toFixed(3)+' Y '+m.position.y.toFixed(3)+' Z '+m.position.z.toFixed(3);
+      label.textContent=t('LookAt 控制點 P')+(context.selectedIK.index+1);angles.textContent='X '+m.position.x.toFixed(3)+' Y '+m.position.y.toFixed(3)+' Z '+m.position.z.toFixed(3);
       for(const el of [spaceBtn,snapLabel,snapSelect,document.getElementById('ikModeBtn')])if(el)el.style.display='none';
       if(zeroBtn){zeroBtn.disabled=true;zeroBtn.textContent=t('請由控制點清單刪除');}return;
     }

@@ -1,3 +1,4 @@
+import { t as tr } from "../i18n/index.js";
 export function createRigPreferences(preferences, context){
   function loadJointLimits(){
     try {
@@ -10,11 +11,11 @@ export function createRigPreferences(preferences, context){
           if (saved[k][axis]) Object.assign(context.JOINT_LIMITS[k][axis], saved[k][axis]);
         }
       }
-    } catch (e){ console.warn("關節限制讀取失敗:", e); }
+    } catch (e){ console.warn(tr("關節限制讀取失敗:"), e); }
   }
   function saveJointLimits(){
     try { preferences.setItem(context.JOINT_LIMITS_STORAGE_KEY, JSON.stringify(context.JOINT_LIMITS)); }
-    catch (e){ console.warn("關節限制儲存失敗:", e); }
+    catch (e){ console.warn(tr("關節限制儲存失敗:"), e); }
   }
   function loadIsolationSettings(){
     try {
@@ -26,11 +27,11 @@ export function createRigPreferences(preferences, context){
       if (typeof saved.maxGroups === "number") context.isolationSettings.maxGroups = saved.maxGroups;
       if (saved.weights && typeof saved.weights === "object") Object.assign(context.isolationSettings.weights, saved.weights);
       if (saved.jointWeights && typeof saved.jointWeights === "object") Object.assign(context.isolationSettings.jointWeights, saved.jointWeights);
-    } catch (e){ console.warn("Isolation設定讀取失敗:", e); }
+    } catch (e){ console.warn(tr("Isolation設定讀取失敗:"), e); }
   }
   function saveIsolationSettings(){
     try { preferences.setItem(context.ISOLATION_STORAGE_KEY, JSON.stringify(context.isolationSettings)); }
-    catch (e){ console.warn("Isolation設定儲存失敗:", e); }
+    catch (e){ console.warn(tr("Isolation設定儲存失敗:"), e); }
   }
   function saveHandCollisionRadii(){
     try {
@@ -41,7 +42,7 @@ export function createRigPreferences(preferences, context){
         headRadius: context.HEAD_CAPSULES[0].radius
       };
       preferences.setItem(context.HAND_COLLISION_RADII_STORAGE_KEY, JSON.stringify(data));
-    } catch (e){ console.warn("手部碰撞半徑儲存失敗:", e); }
+    } catch (e){ console.warn(tr("手部碰撞半徑儲存失敗:"), e); }
   }
   function loadHandCollisionRadii(){
     try {
@@ -56,7 +57,7 @@ export function createRigPreferences(preferences, context){
         data.legCapsules.forEach((r, i) => { if (typeof r === "number" && context.LEG_CAPSULES[i]) context.LEG_CAPSULES[i].radius = r; });
       }
       if (typeof data.headRadius === "number") context.HEAD_CAPSULES[0].radius = data.headRadius;
-    } catch (e){ console.warn("手部碰撞半徑讀取失敗:", e); }
+    } catch (e){ console.warn(tr("手部碰撞半徑讀取失敗:"), e); }
   }
   return { loadJointLimits, saveJointLimits, loadIsolationSettings, saveIsolationSettings, saveHandCollisionRadii, loadHandCollisionRadii };
 }

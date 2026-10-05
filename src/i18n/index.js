@@ -1,6 +1,7 @@
 import { english as firstBatchEnglish } from './messages.js';
 import { batch2English } from './batch2-messages.js';
-export const english = {...firstBatchEnglish,...batch2English};
+import { batch3English } from './batch3-messages.js';
+export const english = {...firstBatchEnglish,...batch2English,...batch3English};
 export const LANGUAGE_STORAGE_KEY = 'tuttingLanguage';
 export function createI18n(storage){
   let language='zh-Hant';
@@ -28,10 +29,9 @@ export const t=(key,values)=>i18n.t(key,values);
 export const onLanguageChange=listener=>i18n.subscribe(listener);
 export function translateDOM(root=document){
   for(const el of root.querySelectorAll('[data-i18n]'))el.textContent=t(el.dataset.i18n);
-  for(const attr of ['title','aria-label','placeholder','data-tooltip','label']){
+  for(const attr of ['title','aria-label','placeholder','data-tooltip','label','alt']){
     for(const el of root.querySelectorAll(`[data-i18n-${attr}]`)){
-      const value=t(el.getAttribute(`data-i18n-${attr}`));el.setAttribute(attr,value);
-      if(attr==='title'&&el.hasAttribute('data-tooltip'))el.setAttribute('data-tooltip',value);
+      const value=t(el.getAttribute(`data-i18n-${attr}`));setDisplayAttribute(el,attr,value);
     }
   }
   document.documentElement.lang=i18n.language;
@@ -62,12 +62,29 @@ function applyTranslation(node,property,render){
   const value=resolveText(render);
   if(property.startsWith('@')){
     const attribute=property.slice(1);
-    if(node.getAttribute?.(attribute)!==value)node.setAttribute(attribute,value);
+    setDisplayAttribute(node,attribute,value);
   }else if(node[property]!==value)node[property]=value;
-  if(property==='@title'&&node.hasAttribute?.('data-tooltip'))node.setAttribute('data-tooltip',value);
+
 }
 export function refreshLiveTranslations(root=document){
   for(const node of root.querySelectorAll('[data-live-i18n]')){
     for(const [property,render] of liveRenderers.get(node)||[])applyTranslation(node,property,render);
+  }
+}
+
+function setDisplayAttribute(node,attribute,value){
+  // Keep migrated tooltips native-title-free, while updating their keyboard names.
+  const migrated=attribute==='title'&&node.hasAttribute?.('data-tooltip')&&!node.hasAttribute?.('title');
+  if(!migrated&&node.getAttribute?.(attribute)!==value)node.setAttribute(attribute,value);
+  if(attribute==='title'||attribute==='data-tooltip'){
+    if(attribute==='title'&&node.hasAttribute?.('data-tooltip'))node.setAttribute('data-tooltip',value);
+    const help=node.classList?.contains('kfInfoIcon');
+    const icon=node.tagName==='BUTTON'&&/^[\s\p{P}\p{S}\p{M}0-9]*$/u.test(node.textContent||'');
+    if(help||icon||node.hasAttribute?.('data-tooltip-label')){
+      if(!node.hasAttribute?.('aria-label')||node.hasAttribute?.('data-tooltip-label')){
+        node.setAttribute('aria-label',value);node.setAttribute('data-tooltip-label','');
+      }
+      if(help){node.setAttribute('tabindex','0');node.setAttribute('role','img');}
+    }
   }
 }

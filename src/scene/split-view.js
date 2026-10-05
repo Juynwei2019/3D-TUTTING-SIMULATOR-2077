@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import * as THREE from "three";
 
 // Live host getters preserve shared rig and playback coordination.
@@ -15,7 +16,7 @@ export function createSplitView(context){
     const canvas = document.createElement("canvas");
     const label = document.createElement("div");
     label.className = "splitPaneLabel";
-    label.textContent = context.SPLIT_VIEW_LABELS[name] || name;
+    liveText(label,()=>tr(context.SPLIT_VIEW_LABELS[name] || name));
     root.appendChild(canvas);
     root.appendChild(label);
     container.appendChild(root);

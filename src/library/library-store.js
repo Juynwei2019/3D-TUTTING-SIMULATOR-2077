@@ -1,3 +1,4 @@
+import { t as tr } from "../i18n/index.js";
 const CURRENT_LIB_SCHEMA_VERSION = 1;
 const LIB_MIGRATIONS = {};
 
@@ -28,7 +29,7 @@ export function createLibraryStore({ getStorage, getKeys, downloadJSON, alert, o
       }
       return [];
     } catch (e){
-      warn("讀取資料庫失敗，可能是儲存內容毀損：", key, e);
+      warn(tr("讀取資料庫失敗，可能是儲存內容毀損："), key, e);
       return [];
     }
   }
@@ -46,14 +47,14 @@ export function createLibraryStore({ getStorage, getKeys, downloadJSON, alert, o
       onUsageChange();
       return true;
     } catch (e){
-      warn("儲存庫寫入 localStorage 失敗：", e);
+      warn(tr("儲存庫寫入 localStorage 失敗："), e);
       // 寫入失敗時（通常是空間已滿）：記憶體裡的 items 其實還在（呼叫端還沒重整頁面），
       // 立刻自動幫使用者匯出一份 JSON 備份，避免這次的異動在重新整理後直接消失。
       try {
         downloadJSON(arr, "招式庫備份_寫入失敗_" + Date.now() + ".json");
-        alert("儲存空間已滿，這次的變更無法存進瀏覽器！\n已自動幫你匯出一份 JSON 備份到下載資料夾，請先用「匯出全部」清出一些舊招式（例如刪除不需要的、或匯出後在別的裝置匯入），再繼續使用。");
+        alert(tr("儲存空間已滿，這次的變更無法存進瀏覽器！\n已自動幫你匯出一份 JSON 備份到下載資料夾，請先用「匯出全部」清出一些舊招式（例如刪除不需要的、或匯出後在別的裝置匯入），再繼續使用。"));
       } catch (e2){
-        alert("儲存失敗（瀏覽器儲存空間可能已滿），且自動備份也失敗了：" + e.message + "\n建議立即手動使用「匯出全部」把目前看得到的內容存下來。");
+        alert(tr("儲存失敗（瀏覽器儲存空間可能已滿），且自動備份也失敗了：") + e.message + tr("\n建議立即手動使用「匯出全部」把目前看得到的內容存下來。"));
       }
       onUsageChange();
       return false;

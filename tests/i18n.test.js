@@ -48,7 +48,32 @@ test('live text and tooltip updates preserve nodes and replace obsolete renderer
 test('all authored translation annotations have dictionary entries',async()=>{
   const {readFile}=await import('node:fs/promises');const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
   const decode=s=>s.replaceAll('&quot;','"').replaceAll('&#x27;',"'").replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
-  const keys=Array.from(html.matchAll(/data-i18n(?:-(?:title|aria-label|placeholder))?="([^"]+)"/g),m=>decode(m[1]));
+  const keys=Array.from(html.matchAll(/data-i18n(?:-(?:title|aria-label|placeholder|data-tooltip|label|alt))?="([^"]+)"/g),m=>decode(m[1]));
   assert.ok(keys.length>0);
   for(const key of keys)assert.ok(Object.hasOwn(english,key),'missing: '+key);
+});
+
+test('migrated icon tooltips keep translated accessible names without restoring native titles',async()=>{
+  const {i18n,t,liveAttribute,refreshLiveTranslations}=await import('../src/i18n/index.js');
+  const attrs=new Map([['data-tooltip','old']]);
+  const node={tagName:'BUTTON',textContent:'×',getAttribute:k=>attrs.get(k)??null,hasAttribute:k=>attrs.has(k),setAttribute:(k,v)=>attrs.set(k,v)};
+  try{
+    i18n.setLanguage('zh-Hant');liveAttribute(node,'title',()=>t('刪除控制點 {point}',{point:'P1'}));
+    assert.equal(attrs.has('title'),false);assert.equal(attrs.get('aria-label'),'刪除控制點 P1');
+    i18n.setLanguage('en');refreshLiveTranslations({querySelectorAll:()=>[node]});
+    assert.equal(attrs.has('title'),false);assert.equal(attrs.get('data-tooltip'),'Delete control point P1');assert.equal(attrs.get('aria-label'),'Delete control point P1');
+    attrs.delete('data-tooltip-label');attrs.set('aria-label','Explicit label');
+    liveAttribute(node,'title',()=>t('刪除控制點 {point}',{point:'P2'}));assert.equal(attrs.get('aria-label'),'Explicit label');
+  }finally{i18n.setLanguage('zh-Hant');}
+});
+
+test('joint search includes Chinese, English and internal keys in both locales',async()=>{
+  const {i18n}=await import('../src/i18n/index.js');const {jointSearchText,jointCountLabel}=await import('../src/i18n/joint-labels.js');
+  try{
+    for(const locale of ['zh-Hant','en']){
+      i18n.setLanguage(locale);assert.match(jointSearchText('rArm'),/right arm/);assert.match(jointSearchText('rArm'),/右/);
+      assert.match(jointSearchText('rIndex2'),/index/);assert.match(jointSearchText('rIndex2'),/食指/);assert.match(jointSearchText('rIndex2'),/rindex2/);
+      assert.equal(jointCountLabel(1),locale==='en'?'1 joint':'1 個關節');assert.equal(jointCountLabel(2),locale==='en'?'2 joints':'2 個關節');
+    }
+  }finally{i18n.setLanguage('zh-Hant');}
 });

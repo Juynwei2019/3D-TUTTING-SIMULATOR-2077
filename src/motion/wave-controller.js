@@ -370,7 +370,7 @@ export function createWaveController(context){
       context.poseController.restoreState(saved);
       context.model.updateMatrixWorld(true);context.kfIndex=savedKfIndex;
     }
-    if(error){say(()=>tr("未加入：")+error.message);return;}
+    if(error){say(()=>tr("未加入：")+tr(error.message));return;}
     const clip={id:replacing?.id||context.makeLibId(),start:startBeat,beats:plan.totalBeats,
       cycles:Number(document.getElementById('waveBakeCycles').value),config:cleanWave(context.waveConfig),
       fadeIn:Math.min(replacing?.fadeIn||.5,plan.totalBeats/2),fadeOut:Math.min(replacing?.fadeOut||.5,plan.totalBeats/2),

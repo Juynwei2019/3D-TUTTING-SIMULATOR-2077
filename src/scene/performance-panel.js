@@ -1,3 +1,4 @@
+import { t as tr, liveAttribute } from "../i18n/index.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createPerformancePanel(context){
   let _perfRafLastTime = 0;
@@ -61,9 +62,9 @@ export function createPerformancePanel(context){
     if (info && drawEl) drawEl.textContent = `DC ${info.calls} ・ Tri ${info.triangles.toLocaleString()}`;
     if (panelEl){
       // 用既有的全站 Tooltip 系統，滑鼠移上去才看得到主循環(rAF)頻率跟閒置狀態說明，平常維持精簡
-      panelEl.setAttribute("data-tooltip",
-        (idle ? "🟡 閒置降頻中（約10fps）" : "🟢 全速運算中") +
-        ` — 主循環(rAF) ${rafFps.toFixed(0)}fps`);
+      liveAttribute(panelEl,"data-tooltip",()=>
+        (idle ? tr("🟡 閒置降頻中（約10fps）") : tr("🟢 全速運算中")) +
+        tr(" — 主循環(rAF) {p0}fps", {p0:rafFps.toFixed(0)}));
     }
   }
   return { initPerfPanel, perfTickRaf, perfTickRender, updatePerfPanelDom };

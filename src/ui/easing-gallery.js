@@ -1,4 +1,4 @@
-import { t } from "../i18n/index.js";
+import { t, liveText, translateDOM } from "../i18n/index.js";
 import { EASINGS, EASING_GROUPS } from "../math/easings.js";
 import { clampNum } from "../math/angles.js";
 
@@ -79,18 +79,19 @@ function buildEasingGallery(){
   if (!container) return [];
   let html = "";
   EASING_GROUPS.forEach(g => {
-    html += `<div class="egGroup"><div class="egGroupTitle">${g.label}</div><div class="egGrid">`;
+    html += `<div class="egGroup"><div class="egGroupTitle" data-i18n="${g.label}">${t(g.label)}</div><div class="egGrid">`;
     g.items.forEach(([name, label]) => {
       const fn = EASINGS[name] || EASINGS.linear;
       html += `<div class="egCard" data-ease="${name}">`
         + buildEasingGalleryCardSVG(fn)
         + `<div class="egTrack"><div class="egBall"></div></div>`
-        + `<div class="egLabel">${label}<span class="egLabelEn">${name}</span></div>`
+        + `<div class="egLabel"><span data-i18n="${label}">${t(label)}</span><span class="egLabelEn">${name}</span></div>`
         + `</div>`;
     });
     html += `</div></div>`;
   });
   container.innerHTML = html;
+  translateDOM(container);
 
   const refs = [];
   container.querySelectorAll(".egCard").forEach(card => {
@@ -136,7 +137,7 @@ function initEasingGallery(){
   const hint = document.getElementById("egReducedMotionHint");
   if (reducedMotion && hint) hint.style.display = "";
   function syncPlayBtnLabel(){
-    if (playBtn) playBtn.textContent = easingGalleryPlaying ? "⏸ 暫停動畫" : "▶ 播放動畫";
+    if (playBtn) liveText(playBtn,()=>easingGalleryPlaying ? t("⏸ 暫停動畫") : t("▶ 播放動畫"));
   }
   syncPlayBtnLabel();
   if (playBtn) playBtn.onclick = () => {

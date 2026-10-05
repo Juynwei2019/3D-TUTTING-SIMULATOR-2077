@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { OVERVIEW_GROUPS } from "../rig/definitions.js";
 
 // Live host getters preserve shared rig and playback coordination.
@@ -60,17 +61,17 @@ export function createRandomPoseGenerator(context){
       return lim.x.enabled || lim.y.enabled || lim.z.enabled;
     });
     if (eligibleKeys.length === 0){
-      alert(`目前全部 ${context.JOINT_LIMIT_KEYS.length} 個關節都還沒有啟用任何一軸的限制，沒有範圍可以隨機。\n請先在下面找到想要的關節、勾選至少一軸並填入合理的最小/最大值。`);
+      alert(tr("目前全部 {p0} 個關節都還沒有啟用任何一軸的限制，沒有範圍可以隨機。\n請先在下面找到想要的關節、勾選至少一軸並填入合理的最小/最大值。", {p0:context.JOINT_LIMIT_KEYS.length}));
       return;
     }
 
-    let keysToRoll;
+    let keysToRoll, selectedGroups=[];
     if (context.isolationSettings.enabled){
       const eligibleKeySet = new Set(eligibleKeys);
       // 分組裡只要有任一關節「有資格」，這組就有資格被抽中
       const eligibleGroups = OVERVIEW_GROUPS.filter(g => getGroupWeight(g.id)>0 && g.keys.some(k => eligibleKeySet.has(k)));
       if (eligibleGroups.length === 0){
-        alert("目前沒有權重大於 0 且已啟用關節限制的分組，無法進行 Isolation 隨機。");
+        alert(tr("目前沒有權重大於 0 且已啟用關節限制的分組，無法進行 Isolation 隨機。"));
         return;
       }
       const lo = Math.max(1, Math.min(context.isolationSettings.minGroups, context.isolationSettings.maxGroups));
@@ -82,10 +83,10 @@ export function createRandomPoseGenerator(context){
       for (const g of pickedGroups) for (const k of g.keys) if (eligibleKeySet.has(k)) pickedKeySet.add(k);
       keysToRoll = eligibleKeys.filter(k => pickedKeySet.has(k));
 
-      if (statusEl) statusEl.textContent = "本次選中：" + pickedGroups.map(g => g.label).join("、");
+      selectedGroups=pickedGroups;
     } else {
       keysToRoll = eligibleKeys;
-      if (statusEl) statusEl.textContent = "";
+
     }
 
     // 第二層篩選：範圍內（分組選中／或Isolation未開啟時的全部有資格關節）的每個關節，
@@ -93,9 +94,8 @@ export function createRandomPoseGenerator(context){
     // 機率調低可以做出「同一組裡有些關節常動、有些關節難得動一次」的細節。
     const finalKeys = keysToRoll.filter(key => Math.random() * 100 < getJointWeight(key));
     const skippedByWeight = keysToRoll.length - finalKeys.length;
-    if (statusEl && skippedByWeight > 0){
-      statusEl.textContent += (statusEl.textContent ? "　" : "") + `（另有 ${skippedByWeight} 個關節因機率設定這次跳過）`;
-    }
+
+    if(statusEl)liveText(statusEl,()=> (selectedGroups.length ? tr("本次選中：")+selectedGroups.map(g=>tr(g.label)).join(" / ") : "") + (skippedByWeight>0 ? " "+tr("（另有 {p0} 個關節因機率設定這次跳過）",{p0:skippedByWeight}) : ""));
 
     for (const key of finalKeys){
       const lim = context.JOINT_LIMITS[key];

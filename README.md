@@ -4,7 +4,7 @@ Three.js 人體姿勢與編舞工具。開發版本使用原生 ES Modules，保
 
 ## 語言切換
 
-主面板頂部可切換繁體中文／English，偏好會自動記憶。已涵蓋分頁、共用操作、FingerTut，以及時間軸、資料庫、IK／朝向、Wave、律動與生成器內容；其餘提示與分頁內容分批翻譯。詳見 [語言切換與驗證](docs/language-switching.md)。
+主面板頂部可切換繁體中文／English，偏好會自動記憶。已涵蓋分頁、共用操作、FingerTut，以及時間軸、資料庫、IK／朝向、Wave、律動、生成器、JSON、扶握、軌跡、關節總覽／限制與 Easing 圖鑑，包含工具提示與程式錯誤訊息。詳見 [語言切換與驗證](docs/language-switching.md)。
 
 ## 開發
 
@@ -56,7 +56,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:mobile
 4. 安裝與 Playwright Core 版本一致的 Chromium 及系統依賴。
 5. `npm run test:browser` 驗證模組版與單檔版。
 6. `npm run test:mobile` 驗證手機直向／橫向布局及觸控面板操作。
-7. `npm run test:fingertut` 與 `npm run test:language` 驗證 FingerTut 與前兩批雙語操作；兩者沿用桌面測試的模型快取。
+7. `npm run test:fingertut` 與 `npm run test:language` 驗證 FingerTut 與前三批雙語操作；兩者沿用桌面測試的模型快取。
 
 在 GitHub 的 **Actions → Verify** 查看結果。瀏覽器測試失敗時，工作流程會上傳 `browser-failure-…` 診斷附件，保留 7 天，包含可取得的畫面截圖、Playwright trace、瀏覽器 console／請求錯誤及失敗訊息。若失敗發生在啟動瀏覽器之前，可能只有工作流程紀錄或失敗文字。
 

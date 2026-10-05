@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>3D Tutting 模擬器 · Day61 BG-6</title>
+<title data-i18n="3D Tutting 模擬器 · Day61 BG-6">3D Tutting 模擬器 · Day61 BG-6</title>
 <link rel="stylesheet" href="./styles/simulator.css">
 </head>
 <body>
@@ -31,18 +31,18 @@
     <label><input type="checkbox" id="showHandJointsChk" checked> <span data-i18n="手部關節球">手部關節球</span></label>
     <label><input type="checkbox" id="showSkeletonChk" checked> <span data-i18n="骨架">骨架</span></label>
     <label><input type="checkbox" id="handCollisionVizCb"> <span data-i18n="碰撞膠囊體（除錯視覺化）">碰撞膠囊體（除錯視覺化）</span>
-      <span class="kfInfoIcon" title="把軀幹4段＋腿部4段共8段膠囊體（青色）、頭部球（青色）跟手掌的碰撞球（橘色）畫出來，方便邊看邊調半徑。跟「手部-身體碰撞回彈」開關是獨立的——只想看形狀、還不想讓手真的被推開時可以只開這個。半徑滑桿在「手腳IK」分頁的「進階/阻尼設定」裡。">ⓘ</span>
+      <span class="kfInfoIcon" title="把軀幹4段＋腿部4段共8段膠囊體（青色）、頭部球（青色）跟手掌的碰撞球（橘色）畫出來，方便邊看邊調半徑。跟「手部-身體碰撞回彈」開關是獨立的——只想看形狀、還不想讓手真的被推開時可以只開這個。半徑滑桿在「手腳IK」分頁的「進階/阻尼設定」裡。" data-i18n-title="把軀幹4段＋腿部4段共8段膠囊體（青色）、頭部球（青色）跟手掌的碰撞球（橘色）畫出來，方便邊看邊調半徑。跟「手部-身體碰撞回彈」開關是獨立的——只想看形狀、還不想讓手真的被推開時可以只開這個。半徑滑桿在「手腳IK」分頁的「進階/阻尼設定」裡。">ⓘ</span>
     </label>
     <label><input type="checkbox" id="showPerfPanelChk" checked> <span data-i18n="效能面板（FPS／Draw Call）">效能面板（FPS／Draw Call）</span>
-      <span class="kfInfoIcon" title="左下角顯示：「畫面 fps」＝實際呼叫 renderer.render() 的頻率（閒置降頻時會掉到約10fps）；「主循環 fps」＝ requestAnimationFrame 被排程呼叫的頻率（通常維持~60fps不受降頻影響，兩者的落差就是降頻機制省下來的量）；單幀耗時、Draw Calls、三角形數則來自 renderer.info，可用來抓效能瓶頸。">ⓘ</span>
+      <span class="kfInfoIcon" title="左下角顯示：「畫面 fps」＝實際呼叫 renderer.render() 的頻率（閒置降頻時會掉到約10fps）；「主循環 fps」＝ requestAnimationFrame 被排程呼叫的頻率（通常維持~60fps不受降頻影響，兩者的落差就是降頻機制省下來的量）；單幀耗時、Draw Calls、三角形數則來自 renderer.info，可用來抓效能瓶頸。" data-i18n-title="左下角顯示：「畫面 fps」＝實際呼叫 renderer.render() 的頻率（閒置降頻時會掉到約10fps）；「主循環 fps」＝ requestAnimationFrame 被排程呼叫的頻率（通常維持~60fps不受降頻影響，兩者的落差就是降頻機制省下來的量）；單幀耗時、Draw Calls、三角形數則來自 renderer.info，可用來抓效能瓶頸。">ⓘ</span>
     </label>
     <label><input type="checkbox" id="onionSkinChkDisplay"> <span data-i18n="洋蔥皮預覽">洋蔥皮預覽</span>
-      <span class="kfInfoIcon" title="半透明顯示前一拍/後一拍；播放中則顯示目前過渡區段再前後一拍。只在「時間軸」分頁、且有選取拍點時才會實際顯示殘影，跟時間軸分頁裡的同名開關同步。">ⓘ</span>
+      <span class="kfInfoIcon" title="半透明顯示前一拍/後一拍；播放中則顯示目前過渡區段再前後一拍。只在「時間軸」分頁、且有選取拍點時才會實際顯示殘影，跟時間軸分頁裡的同名開關同步。" data-i18n-title="半透明顯示前一拍/後一拍；播放中則顯示目前過渡區段再前後一拍。只在「時間軸」分頁、且有選取拍點時才會實際顯示殘影，跟時間軸分頁裡的同名開關同步。">ⓘ</span>
     </label>
   </div>
 </div>
 
-<div id="perfPanel" data-tooltip="滑鼠移上來查看主循環(rAF)實際頻率">
+<div id="perfPanel" data-tooltip="滑鼠移上來查看主循環(rAF)實際頻率" data-i18n-data-tooltip="滑鼠移上來查看主循環(rAF)實際頻率">
   <div class="perfRow" id="perfFps">🟢 -- fps ・ -- ms</div>
   <div class="perfRow" id="perfDraw">DC -- ・ Tri --</div>
 </div>
@@ -56,15 +56,15 @@
   <div id="uiResizeHandle" title="拖曳調整面板高度" data-i18n-title="拖曳調整面板高度"><div class="grip"></div></div>
   <div id="uiTopBtnRow">
     <select id="languageSelect" aria-label="語言" data-i18n-aria-label="語言"><option value="zh-Hant">繁體中文</option><option value="en">English</option></select>
-    <button id="mobilePanelToggle" class="uiTopBtn" type="button" aria-expanded="true" aria-controls="uiCommon uiTabBar uiTabBody">收合面板 ▾</button>
-    <button id="uiFloatBtn" class="uiTopBtn" title="切換成可拖曳/縮放的浮動面板" data-i18n-title="切換成可拖曳/縮放的浮動面板">🗗 浮動面板</button>
+    <button id="mobilePanelToggle" class="uiTopBtn" type="button" aria-expanded="true" aria-controls="uiCommon uiTabBar uiTabBody"><span data-i18n="收合面板 ▾">收合面板 ▾</span></button>
+    <button id="uiFloatBtn" class="uiTopBtn" title="切換成可拖曳/縮放的浮動面板" data-i18n-title="切換成可拖曳/縮放的浮動面板"><span data-i18n="🗗 浮動面板">🗗 浮動面板</span></button>
     <button id="uiHideBtn" class="uiTopBtn" title="隱藏面板（快速鍵 H）" data-i18n-title="隱藏面板（快速鍵 H）" data-i18n="隱藏面板 ▾">隱藏面板 ▾</button>
   </div>
   <div id="uiFloatResizeHandle" title="拖曳調整面板大小" data-i18n-title="拖曳調整面板大小"></div>
 
   <div id="uiCommon">
     <div id="selectedBar">
-      <button id="spaceBtn">座標：本地</button>
+      <button id="spaceBtn"><span data-i18n="座標：本地">座標：本地</span></button>
       <label id="snapLabel" style="margin-left:4px;"><span data-i18n="貼合角度">貼合角度</span></label>
       <select id="snapSelect">
         <option value="0" data-i18n="關閉">關閉</option>
@@ -74,8 +74,8 @@
         <option value="90">90°</option>
       </select>
       <button id="deselectBtn" data-i18n="取消選取">取消選取</button>
-      <button id="zeroJointBtn">此關節歸零</button>
-      <button id="ikModeBtn" style="display:none;">切換：位置</button>
+      <button id="zeroJointBtn"><span data-i18n="此關節歸零">此關節歸零</span></button>
+      <button id="ikModeBtn" style="display:none;"><span data-i18n="切換：位置">切換：位置</span></button>
       <span style="width:1px; align-self:stretch; background:#26264a; margin:0 4px;"></span>
       <button id="mirrorBtn" title="左右鏡像目前姿勢；若肢體有開啟IK，鏡像後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n-title="左右鏡像目前姿勢；若肢體有開啟IK，鏡像後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n="🪞 鏡像姿勢">🪞 鏡像姿勢</button>
       <button id="symmetrizeBtn" title="以右手/右腳目前角度為準，把左手/左腳套成鏡射後的對稱姿勢（右側不變）；若肢體有開啟IK，套用後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n-title="以右手/右腳目前角度為準，把左手/左腳套成鏡射後的對稱姿勢（右側不變）；若肢體有開啟IK，套用後下一幀可能被IK即時解算蓋回原本角度，建議先關閉該肢體IK" data-i18n="⚖ 對稱姿勢">⚖ 對稱姿勢</button>
@@ -156,7 +156,7 @@
 
     <div class="tabPanel" data-tab="moveLib" id="tabMoveLib">
       <div class="panelTitle" style="display:flex; align-items:center; gap:6px;"><span data-i18n="招式庫">招式庫</span>
-        <span class="kfInfoIcon" title="一個「招式」＝時間軸上一小段連續拍點（一組動作組合）。先在「拍點」分頁把幾拍動作排好，再回這裡指定範圍存成招式；之後可以插入到任何一份編舞裡重複使用，方便把小招串成一整支舞。">ⓘ</span>
+        <span class="kfInfoIcon" title="一個「招式」＝時間軸上一小段連續拍點（一組動作組合）。先在「拍點」分頁把幾拍動作排好，再回這裡指定範圍存成招式；之後可以插入到任何一份編舞裡重複使用，方便把小招串成一整支舞。" data-i18n-title="一個「招式」＝時間軸上一小段連續拍點（一組動作組合）。先在「拍點」分頁把幾拍動作排好，再回這裡指定範圍存成招式；之後可以插入到任何一份編舞裡重複使用，方便把小招串成一整支舞。">ⓘ</span>
       </div>
 
       <div class="kfSectionHead"><span data-i18n="🎯 指定拍點範圍存成招式">🎯 指定拍點範圍存成招式</span></div>
@@ -197,7 +197,7 @@
 
       <details class="kfCollapsible">
         <summary><span data-i18n="🤖 自動生成招式">🤖 自動生成招式</span>
-          <span class="kfInfoIcon" title="沿用「關節限制」分頁設定的角度範圍與 Isolation 分組，連續隨機生成幾個姿勢串成一個招式，直接存進招式庫（不影響目前時間軸）。需先到「關節限制」分頁至少設定一個關節的角度限制範圍。">ⓘ</span>
+          <span class="kfInfoIcon" title="沿用「關節限制」分頁設定的角度範圍與 Isolation 分組，連續隨機生成幾個姿勢串成一個招式，直接存進招式庫（不影響目前時間軸）。需先到「關節限制」分頁至少設定一個關節的角度限制範圍。" data-i18n-title="沿用「關節限制」分頁設定的角度範圍與 Isolation 分組，連續隨機生成幾個姿勢串成一個招式，直接存進招式庫（不影響目前時間軸）。需先到「關節限制」分頁至少設定一個關節的角度限制範圍。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -234,16 +234,16 @@
     </div>
 
     <div class="tabPanel" data-tab="json" id="tabJson">
-      <div class="panelTitle">姿勢 JSON（可直接編輯後按「套用」，或按「複製」貼到別處保存）</div>
-      <textarea id="jsonArea" spellcheck="false"></textarea>
+      <div class="panelTitle"><span data-i18n="姿勢 JSON（可直接編輯後按「套用」，或按「複製」貼到別處保存）">姿勢 JSON（可直接編輯後按「套用」，或按「複製」貼到別處保存）</span></div>
+      <textarea id="jsonArea" aria-label="姿勢 JSON" data-i18n-aria-label="姿勢 JSON" spellcheck="false"></textarea>
       <div class="row" style="margin-top:6px;">
-        <button id="applyJsonBtn">套用 JSON</button>
-        <button id="copyJsonBtn">複製</button>
-        <button id="jsonRefExpandAllBtn">展開對照表</button>
-        <button id="jsonRefCollapseAllBtn">收合對照表</button>
+        <button id="applyJsonBtn"><span data-i18n="套用 JSON">套用 JSON</span></button>
+        <button id="copyJsonBtn"><span data-i18n="複製">複製</span></button>
+        <button id="jsonRefExpandAllBtn"><span data-i18n="展開對照表">展開對照表</span></button>
+        <button id="jsonRefCollapseAllBtn"><span data-i18n="收合對照表">收合對照表</span></button>
       </div>
-      <div class="panelTitle" style="margin-top:10px;">中文對照表 — 即時反映上方輸入框「目前打的內容」（尚未按套用），方便核對每個 key 對應哪個關節、格式打得對不對：</div>
-      <div id="jsonRefError" style="display:none;color:#ff6b81;font-size:11px;margin:2px 0 6px;">⚠️ 目前 JSON 語法有誤或尚未寫完整，下方對照表暫時無法解析（不影響上方「套用 JSON」按鈕本身跳出的錯誤訊息）。</div>
+      <div class="panelTitle" style="margin-top:10px;"><span data-i18n="中文對照表 — 即時反映上方輸入框「目前打的內容」（尚未按套用），方便核對每個 key 對應哪個關節、格式打得對不對：">中文對照表 — 即時反映上方輸入框「目前打的內容」（尚未按套用），方便核對每個 key 對應哪個關節、格式打得對不對：</span></div>
+      <div id="jsonRefError" style="display:none;color:#ff6b81;font-size:11px;margin:2px 0 6px;"><span data-i18n="⚠️ 目前 JSON 語法有誤或尚未寫完整，下方對照表暫時無法解析（不影響上方「套用 JSON」按鈕本身跳出的錯誤訊息）。">⚠️ 目前 JSON 語法有誤或尚未寫完整，下方對照表暫時無法解析（不影響上方「套用 JSON」按鈕本身跳出的錯誤訊息）。</span></div>
       <div id="jsonRefTable"></div>
     </div>
 
@@ -251,17 +251,17 @@
       <div class="kfSectionHead" style="justify-content:space-between; flex-wrap:wrap;">
         <span style="display:inline-flex; align-items:center; gap:8px;">🎚 Beat Grid
           <span id="kfTotalDuration"></span>
-          <span class="kfInfoIcon" title="拍點與律動共用同一條 Beat 座標軸。Pose 的寬度＝到下一姿勢的轉場拍數；Groove 的寬度＝該律動段落維持拍數。律動序列短於編舞時，後方虛線區塊表示循環預覽，不會複製資料。">ⓘ</span>
+          <span class="kfInfoIcon" title="拍點與律動共用同一條 Beat 座標軸。Pose 的寬度＝到下一姿勢的轉場拍數；Groove 的寬度＝該律動段落維持拍數。律動序列短於編舞時，後方虛線區塊表示循環預覽，不會複製資料。" data-i18n-title="拍點與律動共用同一條 Beat 座標軸。Pose 的寬度＝到下一姿勢的轉場拍數；Groove 的寬度＝該律動段落維持拍數。律動序列短於編舞時，後方虛線區塊表示循環預覽，不會複製資料。">ⓘ</span>
         </span>
         <span style="display:inline-flex; align-items:center; gap:6px;">
-          <button id="kfMultiSelectBtn" class="iconToggleBtn" type="button" data-tooltip="多選模式：勾選多個拍點後可一次刪除">☑</button>
+          <button id="kfMultiSelectBtn" class="iconToggleBtn" type="button" data-tooltip="多選模式：勾選多個拍點後可一次刪除" data-i18n-data-tooltip="多選模式：勾選多個拍點後可一次刪除">☑</button>
           <span id="kfMultiSelectBar" style="display:none; align-items:center; gap:6px; font-size:11px; color:#9a9ac2;">
             <span id="kfMultiSelectCount"><span data-i18n="已選 0 個">已選 0 個</span></span>
             <button id="kfMultiSelectAllBtn"><span data-i18n="全選">全選</span></button>
             <button id="kfMultiSelectNoneBtn"><span data-i18n="取消全選">取消全選</span></button>
-            <button id="kfMultiSelectCopyBtn" class="clipboardBtn" data-tooltip="複製已選項目（Ctrl/Cmd+C）"><span data-i18n="複製">複製</span></button>
-            <button id="kfMultiSelectCutBtn" class="clipboardBtn" data-tooltip="剪下已選項目（Ctrl/Cmd+X）"><span data-i18n="剪下">剪下</span></button>
-            <button id="kfMultiSelectPasteBtn" class="clipboardBtn" data-tooltip="貼上（Ctrl/Cmd+V）"><span data-i18n="貼上">貼上</span></button>
+            <button id="kfMultiSelectCopyBtn" class="clipboardBtn" data-tooltip="複製已選項目（Ctrl/Cmd+C）" data-i18n-data-tooltip="複製已選項目（Ctrl/Cmd+C）"><span data-i18n="複製">複製</span></button>
+            <button id="kfMultiSelectCutBtn" class="clipboardBtn" data-tooltip="剪下已選項目（Ctrl/Cmd+X）" data-i18n-data-tooltip="剪下已選項目（Ctrl/Cmd+X）"><span data-i18n="剪下">剪下</span></button>
+            <button id="kfMultiSelectPasteBtn" class="clipboardBtn" data-tooltip="貼上（Ctrl/Cmd+V）" data-i18n-data-tooltip="貼上（Ctrl/Cmd+V）"><span data-i18n="貼上">貼上</span></button>
             <button id="kfMultiSelectDeleteBtn" style="color:#ff6b81; border-color:#7a2a3a;"><span data-i18n="刪除已勾選">刪除已勾選</span></button>
           </span>
         </span>
@@ -269,25 +269,25 @@
       <div id="beatGridShell">
         <div id="beatGridToolbar">
           <span id="beatGridTransport">
-            <button id="kfPlayBtn" type="button" data-tooltip="播放／停止整條 Beat Grid"><span data-i18n="▶ 播放">▶ 播放</span></button>
-            <button id="kfLoopBtn" class="iconToggleBtn" type="button" data-tooltip="循環播放：拍點播完自動從頭再來一次">🔁</button>
+            <button id="kfPlayBtn" type="button" data-tooltip="播放／停止整條 Beat Grid" data-i18n-data-tooltip="播放／停止整條 Beat Grid"><span data-i18n="▶ 播放">▶ 播放</span></button>
+            <button id="kfLoopBtn" class="iconToggleBtn" type="button" data-tooltip="循環播放：拍點播完自動從頭再來一次" data-i18n-data-tooltip="循環播放：拍點播完自動從頭再來一次">🔁</button>
           </span>
           <span id="beatGridTempoControls" title="全站共用 BPM，控制 POSE、律動與 Waving 的節拍速度；不改變音樂播放速度。" data-i18n-title="全站共用 BPM，控制 POSE、律動與 Waving 的節拍速度；不改變音樂播放速度。">
             <label for="bpmVal">BPM</label>
             <input type="range" id="bpmSlider" min="60" max="220" value="128" step="1" aria-label="BPM 滑桿" data-i18n-aria-label="BPM 滑桿">
             <input type="number" id="bpmVal" min="60" max="220" value="128" step="1" aria-label="BPM 數值" data-i18n-aria-label="BPM 數值">
           </span>
-          <span id="beatGridFileControls" data-tooltip="音樂只存在本次瀏覽階段；匯出／匯入編舞包含拍點、軌跡、BPM 等完整編舞資料">
-            <button id="kfMusicImportBtn" type="button" data-tooltip="匯入音樂"><span data-i18n="🎵 音樂">🎵 音樂</span></button>
+          <span id="beatGridFileControls" data-tooltip="音樂只存在本次瀏覽階段；匯出／匯入編舞包含拍點、軌跡、BPM 等完整編舞資料" data-i18n-data-tooltip="音樂只存在本次瀏覽階段；匯出／匯入編舞包含拍點、軌跡、BPM 等完整編舞資料">
+            <button id="kfMusicImportBtn" type="button" data-tooltip="匯入音樂" data-i18n-data-tooltip="匯入音樂"><span data-i18n="🎵 音樂">🎵 音樂</span></button>
             <input type="file" id="kfMusicFile" accept="audio/*" style="display:none">
-            <span id="kfMusicName" data-tooltip="目前音樂檔"><span data-i18n="尚未匯入音樂">尚未匯入音樂</span></span>
-            <button id="kfMusicRemoveBtn" class="beatGridMiniIconBtn" type="button" style="display:none;" data-tooltip="移除音樂">✕</button>
+            <span id="kfMusicName" data-tooltip="目前音樂檔" data-i18n-data-tooltip="目前音樂檔"><span data-i18n="尚未匯入音樂">尚未匯入音樂</span></span>
+            <button id="kfMusicRemoveBtn" class="beatGridMiniIconBtn" type="button" style="display:none;" data-tooltip="移除音樂" data-i18n-data-tooltip="移除音樂">✕</button>
             <span class="beatGridToolbarDivider"></span>
-            <button id="kfExportBtn" type="button" data-tooltip="匯出整份編舞 JSON"><span data-i18n="⬇ 編舞">⬇ 編舞</span></button>
-            <button id="kfImportBtn" type="button" data-tooltip="匯入整份編舞 JSON（會覆蓋目前時間軸）"><span data-i18n="⬆ 編舞">⬆ 編舞</span></button>
+            <button id="kfExportBtn" type="button" data-tooltip="匯出整份編舞 JSON" data-i18n-data-tooltip="匯出整份編舞 JSON"><span data-i18n="⬇ 編舞">⬇ 編舞</span></button>
+            <button id="kfImportBtn" type="button" data-tooltip="匯入整份編舞 JSON（會覆蓋目前時間軸）" data-i18n-data-tooltip="匯入整份編舞 JSON（會覆蓋目前時間軸）"><span data-i18n="⬆ 編舞">⬆ 編舞</span></button>
             <input type="file" id="kfImportFile" accept="application/json,.json" style="display:none">
           </span>
-          <span id="beatGridEditControls" data-tooltip="時間編輯吸附精度；Off 代表自由調整，不強制吸附格線">
+          <span id="beatGridEditControls" data-tooltip="時間編輯吸附精度；Off 代表自由調整，不強制吸附格線" data-i18n-data-tooltip="時間編輯吸附精度；Off 代表自由調整，不強制吸附格線">
             <label for="beatGridSnapSelect">Snap</label>
             <select id="beatGridSnapSelect" aria-label="時間軸吸附精度" data-i18n-aria-label="時間軸吸附精度">
               <option value="0">Off</option>
@@ -298,22 +298,22 @@
               <option value="0.0625">1/16</option>
             </select>
           </span>
-          <span id="beatGridNavControls" data-tooltip="Timeline 導航：Home/End、Fit、Center Playhead">
-            <button id="beatGridHomeBtn" type="button" aria-label="跳到時間軸開頭" data-tooltip="跳到開頭（Home）" data-i18n-aria-label="跳到時間軸開頭">⏮</button>
-            <button id="beatGridFitBtn" class="beatGridFitBtn" type="button" aria-label="Fit Timeline" data-tooltip="整段縮放到可視範圍（F）">Fit</button>
-            <button id="beatGridCenterBtn" type="button" aria-label="置中目前 Playhead" data-tooltip="將目前 Playhead 置中（C）" data-i18n-aria-label="置中目前 Playhead">◎</button>
-            <button id="beatGridEndBtn" type="button" aria-label="跳到時間軸尾端" data-tooltip="跳到尾端（End）" data-i18n-aria-label="跳到時間軸尾端">⏭</button>
+          <span id="beatGridNavControls" data-tooltip="Timeline 導航：Home/End、Fit、Center Playhead" data-i18n-data-tooltip="Timeline 導航：Home/End、Fit、Center Playhead">
+            <button id="beatGridHomeBtn" type="button" aria-label="跳到時間軸開頭" data-tooltip="跳到開頭（Home）" data-i18n-aria-label="跳到時間軸開頭" data-i18n-data-tooltip="跳到開頭（Home）">⏮</button>
+            <button id="beatGridFitBtn" class="beatGridFitBtn" type="button" aria-label="Fit Timeline" data-tooltip="整段縮放到可視範圍（F）" data-i18n-data-tooltip="整段縮放到可視範圍（F）">Fit</button>
+            <button id="beatGridCenterBtn" type="button" aria-label="置中目前 Playhead" data-tooltip="將目前 Playhead 置中（C）" data-i18n-aria-label="置中目前 Playhead" data-i18n-data-tooltip="將目前 Playhead 置中（C）">◎</button>
+            <button id="beatGridEndBtn" type="button" aria-label="跳到時間軸尾端" data-tooltip="跳到尾端（End）" data-i18n-aria-label="跳到時間軸尾端" data-i18n-data-tooltip="跳到尾端（End）">⏭</button>
           </span>
-          <span id="beatGridRangeControls" data-tooltip="在 Beat Ruler 上拖曳建立範圍；Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位">
-            <button id="beatGridRangeLoopBtn" type="button" disabled data-tooltip="只循環播放選取範圍">⟳ Range</button>
-            <button id="beatGridRangeCopyBtn" type="button" disabled data-tooltip="複製與 Range 相交的完整 POSE / GROOVE 項目">⧉</button>
-            <button id="beatGridRangePasteBtn" type="button" disabled data-tooltip="把 Range 剪貼簿貼到目前 Range 結尾之後">▣</button>
-            <button id="beatGridRangeDuplicateBtn" type="button" disabled data-tooltip="複製 Range 項目並直接插到 Range 結尾之後">＋⧉</button>
-            <button id="beatGridRangeDeleteBtn" type="button" disabled data-tooltip="刪除與 Range 相交的完整項目；後方內容會自動前移">⌫</button>
-            <button id="beatGridRangeClearBtn" type="button" disabled data-tooltip="清除選取範圍（Esc）">✕</button>
+          <span id="beatGridRangeControls" data-tooltip="在 Beat Ruler 上拖曳建立範圍；Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位" data-i18n-data-tooltip="在 Beat Ruler 上拖曳建立範圍；Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位">
+            <button id="beatGridRangeLoopBtn" type="button" disabled data-tooltip="只循環播放選取範圍" data-i18n-data-tooltip="只循環播放選取範圍">⟳ Range</button>
+            <button id="beatGridRangeCopyBtn" type="button" disabled data-tooltip="複製與 Range 相交的完整 POSE / GROOVE 項目" data-i18n-data-tooltip="複製與 Range 相交的完整 POSE / GROOVE 項目">⧉</button>
+            <button id="beatGridRangePasteBtn" type="button" disabled data-tooltip="把 Range 剪貼簿貼到目前 Range 結尾之後" data-i18n-data-tooltip="把 Range 剪貼簿貼到目前 Range 結尾之後">▣</button>
+            <button id="beatGridRangeDuplicateBtn" type="button" disabled data-tooltip="複製 Range 項目並直接插到 Range 結尾之後" data-i18n-data-tooltip="複製 Range 項目並直接插到 Range 結尾之後">＋⧉</button>
+            <button id="beatGridRangeDeleteBtn" type="button" disabled data-tooltip="刪除與 Range 相交的完整項目；後方內容會自動前移" data-i18n-data-tooltip="刪除與 Range 相交的完整項目；後方內容會自動前移">⌫</button>
+            <button id="beatGridRangeClearBtn" type="button" disabled data-tooltip="清除選取範圍（Esc）" data-i18n-data-tooltip="清除選取範圍（Esc）">✕</button>
             <span id="beatGridRangeInfo"><span data-i18n="未選範圍">未選範圍</span></span>
           </span>
-          <span id="beatGridZoomControls" data-tooltip="整條 Beat Grid 共用縮放；Ctrl/Cmd + 滾輪也可縮放，會以滑鼠所在位置為中心">
+          <span id="beatGridZoomControls" data-tooltip="整條 Beat Grid 共用縮放；Ctrl/Cmd + 滾輪也可縮放，會以滑鼠所在位置為中心" data-i18n-data-tooltip="整條 Beat Grid 共用縮放；Ctrl/Cmd + 滾輪也可縮放，會以滑鼠所在位置為中心">
             <button id="beatGridZoomOutBtn" type="button" aria-label="縮小時間軸" data-i18n-aria-label="縮小時間軸">−</button>
             <select id="beatGridZoomSelect" aria-label="時間軸縮放" data-i18n-aria-label="時間軸縮放">
               <option value="36">50%</option>
@@ -337,7 +337,7 @@
               <label><span data-i18n="音量">音量</span></label>
               <input type="range" id="kfMusicVolume" min="0" max="1" step="0.01" value="0.8">
               <audio id="kfAudioEl" style="display:none;"></audio>
-              <span class="kfInfoIcon" title="Waveform 已整合進 Beat Grid。起始秒數＝Beat 1 對應到音樂的哪個秒數；點擊／拖曳 Waveform Track 可直接 seek 並預覽姿勢。">ⓘ</span>
+              <span class="kfInfoIcon" title="Waveform 已整合進 Beat Grid。起始秒數＝Beat 1 對應到音樂的哪個秒數；點擊／拖曳 Waveform Track 可直接 seek 並預覽姿勢。" data-i18n-title="Waveform 已整合進 Beat Grid。起始秒數＝Beat 1 對應到音樂的哪個秒數；點擊／拖曳 Waveform Track 可直接 seek 並預覽姿勢。">ⓘ</span>
             </div>
           </div>
         </details>
@@ -352,9 +352,9 @@
         </div>
         <div id="beatGridPoseInspector">
           <span id="kfInspectorMode"><span data-i18n="新增預設">新增預設</span></span>
-          <button id="kfUpdateBtn" type="button" data-tooltip="用目前 3D 姿勢覆寫選取的 POSE"><span data-i18n="↻ 更新姿勢">↻ 更新姿勢</span></button>
+          <button id="kfUpdateBtn" type="button" data-tooltip="用目前 3D 姿勢覆寫選取的 POSE" data-i18n-data-tooltip="用目前 3D 姿勢覆寫選取的 POSE"><span data-i18n="↻ 更新姿勢">↻ 更新姿勢</span></button>
           <span class="beatGridInspectorDivider"></span>
-          <label data-tooltip="選取 POSE 時設定它到下一姿勢的轉場；未選取時作為下一個新增 POSE 的預設">Easing</label>
+          <label data-tooltip="選取 POSE 時設定它到下一姿勢的轉場；未選取時作為下一個新增 POSE 的預設" data-i18n-data-tooltip="選取 POSE 時設定它到下一姿勢的轉場；未選取時作為下一個新增 POSE 的預設">Easing</label>
           <select id="kfEasingSelect"></select>
           <div class="easePreview beatGridEasePreview" id="kfEasingPreview"></div>
           <label><span data-i18n="拍數">拍數</span></label>
@@ -368,7 +368,7 @@
             <option value="4" data-i18n="4 拍">4 拍</option>
           </select>
           <span id="kfBeatMsHint"></span>
-          <span class="kfInfoIcon" data-tooltip="選取 POSE：編輯該姿勢到下一姿勢的 Easing／拍數；也可直接拖曳 POSE 右側邊緣，以 1/4 拍吸附調整轉場長度。未選取 POSE：這些值作為下一個新增拍點的預設。Delete / Backspace 可刪除目前選取的 POSE／GROOVE。">ⓘ</span>
+          <span class="kfInfoIcon" data-tooltip="選取 POSE：編輯該姿勢到下一姿勢的 Easing／拍數；也可直接拖曳 POSE 右側邊緣，以 1/4 拍吸附調整轉場長度。未選取 POSE：這些值作為下一個新增拍點的預設。Delete / Backspace 可刪除目前選取的 POSE／GROOVE。" data-i18n-data-tooltip="選取 POSE：編輯該姿勢到下一姿勢的 Easing／拍數；也可直接拖曳 POSE 右側邊緣，以 1/4 拍吸附調整轉場長度。未選取 POSE：這些值作為下一個新增拍點的預設。Delete / Backspace 可刪除目前選取的 POSE／GROOVE。">ⓘ</span>
         </div>
         <div id="beatGridScroll">
           <div id="beatGridInner">
@@ -377,7 +377,7 @@
             <div class="beatGridTrackRow" id="beatGridWaveformRow">
               <div class="beatGridTrackLabel">
                 <span class="beatGridTrackLabelText">🎵 WAVE</span>
-                <span class="kfInfoIcon" data-tooltip="音樂波形與 POSE／GROOVE 共用 Beat 軸；點擊或拖曳波形可 seek 到對應拍點並預覽姿勢。">ⓘ</span>
+                <span class="kfInfoIcon" data-tooltip="音樂波形與 POSE／GROOVE 共用 Beat 軸；點擊或拖曳波形可 seek 到對應拍點並預覽姿勢。" data-i18n-data-tooltip="音樂波形與 POSE／GROOVE 共用 Beat 軸；點擊或拖曳波形可 seek 到對應拍點並預覽姿勢。">ⓘ</span>
               </div>
               <div class="beatGridTrack" id="beatGridWaveformTrack"><canvas id="kfWaveformCanvas" height="64"></canvas></div>
             </div>
@@ -385,14 +385,14 @@
             <div class="beatGridTrackRow">
               <div class="beatGridTrackLabel">
                 <span class="beatGridTrackLabelText">📋 POSE</span>
-                <button id="kfAddBtn" class="beatGridAddBtn" type="button" data-tooltip="新增拍點：有選取拍點時插入在其後；沒有選取時新增到尾端">＋</button>
+                <button id="kfAddBtn" class="beatGridAddBtn" type="button" data-tooltip="新增拍點：有選取拍點時插入在其後；沒有選取時新增到尾端" data-i18n-data-tooltip="新增拍點：有選取拍點時插入在其後；沒有選取時新增到尾端">＋</button>
               </div>
               <div class="beatGridTrack"><div id="kfList"><span id="kfEmpty"><span data-i18n="尚未新增任何拍點">尚未新增任何拍點</span></span></div></div>
             </div>
             <div class="beatGridTrackRow">
               <div class="beatGridTrackLabel">
                 <span class="beatGridTrackLabelText">🎬 GROOVE</span>
-                <button id="grooveSeqAddBtn" class="beatGridAddBtn" type="button" data-tooltip="新增律動段落：使用律動庫第一個項目建立新段落；素材本身請到「節奏與律動 → 律動庫」建立">＋</button>
+                <button id="grooveSeqAddBtn" class="beatGridAddBtn" type="button" data-tooltip="新增律動段落：使用律動庫第一個項目建立新段落；素材本身請到「節奏與律動 → 律動庫」建立" data-i18n-data-tooltip="新增律動段落：使用律動庫第一個項目建立新段落；素材本身請到「節奏與律動 → 律動庫」建立">＋</button>
               </div>
               <div class="beatGridTrack"><div id="grooveSeqList"><span id="grooveSeqEmpty"><span data-i18n="尚未設定律動序列">尚未設定律動序列</span></span></div></div>
             </div>
@@ -414,7 +414,7 @@
     </div>
 
     <div class="tabPanel" data-tab="waving" id="tabWaving">
-<div class="panelTitle waveTitle">Waving <span class="kfInfoIcon" tabindex="0" title="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。" aria-label="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。" data-i18n-aria-label="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。">ⓘ</span></div>
+<div class="panelTitle waveTitle">Waving <span class="kfInfoIcon" tabindex="0" title="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。" aria-label="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。" data-i18n-aria-label="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。" data-i18n-title="Arm Wave／Body Wave：從目前姿勢沿路線傳遞波浪，建議先張開雙臂。停止後回到基礎姿勢；編輯姿勢時會停止。預覽期间暫停手部碰撞修正。速度沿用全站 BPM，可到「時間軸」調整。">ⓘ</span></div>
 <p class="small"><span data-i18n="選擇路線與波形 → 預覽調整 → 加入時間軸">選擇路線與波形 → 預覽調整 → 加入時間軸</span></p>
 <div class="waveTransport"><div class="row"><button id="wavePlay"><span data-i18n="▶ Waving 預覽">▶ Waving 預覽</span></button><button id="wavePause"><span data-i18n="暫停">暫停</span></button><button id="waveStop"><span data-i18n="停止／還原">停止／還原</span></button></div><div id="waveStatus" role="status" style="font-size:12px;color:#7fe0ff"><span data-i18n="就緒 · 設定會隨專案保存">就緒 · 設定會隨專案保存</span></div></div><details class="kfCollapsible" id="wavePanel" open><summary><span data-i18n="🌊 傳遞路線">🌊 傳遞路線</span></summary><div class="kfCollapsibleBody">      <div class="row"><label><span data-i18n="路線">路線</span> <select id="waveRoute"><option value="both" data-i18n="雙臂">雙臂</option><option value="left" data-i18n="左手">左手</option><option value="right" data-i18n="右手">右手</option><option value="custom" data-i18n="局部路線">局部路線</option><option value="body" data-i18n="Body Wave 身體波浪">Body Wave 身體波浪</option><option value="leftBody" data-i18n="左手 → 身體">左手 → 身體</option><option value="rightBody" data-i18n="右手 → 身體">右手 → 身體</option></select></label></div>
       <div id="waveCustomRoute" hidden><div class="row"><label><span data-i18n="起點">起點</span> <select id="waveStartNode"></select></label><label><span data-i18n="終點">終點</span> <select id="waveEndNode"></select></label></div><p class="small"><span data-i18n="正向依起點→終點連續傳遞；反向則倒轉。起終點不可相同。範圍外不主動加入波浪，但仍可能隨上游骨骼移動；這不是位置固定。">正向依起點→終點連續傳遞；反向則倒轉。起終點不可相同。範圍外不主動加入波浪，但仍可能隨上游骨骼移動；這不是位置固定。</span></p></div>
@@ -426,7 +426,7 @@
 <details class="kfCollapsible" id="waveShapeSection" open><summary><span data-i18n="〰 波形與質感">〰 波形與質感</span></summary><div class="kfCollapsibleBody">      <div class="row"><label><span data-i18n="波形">波形</span> <select id="waveShape" aria-describedby="waveShapeHint"><option value="cosine" data-i18n="餘弦 · 平滑傳遞">餘弦 · 平滑傳遞</option><option value="gaussian" data-i18n="高斯 · 柔順集中">高斯 · 柔順集中</option><option value="triangle" data-i18n="三角 · 機械稜角">三角 · 機械稜角</option><option value="trapezoid" data-i18n="梯形 · 抬起停留">梯形 · 抬起停留</option></select></label></div>
       <p id="waveShapeHint" class="small" aria-live="polite"></p>
       <div class="row"><label><span data-i18n="波浪模式">波浪模式</span> <select id="waveMode" aria-describedby="waveModeHint"><option value="unipolar" data-i18n="單側">單側</option><option value="bipolar" data-i18n="峰谷交替">峰谷交替</option></select></label></div>
-      <div id="waveModeHint" class="waveInlineHint"><span class="kfInfoIcon" tabindex="0" title="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。" aria-label="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。" data-i18n-aria-label="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。">ⓘ</span></div>
+      <div id="waveModeHint" class="waveInlineHint"><span class="kfInfoIcon" tabindex="0" title="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。" aria-label="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。" data-i18n-aria-label="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。" data-i18n-title="峰谷交替：基礎 → 正峰 → 基礎 → 負谷 → 基礎。正向極性先峰後谷，反向極性先谷後峰；傳遞方向與往返均保留此順序。峰谷共用原本寬度與單程時間，每個起伏較短；切換前請先停止預覽。">ⓘ</span></div>
       <div class="row"><label><span data-i18n="波形極性">波形極性</span> <select id="wavePolarity" aria-describedby="wavePolarityHint"><option value="positive" data-i18n="正向 · 原本彎曲方向">正向 · 原本彎曲方向</option><option value="negative" data-i18n="反向 · 反轉彎曲方向">反向 · 反轉彎曲方向</option></select></label></div>
       <div id="wavePolarityHint" class="waveInlineHint"><span class="kfInfoIcon" tabindex="0" title="反向會將整條路線的波浪旋轉量乘以 −1，不改變傳遞方向。關節角度限制仍優先；切換前請先停止預覽。" aria-label="反向會將整條路線的波浪旋轉量乘以 −1，不改變傳遞方向。關節角度限制仍優先；切換前請先停止預覽。" data-i18n-aria-label="反向會將整條路線的波浪旋轉量乘以 −1，不改變傳遞方向。關節角度限制仍優先；切換前請先停止預覽。" data-i18n-title="反向會將整條路線的波浪旋轉量乘以 −1，不改變傳遞方向。關節角度限制仍優先；切換前請先停止預覽。">ⓘ</span></div>
       <div class="row"><label><span data-i18n="幅度（度）">幅度（度）</span> <input id="waveAmplitude" type="number" min="0" max="60" step="1" value="25" style="width:65px"></label>
@@ -447,13 +447,13 @@
 <div class="row waveSliderRow"><label for="waveElbowGain"><span data-i18n="手肘">手肘</span></label><input id="waveElbowGain" type="range" min="0" max="200" step="5" value="100"><output id="waveElbowGainValue">100%</output></div>
 <div class="row waveSliderRow"><label for="waveShoulderGain"><span data-i18n="肩膀／上臂">肩膀／上臂</span></label><input id="waveShoulderGain" type="range" min="0" max="200" step="5" value="100"><output id="waveShoulderGainValue">100%</output></div>
 </div></details>
-<details class="kfCollapsible" id="waveBodySettings" open hidden><summary><span data-i18n="🧍 身體幅度與腳掌固定">🧍 身體幅度與腳掌固定</span> <span class="kfInfoIcon" tabindex="0" title="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。" aria-label="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。" data-i18n-aria-label="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。">ⓘ</span></summary><div class="kfCollapsibleBody">
+<details class="kfCollapsible" id="waveBodySettings" open hidden><summary><span data-i18n="🧍 身體幅度與腳掌固定">🧍 身體幅度與腳掌固定</span> <span class="kfInfoIcon" tabindex="0" title="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。" aria-label="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。" data-i18n-aria-label="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。" data-i18n-title="正向：胸口 → 上腰 → 下腰 → 骨盆；反向由骨盆向上。建議從總幅度 15°、4 拍開始，以側面觀察。Body Wave 自動固定開始時雙腳的位置與朝向，腿部會補償，接近伸展極限時身體可小幅移動。請先讓角色站穩貼地；此功能不會把空中的腳自動吸到地面。停止後還原身體及腿部姿勢。請關閉手動 IK、LookAt、腳底固定及其他律動預覽，避免重複控制。">ⓘ</span></summary><div class="kfCollapsibleBody">
       
       <div class="row waveSliderRow"><label for="waveBodyChestGain"><span data-i18n="胸口">胸口</span></label><input id="waveBodyChestGain" type="range" min="0" max="200" step="5" value="100"><output id="waveBodyChestGainValue">100%</output></div>
       <div class="row waveSliderRow"><label for="waveBodyWaistGain"><span data-i18n="腰部">腰部</span></label><input id="waveBodyWaistGain" type="range" min="0" max="200" step="5" value="100"><output id="waveBodyWaistGainValue">100%</output></div>
       <div class="row waveSliderRow"><label for="waveBodyHipGain"><span data-i18n="骨盆">骨盆</span></label><input id="waveBodyHipGain" type="range" min="0" max="200" step="5" value="100"><output id="waveBodyHipGainValue">100%</output></div>
       </div></details>
-<details class="kfCollapsible" id="waveCompensationSection"><summary><span data-i18n="⚙️ 關節補償">⚙️ 關節補償</span> <span class="kfInfoIcon" tabindex="0" title="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。" aria-label="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。" data-i18n-aria-label="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。">ⓘ</span></summary><div class="kfCollapsibleBody">
+<details class="kfCollapsible" id="waveCompensationSection"><summary><span data-i18n="⚙️ 關節補償">⚙️ 關節補償</span> <span class="kfInfoIcon" tabindex="0" title="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。" aria-label="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。" data-i18n-aria-label="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。" data-i18n-title="抵消前臂與手掌繼承的上游旋轉，保留各自波浪。0% 為原版；100% 盡量維持基礎朝向加上自身波浪。可停格調整。此功能不固定手掌位置；關節角度限制優先。">ⓘ</span></summary><div class="kfCollapsibleBody">
       <div class="row waveSliderRow"><label for="waveCompensation"><span data-i18n="朝向補償">朝向補償</span></label><input id="waveCompensation" type="range" min="0" max="100" step="5" value="0"><output id="waveCompensationValue">0%</output></div>
       
       </div></details>
@@ -469,7 +469,7 @@
 
     <div class="tabPanel" data-tab="groove" id="tabGroove">
       <div class="panelTitle"><span data-i18n="節奏與律動 — 調整播放拍點時疊加的持續彈動效果。">節奏與律動 — 調整播放拍點時疊加的持續彈動效果。</span>
-        <span class="kfInfoIcon" title="BPM 請到「時間軸」調整，是全站共用的節拍基準（也決定「時間軸」分頁裡拍點轉場的實際毫秒數）。這裡負責『調校』律動素材（關節/蹲彈參數、存成律動庫項目）；若要把多個律動項目排成一段接一段的『律動序列』，請到「時間軸」分頁、拍點清單下方設定——序列存在時，播放期間會改用序列依拍數輪流切換律動庫項目，此時這裡手動勾選的關節/蹲彈設定會被序列覆蓋（沒設定序列則不受影響，維持手動設定）。">ⓘ</span>
+        <span class="kfInfoIcon" title="BPM 請到「時間軸」調整，是全站共用的節拍基準（也決定「時間軸」分頁裡拍點轉場的實際毫秒數）。這裡負責『調校』律動素材（關節/蹲彈參數、存成律動庫項目）；若要把多個律動項目排成一段接一段的『律動序列』，請到「時間軸」分頁、拍點清單下方設定——序列存在時，播放期間會改用序列依拍數輪流切換律動庫項目，此時這裡手動勾選的關節/蹲彈設定會被序列覆蓋（沒設定序列則不受影響，維持手動設定）。" data-i18n-title="BPM 請到「時間軸」調整，是全站共用的節拍基準（也決定「時間軸」分頁裡拍點轉場的實際毫秒數）。這裡負責『調校』律動素材（關節/蹲彈參數、存成律動庫項目）；若要把多個律動項目排成一段接一段的『律動序列』，請到「時間軸」分頁、拍點清單下方設定——序列存在時，播放期間會改用序列依拍數輪流切換律動庫項目，此時這裡手動勾選的關節/蹲彈設定會被序列覆蓋（沒設定序列則不受影響，維持手動設定）。">ⓘ</span>
       </div>
 
       <div class="kfSectionHead"><span data-i18n="🕺 律動模式">🕺 律動模式</span></div>
@@ -478,18 +478,18 @@
       </div>
       <div class="row" style="align-items:flex-start;">
         <label style="padding-top:7px;"><span data-i18n="參與律動的關節">參與律動的關節</span>
-          <span class="kfInfoIcon" title="手臂可以整條鏈都參與：肩胛→上臂→前臂→手掌，預設相位每往外一節延遲 0.04 拍、振幅遞減，做出「甩到手腕才收尾」的傳遞感；只想要上半身跟拍、手部保持乾淨做 tutting 的話，取消勾選前臂/手掌即可。注意遠端關節的角度會被上游整條手臂放大，手掌振幅開到跟上臂一樣大通常會變成甩手，建議從預設值微調。手臂IK開啟時，被IK接管的肩胛/上臂/前臂會自動略過律動（手掌不受影響，因為IK只決定它的位置不決定旋轉）；若該側手指IK也開著，手掌律動也會一併讓路，避免把解好的手指整組轉離目標點。">ⓘ</span>
+          <span class="kfInfoIcon" title="手臂可以整條鏈都參與：肩胛→上臂→前臂→手掌，預設相位每往外一節延遲 0.04 拍、振幅遞減，做出「甩到手腕才收尾」的傳遞感；只想要上半身跟拍、手部保持乾淨做 tutting 的話，取消勾選前臂/手掌即可。注意遠端關節的角度會被上游整條手臂放大，手掌振幅開到跟上臂一樣大通常會變成甩手，建議從預設值微調。手臂IK開啟時，被IK接管的肩胛/上臂/前臂會自動略過律動（手掌不受影響，因為IK只決定它的位置不決定旋轉）；若該側手指IK也開著，手掌律動也會一併讓路，避免把解好的手指整組轉離目標點。" data-i18n-title="手臂可以整條鏈都參與：肩胛→上臂→前臂→手掌，預設相位每往外一節延遲 0.04 拍、振幅遞減，做出「甩到手腕才收尾」的傳遞感；只想要上半身跟拍、手部保持乾淨做 tutting 的話，取消勾選前臂/手掌即可。注意遠端關節的角度會被上游整條手臂放大，手掌振幅開到跟上臂一樣大通常會變成甩手，建議從預設值微調。手臂IK開啟時，被IK接管的肩胛/上臂/前臂會自動略過律動（手掌不受影響，因為IK只決定它的位置不決定旋轉）；若該側手指IK也開著，手掌律動也會一併讓路，避免把解好的手指整組轉離目標點。">ⓘ</span>
         </label>
         <div class="poseBtns" id="grooveJointsList"></div>
       </div>
       <div class="row">
-        <button id="groovePreviewBtn" title="不用播放拍點，原地持續套用律動效果，方便邊調參數邊看手感。固定只套用這裡手動勾選/調整的設定，即使「時間軸」分頁已經設定了律動序列也不受影響。"><span data-i18n="▶ 律動預覽">▶ 律動預覽</span></button>
+        <button id="groovePreviewBtn" title="不用播放拍點，原地持續套用律動效果，方便邊調參數邊看手感。固定只套用這裡手動勾選/調整的設定，即使「時間軸」分頁已經設定了律動序列也不受影響。" data-i18n-title="不用播放拍點，原地持續套用律動效果，方便邊調參數邊看手感。固定只套用這裡手動勾選/調整的設定，即使「時間軸」分頁已經設定了律動序列也不受影響。"><span data-i18n="▶ 律動預覽">▶ 律動預覽</span></button>
         <span class="kfInfoIcon" title="點某關節旁的 ⚙ 圖示可自訂該關節的振盪參數（在下方「自訂律動參數」摺疊區塊），開著「律動預覽」邊調邊看效果最直覺。" data-i18n-title="點某關節旁的 ⚙ 圖示可自訂該關節的振盪參數（在下方「自訂律動參數」摺疊區塊），開著「律動預覽」邊調邊看效果最直覺。">ⓘ</span>
       </div>
 
       <details class="kfCollapsible">
         <summary><span data-i18n="🔥 暖身漸強">🔥 暖身漸強</span>
-          <span class="kfInfoIcon" title="按下播放/律動預覽的那一刻，振幅會從0慢慢加大到滿幅（而不是一開拍就是最大擺幅），模擬真人先小幅度跟拍子、再慢慢做開動作的暖身感。只在『整段律動剛開始』的頭幾拍生效，律動序列播到第幾個段落都不會重複觸發，不會跟段落切換的交叉淡化互相打架。">ⓘ</span>
+          <span class="kfInfoIcon" title="按下播放/律動預覽的那一刻，振幅會從0慢慢加大到滿幅（而不是一開拍就是最大擺幅），模擬真人先小幅度跟拍子、再慢慢做開動作的暖身感。只在『整段律動剛開始』的頭幾拍生效，律動序列播到第幾個段落都不會重複觸發，不會跟段落切換的交叉淡化互相打架。" data-i18n-title="按下播放/律動預覽的那一刻，振幅會從0慢慢加大到滿幅（而不是一開拍就是最大擺幅），模擬真人先小幅度跟拍子、再慢慢做開動作的暖身感。只在『整段律動剛開始』的頭幾拍生效，律動序列播到第幾個段落都不會重複觸發，不會跟段落切換的交叉淡化互相打架。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -513,7 +513,7 @@
 
       <details class="kfCollapsible">
         <summary><span data-i18n="🦵 蹲彈律動（雙腳同步）">🦵 蹲彈律動（雙腳同步）</span>
-          <span class="kfInfoIcon" title="真人下肢律動是屈膝上下蹲、腳掌貼地不動：這裡用兩節IK反算大腿/小腿角度讓腳掌固定在原地，腳踝自動補償旋轉維持貼地，身體則整體上下/左右移動——概念跟手動開「腿部IK」後拖曳身體一樣，只是改成自動隨拍子振盪。跟上方「參與律動的關節」是分開的系統，兩腳一定同步蹲彈，暫不支援單腳分開設定。若手動開啟腿部IK，蹲彈律動會自動讓路。垂直／側向各自有獨立的頻率/相位/波形，例如側向頻率設成垂直的2倍可以做出「蹲一次、側擺兩次」；設成0.5倍則是「蹲兩次才側擺一次」，能組出比單純橢圓軌跡更有層次的胯下律動。">ⓘ</span>
+          <span class="kfInfoIcon" title="真人下肢律動是屈膝上下蹲、腳掌貼地不動：這裡用兩節IK反算大腿/小腿角度讓腳掌固定在原地，腳踝自動補償旋轉維持貼地，身體則整體上下/左右移動——概念跟手動開「腿部IK」後拖曳身體一樣，只是改成自動隨拍子振盪。跟上方「參與律動的關節」是分開的系統，兩腳一定同步蹲彈，暫不支援單腳分開設定。若手動開啟腿部IK，蹲彈律動會自動讓路。垂直／側向各自有獨立的頻率/相位/波形，例如側向頻率設成垂直的2倍可以做出「蹲一次、側擺兩次」；設成0.5倍則是「蹲兩次才側擺一次」，能組出比單純橢圓軌跡更有層次的胯下律動。" data-i18n-title="真人下肢律動是屈膝上下蹲、腳掌貼地不動：這裡用兩節IK反算大腿/小腿角度讓腳掌固定在原地，腳踝自動補償旋轉維持貼地，身體則整體上下/左右移動——概念跟手動開「腿部IK」後拖曳身體一樣，只是改成自動隨拍子振盪。跟上方「參與律動的關節」是分開的系統，兩腳一定同步蹲彈，暫不支援單腳分開設定。若手動開啟腿部IK，蹲彈律動會自動讓路。垂直／側向各自有獨立的頻率/相位/波形，例如側向頻率設成垂直的2倍可以做出「蹲一次、側擺兩次」；設成0.5倍則是「蹲兩次才側擺一次」，能組出比單純橢圓軌跡更有層次的胯下律動。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -570,7 +570,7 @@
 
       <details class="kfCollapsible" open>
         <summary><span data-i18n="🤖 自動生成律動">🤖 自動生成律動</span>
-          <span class="kfInfoIcon" title="依「風格原型」隨機生成一整組律動設定（參與關節＋各自的軸向/波形/振幅/頻率/相位＋蹲彈參數）。原型決定機率分佈、亂數只在分佈內取值，所以同一個原型重抽 N 次得到的是同一種律動的 N 個變體，而不是 N 種不相干的東西。相位沿「骨盆→脊椎→頸→頭」鏈條遞增（模擬運動鏈傳遞延遲）、頻率只取拍子的倍半關係（確保整段會循環）、左右採同相/反相整組套用、全身振幅總和有上限，這幾道約束就是「隨機」跟「律動」的差別。生成會覆蓋目前手動調整的律動設定。">ⓘ</span>
+          <span class="kfInfoIcon" title="依「風格原型」隨機生成一整組律動設定（參與關節＋各自的軸向/波形/振幅/頻率/相位＋蹲彈參數）。原型決定機率分佈、亂數只在分佈內取值，所以同一個原型重抽 N 次得到的是同一種律動的 N 個變體，而不是 N 種不相干的東西。相位沿「骨盆→脊椎→頸→頭」鏈條遞增（模擬運動鏈傳遞延遲）、頻率只取拍子的倍半關係（確保整段會循環）、左右採同相/反相整組套用、全身振幅總和有上限，這幾道約束就是「隨機」跟「律動」的差別。生成會覆蓋目前手動調整的律動設定。" data-i18n-title="依「風格原型」隨機生成一整組律動設定（參與關節＋各自的軸向/波形/振幅/頻率/相位＋蹲彈參數）。原型決定機率分佈、亂數只在分佈內取值，所以同一個原型重抽 N 次得到的是同一種律動的 N 個變體，而不是 N 種不相干的東西。相位沿「骨盆→脊椎→頸→頭」鏈條遞增（模擬運動鏈傳遞延遲）、頻率只取拍子的倍半關係（確保整段會循環）、左右採同相/反相整組套用、全身振幅總和有上限，這幾道約束就是「隨機」跟「律動」的差別。生成會覆蓋目前手動調整的律動設定。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -605,7 +605,7 @@
 
       <details class="kfCollapsible">
         <summary><span data-i18n="📚 律動庫">📚 律動庫</span><span id="grooveLibCount" class="grooveLibCountBadge">0</span>
-          <span class="kfInfoIcon" title="把「參與律動的關節＋各自振盪參數＋蹲彈律動開關與參數」整組打包存成一個命名項目，方便之後在「時間軸」分頁的「律動序列」裡重複取用（例如存一個「A律動」、一個「B律動」）。套用某個項目＝把上面所有律動設定整個換成那組，會覆蓋掉目前手動調的值。">ⓘ</span>
+          <span class="kfInfoIcon" title="把「參與律動的關節＋各自振盪參數＋蹲彈律動開關與參數」整組打包存成一個命名項目，方便之後在「時間軸」分頁的「律動序列」裡重複取用（例如存一個「A律動」、一個「B律動」）。套用某個項目＝把上面所有律動設定整個換成那組，會覆蓋掉目前手動調的值。" data-i18n-title="把「參與律動的關節＋各自振盪參數＋蹲彈律動開關與參數」整組打包存成一個命名項目，方便之後在「時間軸」分頁的「律動序列」裡重複取用（例如存一個「A律動」、一個「B律動」）。套用某個項目＝把上面所有律動設定整個換成那組，會覆蓋掉目前手動調的值。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -631,7 +631,7 @@
 
       <details class="kfCollapsible">
         <summary><span data-i18n="🎛️ 自訂律動參數">🎛️ 自訂律動參數</span>
-          <span class="kfInfoIcon" title="點擊上方某個關節按鈕旁的 ⚙ 圖示，即可在這裡微調該關節的振盪參數（軸向／波形／幅度／頻率／相位）。沒自訂過的關節維持內建預設值，只有實際改過的欄位會被記住。">ⓘ</span>
+          <span class="kfInfoIcon" title="點擊上方某個關節按鈕旁的 ⚙ 圖示，即可在這裡微調該關節的振盪參數（軸向／波形／幅度／頻率／相位）。沒自訂過的關節維持內建預設值，只有實際改過的欄位會被記住。" data-i18n-title="點擊上方某個關節按鈕旁的 ⚙ 圖示，即可在這裡微調該關節的振盪參數（軸向／波形／幅度／頻率／相位）。沒自訂過的關節維持內建預設值，只有實際改過的欄位會被記住。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <span id="grooveEditorEmpty" style="font-size:11px; color:#555580;"><span data-i18n="尚未選取要自訂的關節——點擊上方關節按鈕旁的 ⚙ 圖示開始調整">尚未選取要自訂的關節——點擊上方關節按鈕旁的 ⚙ 圖示開始調整</span></span>
@@ -661,7 +661,7 @@
               </div>
               <select id="grooveWaveEaseSelect" style="flex:1 1 130px; max-width:190px;"></select>
               <span id="grooveWavePreview" style="display:inline-flex; align-items:center;"></span>
-              <span class="kfInfoIcon" title="把時間軸分頁那 32 條 Easing 曲線直接當成律動波形：easeOutBack 是「甩過頭再回彈」的頓挫感，easeInOutExpo 近似方波（機械式硬切，適合 tutting），easeInOutSine 則比內建 sine 更柔。選「—」可回到上面的 bounce／sine。⚠️ 蹲彈律動刻意不開放合成波：它輸出的是身體實際位移量，overshoot 會把身體推出腿長可及範圍讓腳掌脫離地面。">ⓘ</span>
+              <span class="kfInfoIcon" title="把時間軸分頁那 32 條 Easing 曲線直接當成律動波形：easeOutBack 是「甩過頭再回彈」的頓挫感，easeInOutExpo 近似方波（機械式硬切，適合 tutting），easeInOutSine 則比內建 sine 更柔。選「—」可回到上面的 bounce／sine。⚠️ 蹲彈律動刻意不開放合成波：它輸出的是身體實際位移量，overshoot 會把身體推出腿長可及範圍讓腳掌脫離地面。" data-i18n-title="把時間軸分頁那 32 條 Easing 曲線直接當成律動波形：easeOutBack 是「甩過頭再回彈」的頓挫感，easeInOutExpo 近似方波（機械式硬切，適合 tutting），easeInOutSine 則比內建 sine 更柔。選「—」可回到上面的 bounce／sine。⚠️ 蹲彈律動刻意不開放合成波：它輸出的是身體實際位移量，overshoot 會把身體推出腿長可及範圍讓腳掌脫離地面。">ⓘ</span>
             </div>
             <div class="row">
               <label style="min-width:32px;"><span data-i18n="幅度">幅度</span></label>
@@ -687,7 +687,7 @@
 
     <div class="tabPanel" data-tab="ik" id="tabIK">
       <div class="panelTitle" style="display:flex; align-items:center; gap:6px;"><span data-i18n="手腳 IK">手腳 IK</span>
-        <span class="kfInfoIcon" title="🟠 橘色實心球＝末端目標球，拖它決定手掌／腳掌想抵達的世界座標。🟢 黃綠色八面體＝彎曲極向球，拖它決定手肘／膝蓋要往哪個方向彎（彎錯邊就把極向球拖到身體另一側）。開啟某肢體 IK 後，該肢體上／中段關節球會暫時隱藏改由 IK 控制，手掌／腳掌仍可照舊用 FK 調整旋轉。點選目標球/極向球後，上方「目前選取」列可看座標；按「重置此球位置」可拉回預設位置；IK 姿勢一樣可按「+ 新增拍點」記錄。🦶 腳部IK已內建「腳掌貼地」：開啟腿部IK當下鎖存腳掌世界旋轉，腿怎麼彎都不翻轉；手動調整放開時會重新鎖存新角度。">ⓘ</span>
+        <span class="kfInfoIcon" title="🟠 橘色實心球＝末端目標球，拖它決定手掌／腳掌想抵達的世界座標。🟢 黃綠色八面體＝彎曲極向球，拖它決定手肘／膝蓋要往哪個方向彎（彎錯邊就把極向球拖到身體另一側）。開啟某肢體 IK 後，該肢體上／中段關節球會暫時隱藏改由 IK 控制，手掌／腳掌仍可照舊用 FK 調整旋轉。點選目標球/極向球後，上方「目前選取」列可看座標；按「重置此球位置」可拉回預設位置；IK 姿勢一樣可按「+ 新增拍點」記錄。🦶 腳部IK已內建「腳掌貼地」：開啟腿部IK當下鎖存腳掌世界旋轉，腿怎麼彎都不翻轉；手動調整放開時會重新鎖存新角度。" data-i18n-title="🟠 橘色實心球＝末端目標球，拖它決定手掌／腳掌想抵達的世界座標。🟢 黃綠色八面體＝彎曲極向球，拖它決定手肘／膝蓋要往哪個方向彎（彎錯邊就把極向球拖到身體另一側）。開啟某肢體 IK 後，該肢體上／中段關節球會暫時隱藏改由 IK 控制，手掌／腳掌仍可照舊用 FK 調整旋轉。點選目標球/極向球後，上方「目前選取」列可看座標；按「重置此球位置」可拉回預設位置；IK 姿勢一樣可按「+ 新增拍點」記錄。🦶 腳部IK已內建「腳掌貼地」：開啟腿部IK當下鎖存腳掌世界旋轉，腿怎麼彎都不翻轉；手動調整放開時會重新鎖存新角度。">ⓘ</span>
       </div>
       <div id="poleRadiusPanel" style="display:none; padding:8px; border:1px solid #819c38; border-radius:6px; margin:8px 0;">
         <strong id="poleRadiusTitle"><span data-i18n="極向球範圍">極向球範圍</span></strong>
@@ -711,7 +711,7 @@
       </div>
       <details class="kfCollapsible">
         <summary><span data-i18n="🎯 Effector 朝向控制">🎯 Effector 朝向控制</span>
-          <span class="kfInfoIcon" title="開啟後，目標球選取時可用「位置/朝向」切換按鈕改拖曳旋轉環，決定手掌/腳掌面向哪個方向。⚠️ 腳部若同時開啟朝向控制，會取代腳踝貼地鎖存（兩者互斥）。">ⓘ</span>
+          <span class="kfInfoIcon" title="開啟後，目標球選取時可用「位置/朝向」切換按鈕改拖曳旋轉環，決定手掌/腳掌面向哪個方向。⚠️ 腳部若同時開啟朝向控制，會取代腳踝貼地鎖存（兩者互斥）。" data-i18n-title="開啟後，目標球選取時可用「位置/朝向」切換按鈕改拖曳旋轉環，決定手掌/腳掌面向哪個方向。⚠️ 腳部若同時開啟朝向控制，會取代腳踝貼地鎖存（兩者互斥）。">ⓘ</span>
         </summary>
         <div class="kfCollapsibleBody">
           <div class="row">
@@ -736,11 +736,11 @@
           </div>
           <div class="row">
             <label><input type="checkbox" id="dualAnchorCb"> <span data-i18n="啟用雙手同時固定">啟用雙手同時固定</span></label>
-            <span class="kfInfoIcon" title="開啟後，兩個目標球超出手臂伸展範圍時，改成旋轉+平移整個身體去同時湊兩個固定點（取代單手各自的「搆不到時身體靠過去」），適合雙槓、扶地等雙手都固定的動作，需先各自開啟右手/左手 IK。">ⓘ</span>
+            <span class="kfInfoIcon" title="開啟後，兩個目標球超出手臂伸展範圍時，改成旋轉+平移整個身體去同時湊兩個固定點（取代單手各自的「搆不到時身體靠過去」），適合雙槓、扶地等雙手都固定的動作，需先各自開啟右手/左手 IK。" data-i18n-title="開啟後，兩個目標球超出手臂伸展範圍時，改成旋轉+平移整個身體去同時湊兩個固定點（取代單手各自的「搆不到時身體靠過去」），適合雙槓、扶地等雙手都固定的動作，需先各自開啟右手/左手 IK。">ⓘ</span>
           </div>
           <div class="row">
             <button id="selectBodyBtn"><span data-i18n="移動身體">移動身體</span></button>
-            <span class="kfInfoIcon" title="直接拖曳整個角色位置（會被拍點記錄，時間軸播放時會內插）。⚠️ 若上面的自動跟隨/固定選項有開啟，每幀仍會自動調整身體位置，可能跟手動拖曳互相覆蓋，建議先關閉。">ⓘ</span>
+            <span class="kfInfoIcon" title="直接拖曳整個角色位置（會被拍點記錄，時間軸播放時會內插）。⚠️ 若上面的自動跟隨/固定選項有開啟，每幀仍會自動調整身體位置，可能跟手動拖曳互相覆蓋，建議先關閉。" data-i18n-title="直接拖曳整個角色位置（會被拍點記錄，時間軸播放時會內插）。⚠️ 若上面的自動跟隨/固定選項有開啟，每幀仍會自動調整身體位置，可能跟手動拖曳互相覆蓋，建議先關閉。">ⓘ</span>
           </div>
         </div>
       </details>
@@ -762,15 +762,15 @@
         <div class="kfCollapsibleBody">
           <div class="row">
             <label><input type="checkbox" id="shoulderAssistCb"> <span data-i18n="啟用肩胛骨限幅輔助旋轉">啟用肩胛骨限幅輔助旋轉</span></label>
-            <span class="kfInfoIcon" title="手臂 IK 求解前，讓肩膀先小幅偏向目標方向（限制在真人鎖骨可動範圍內，約20°），讓手伸遠時有自然聳肩/前伸感。關掉則肩膀完全不動，純兩節IK手感。">ⓘ</span>
+            <span class="kfInfoIcon" title="手臂 IK 求解前，讓肩膀先小幅偏向目標方向（限制在真人鎖骨可動範圍內，約20°），讓手伸遠時有自然聳肩/前伸感。關掉則肩膀完全不動，純兩節IK手感。" data-i18n-title="手臂 IK 求解前，讓肩膀先小幅偏向目標方向（限制在真人鎖骨可動範圍內，約20°），讓手伸遠時有自然聳肩/前伸感。關掉則肩膀完全不動，純兩節IK手感。">ⓘ</span>
           </div>
           <div class="row">
             <label><input type="checkbox" id="handCollisionCb"> <span data-i18n="啟用手部-身體碰撞回彈（軀幹/腿/頭，Beta）">啟用手部-身體碰撞回彈（軀幹/腿/頭，Beta）</span></label>
-            <span class="kfInfoIcon" title="偵測手掌是否插進軀幹（Hips~Neck）、大腿/小腿、或頭部（幾段膠囊體+一顆球近似），穿模時自動彎手肘把手推出去。只作用在沒開「手臂IK」、沒被滑鼠拖曳的手；已開IK的手代表你明確指定了位置，不會被這裡覆蓋。下面可以直接調整每一段膠囊體/頭部球的半徑。">ⓘ</span>
+            <span class="kfInfoIcon" title="偵測手掌是否插進軀幹（Hips~Neck）、大腿/小腿、或頭部（幾段膠囊體+一顆球近似），穿模時自動彎手肘把手推出去。只作用在沒開「手臂IK」、沒被滑鼠拖曳的手；已開IK的手代表你明確指定了位置，不會被這裡覆蓋。下面可以直接調整每一段膠囊體/頭部球的半徑。" data-i18n-title="偵測手掌是否插進軀幹（Hips~Neck）、大腿/小腿、或頭部（幾段膠囊體+一顆球近似），穿模時自動彎手肘把手推出去。只作用在沒開「手臂IK」、沒被滑鼠拖曳的手；已開IK的手代表你明確指定了位置，不會被這裡覆蓋。下面可以直接調整每一段膠囊體/頭部球的半徑。">ⓘ</span>
           </div>
           <div class="row">
             <label><input type="checkbox" id="handHandCollisionCb"> <span data-i18n="啟用雙手互碰回彈（Beta）">啟用雙手互碰回彈（Beta）</span></label>
-            <span class="kfInfoIcon" title="偵測左右手掌球是否互相穿模，穿模時自動彎手肘把兩手推開。若某隻手已開IK或正被拖曳，那隻手視為鎖定不會被移動——只有另一隻手會退開；兩手都鎖定時完全不介入，尊重使用者刻意疊手的姿勢。半徑沿用下面的「手掌球半徑」。">ⓘ</span>
+            <span class="kfInfoIcon" title="偵測左右手掌球是否互相穿模，穿模時自動彎手肘把兩手推開。若某隻手已開IK或正被拖曳，那隻手視為鎖定不會被移動——只有另一隻手會退開；兩手都鎖定時完全不介入，尊重使用者刻意疊手的姿勢。半徑沿用下面的「手掌球半徑」。" data-i18n-title="偵測左右手掌球是否互相穿模，穿模時自動彎手肘把兩手推開。若某隻手已開IK或正被拖曳，那隻手視為鎖定不會被移動——只有另一隻手會退開；兩手都鎖定時完全不介入，尊重使用者刻意疊手的姿勢。半徑沿用下面的「手掌球半徑」。">ⓘ</span>
           </div>
           <div class="row" style="flex-wrap:wrap; gap:10px 16px;">
             <div style="display:flex; align-items:center; gap:6px;">
@@ -829,7 +829,7 @@
             <label style="min-width:150px;"><span data-i18n="身體跟隨阻尼">身體跟隨阻尼</span></label>
             <input type="range" id="rootFollowDampSlider" min="0.05" max="1" step="0.01" value="0.3">
             <span id="rootFollowDampVal">0.30</span>
-            <span class="kfInfoIcon" title="數值越小動作越平滑柔和但收斂較慢，越大收斂越快但可能比較「跳」。身體跟隨阻尼＝「搆不到時身體靠過去」與「雙手同時固定」共用的平移/旋轉阻尼。預設值是校準過的手感，不建議大幅偏離。">ⓘ</span>
+            <span class="kfInfoIcon" title="數值越小動作越平滑柔和但收斂較慢，越大收斂越快但可能比較「跳」。身體跟隨阻尼＝「搆不到時身體靠過去」與「雙手同時固定」共用的平移/旋轉阻尼。預設值是校準過的手感，不建議大幅偏離。" data-i18n-title="數值越小動作越平滑柔和但收斂較慢，越大收斂越快但可能比較「跳」。身體跟隨阻尼＝「搆不到時身體靠過去」與「雙手同時固定」共用的平移/旋轉阻尼。預設值是校準過的手感，不建議大幅偏離。">ⓘ</span>
           </div>
           <div class="row">
             <label style="min-width:150px;"><span data-i18n="脊椎 CCD 阻尼">脊椎 CCD 阻尼</span></label>
@@ -916,13 +916,13 @@
     </div>
 
     <div class="tabPanel" data-tab="splitView" id="tabSplitView">
-      <div class="panelTitle">分割視窗（唯讀同步預覽，最多同時開 3 個）</div>
+      <div class="panelTitle"><span data-i18n="分割視窗（唯讀同步預覽，最多同時開 3 個）">分割視窗（唯讀同步預覽，最多同時開 3 個）</span></div>
       <div class="row" id="splitViewRow">
-        <label><input type="checkbox" id="splitChk_front"> 正面</label>
-        <label><input type="checkbox" id="splitChk_back"> 背面</label>
-        <label><input type="checkbox" id="splitChk_left"> 左側</label>
-        <label><input type="checkbox" id="splitChk_right"> 右側</label>
-        <label><input type="checkbox" id="splitChk_top"> 俯視</label>
+        <label><input type="checkbox" id="splitChk_front"> <span data-i18n="正面">正面</span></label>
+        <label><input type="checkbox" id="splitChk_back"> <span data-i18n="背面">背面</span></label>
+        <label><input type="checkbox" id="splitChk_left"> <span data-i18n="左側">左側</span></label>
+        <label><input type="checkbox" id="splitChk_right"> <span data-i18n="右側">右側</span></label>
+        <label><input type="checkbox" id="splitChk_top"> <span data-i18n="俯視">俯視</span></label>
         <label><input type="checkbox" id="splitChk_iso"> 45°</label>
       </div>
     </div>
@@ -931,7 +931,7 @@
 
     <div class="tabPanel" data-tab="fingers" id="tabFingers">
       <section class="fingerTutPanel" aria-label="FingerTut 胸前編輯模式" data-i18n-aria-label="FingerTut 胸前編輯模式">
-        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false">開啟 FingerTut</button><button id="fingerTutFocus" type="button" disabled data-i18n="雙手特寫">雙手特寫</button></div>
+        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false"><span data-i18n="開啟 FingerTut">開啟 FingerTut</span></button><button id="fingerTutFocus" type="button" disabled data-i18n="雙手特寫">雙手特寫</button></div>
         <p id="fingerTutStatus" class="small" role="status"></p>
         <label class="fingerTutSlider" for="fingerTut_height"><span data-i18n="高度">高度</span><input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
         <label class="fingerTutSlider" for="fingerTut_distance"><span data-i18n="前後距離">前後距離</span><input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
@@ -947,7 +947,7 @@
       </section>
       <div class="panelTitle" style="display:flex; align-items:center; gap:6px;"><span data-i18n="手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。">手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。</span>
         <span class="kfInfoIcon" title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響" data-i18n-title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響">⚠️</span>
-        <button id="fingerFloatBtn" type="button" style="margin-left:auto; font-size:10px; padding:4px 8px;">🗗 浮動視窗</button>
+        <button id="fingerFloatBtn" type="button" style="margin-left:auto; font-size:10px; padding:4px 8px;"><span data-i18n="🗗 浮動視窗">🗗 浮動視窗</span></button>
       </div>
       <div class="fingerHandGrid">
         <div class="fingerHandCard" id="fingerCard_r">
@@ -960,112 +960,116 @@
     </div>
 
     <div class="tabPanel" data-tab="traj" id="tabTraj">
-      <div class="panelTitle">軌跡輔助工具 — 讓手掌／腳掌沿路徑移動：1. 到「手腳 IK」開啟該肢體 IK　2. 拖橘色目標球到位　3. 按「+ 新增控制點」。
-        至少 2 點才能生成拍點；模式選「曲線」且 ≥3 點會用 Catmull-Rom 平滑連接。</div>
+      <div class="panelTitle"><span data-i18n="軌跡輔助工具 — 讓手掌／腳掌沿路徑移動：1. 到「手腳 IK」開啟該肢體 IK　2. 拖橘色目標球到位　3. 按「+ 新增控制點」。
+        至少 2 點才能生成拍點；模式選「曲線」且 ≥3 點會用 Catmull-Rom 平滑連接。">軌跡輔助工具 — 讓手掌／腳掌沿路徑移動：1. 到「手腳 IK」開啟該肢體 IK　2. 拖橘色目標球到位　3. 按「+ 新增控制點」。
+        至少 2 點才能生成拍點；模式選「曲線」且 ≥3 點會用 Catmull-Rom 平滑連接。</span></div>
       <div class="row" id="trajLimbBtns">
-        <button id="trajLimbBtn_rArm" data-limb="rArm">右手</button>
-        <button id="trajLimbBtn_lArm" data-limb="lArm">左手</button>
-        <button id="trajLimbBtn_rLeg" data-limb="rLeg">右腳</button>
-        <button id="trajLimbBtn_lLeg" data-limb="lLeg">左腳</button>
+        <button id="trajLimbBtn_rArm" data-limb="rArm"><span data-i18n="右手">右手</span></button>
+        <button id="trajLimbBtn_lArm" data-limb="lArm"><span data-i18n="左手">左手</span></button>
+        <button id="trajLimbBtn_rLeg" data-limb="rLeg"><span data-i18n="右腳">右腳</span></button>
+        <button id="trajLimbBtn_lLeg" data-limb="lLeg"><span data-i18n="左腳">左腳</span></button>
       </div>
       <div class="row">
-        <label>路徑模式</label>
+        <label><span data-i18n="路徑模式">路徑模式</span></label>
         <select id="trajModeSelect">
-          <option value="line">折線（逐點直線連接）</option>
-          <option value="curve">曲線（Catmull-Rom 平滑，≥3點才生效）</option>
+          <option value="line" data-i18n="折線（逐點直線連接）">折線（逐點直線連接）</option>
+          <option value="curve" data-i18n="曲線（Catmull-Rom 平滑，≥3點才生效）">曲線（Catmull-Rom 平滑，≥3點才生效）</option>
         </select>
-        <button id="trajAddPointBtn">+ 新增控制點</button>
-        <button id="trajClearPointsBtn">清除控制點</button>
-        <label id="trajClosedLabel"><input type="checkbox" id="trajClosedChk"> 封閉路徑（首尾相連，≥3點才生效）</label>
+        <button id="trajAddPointBtn"><span data-i18n="+ 新增控制點">+ 新增控制點</span></button>
+        <button id="trajClearPointsBtn"><span data-i18n="清除控制點">清除控制點</span></button>
+        <label id="trajClosedLabel"><input type="checkbox" id="trajClosedChk"> <span data-i18n="封閉路徑（首尾相連，≥3點才生效）">封閉路徑（首尾相連，≥3點才生效）</span></label>
       </div>
       <div class="row" id="trajShapeGenRow" style="border-top:1px dashed #33335a; padding-top:8px; margin-top:2px;">
-        <label>形狀產生器</label>
+        <label><span data-i18n="形狀產生器">形狀產生器</span></label>
         <select id="trajShapeTypeSelect">
-          <option value="circle">圓形</option>
-          <option value="ellipse">橢圓形</option>
-          <option value="polygon">正多邊形</option>
-          <option value="star">星形</option>
+          <option value="circle" data-i18n="圓形">圓形</option>
+          <option value="ellipse" data-i18n="橢圓形">橢圓形</option>
+          <option value="polygon" data-i18n="正多邊形">正多邊形</option>
+          <option value="star" data-i18n="星形">星形</option>
         </select>
-        <label id="trajShapeSidesLabel">邊數</label>
-        <input type="number" id="trajShapeSidesInput" min="3" max="12" step="1" value="5" style="width:48px;">
-        <label id="trajShapeRadiusLabel">半徑(公尺)</label>
-        <input type="number" id="trajShapeRadiusInput" min="0.02" max="1" step="0.01" value="0.15" style="width:56px;">
-        <label id="trajShapeRadiusYLabel" style="display:none;">短半徑(公尺)</label>
-        <input type="number" id="trajShapeRadiusYInput" min="0.02" max="1" step="0.01" value="0.08" style="width:56px; display:none;">
-        <label id="trajShapeInnerRatioLabel" style="display:none;">內凹比例</label>
-        <input type="number" id="trajShapeInnerRatioInput" min="0.1" max="0.9" step="0.05" value="0.5" style="width:48px; display:none;">
-        <select id="trajShapePlaneSelect" title="決定形狀畫在哪個平面上">
-          <option value="xz">水平面（俯視為圓/多邊形，像轉呼拉圈）</option>
-          <option value="xy">垂直面·朝前（面對鏡頭畫圈，像畫時鐘）</option>
-          <option value="yz">垂直面·側向（左右手側邊畫圈）</option>
+        <label id="trajShapeSidesLabel"><span data-i18n="邊數">邊數</span></label>
+        <input type="number" id="trajShapeSidesInput" aria-labelledby="trajShapeSidesLabel" min="3" max="12" step="1" value="5" style="width:48px;">
+        <label id="trajShapeRadiusLabel"><span data-i18n="半徑(公尺)">半徑(公尺)</span></label>
+        <input type="number" id="trajShapeRadiusInput" aria-labelledby="trajShapeRadiusLabel" min="0.02" max="1" step="0.01" value="0.15" style="width:56px;">
+        <label id="trajShapeRadiusYLabel" style="display:none;"><span data-i18n="短半徑(公尺)">短半徑(公尺)</span></label>
+        <input type="number" id="trajShapeRadiusYInput" aria-labelledby="trajShapeRadiusYLabel" min="0.02" max="1" step="0.01" value="0.08" style="width:56px; display:none;">
+        <label id="trajShapeInnerRatioLabel" style="display:none;"><span data-i18n="內凹比例">內凹比例</span></label>
+        <input type="number" id="trajShapeInnerRatioInput" aria-labelledby="trajShapeInnerRatioLabel" min="0.1" max="0.9" step="0.05" value="0.5" style="width:48px; display:none;">
+        <select id="trajShapePlaneSelect" title="決定形狀畫在哪個平面上" data-i18n-title="決定形狀畫在哪個平面上">
+          <option value="xz" data-i18n="水平面（俯視為圓/多邊形，像轉呼拉圈）">水平面（俯視為圓/多邊形，像轉呼拉圈）</option>
+          <option value="xy" data-i18n="垂直面·朝前（面對鏡頭畫圈，像畫時鐘）">垂直面·朝前（面對鏡頭畫圈，像畫時鐘）</option>
+          <option value="yz" data-i18n="垂直面·側向（左右手側邊畫圈）">垂直面·側向（左右手側邊畫圈）</option>
         </select>
-        <button id="trajGenShapeBtn">產生形狀（取代目前控制點）</button>
+        <button id="trajGenShapeBtn"><span data-i18n="產生形狀（取代目前控制點）">產生形狀（取代目前控制點）</span></button>
       </div>
       <div class="row" id="trajPointList">
-        <span id="trajPointEmpty">尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」</span>
+        <span id="trajPointEmpty"><span data-i18n="尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」">尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」</span></span>
       </div>
       <div class="row">
-        <label>取樣拍點數</label>
+        <label><span data-i18n="取樣拍點數">取樣拍點數</span></label>
         <input type="range" id="trajSampleSlider" min="2" max="20" value="8" step="1">
         <span id="trajSampleVal">8</span>
-        <button id="trajGenerateBtn">生成拍點（依序寫入時間軸）</button>
+        <button id="trajGenerateBtn"><span data-i18n="生成拍點（依序寫入時間軸）">生成拍點（依序寫入時間軸）</span></button>
       </div>
-      <div class="panelTitle" style="margin-top:8px; display:flex; align-items:center; gap:6px;">點選清單中的 Pxx 可選取控制點並用控制環拖曳調整位置；取樣拍點數只影響編輯階段的疏密，不影響播放平滑度。
-        <span class="kfInfoIcon" title="極端大幅彎曲的曲線，彎曲極向球方向播放中途可能翻面，若發生請調高取樣數或改用折線模式（封閉曲線繞一整圈更容易觸發，建議先試折線模式）；另外一條軌跡只對應一個肢體，播放時若角色曾因搆不到而平移，即時IK不會重現該平移，只會讓手臂伸到最長（已知限制）">⚠️</span></div>
+      <div class="panelTitle" style="margin-top:8px; display:flex; align-items:center; gap:6px;"><span data-i18n="點選清單中的 Pxx 可選取控制點並用控制環拖曳調整位置；取樣拍點數只影響編輯階段的疏密，不影響播放平滑度。">點選清單中的 Pxx 可選取控制點並用控制環拖曳調整位置；取樣拍點數只影響編輯階段的疏密，不影響播放平滑度。</span>
+        <span class="kfInfoIcon" title="極端大幅彎曲的曲線，彎曲極向球方向播放中途可能翻面，若發生請調高取樣數或改用折線模式（封閉曲線繞一整圈更容易觸發，建議先試折線模式）；另外一條軌跡只對應一個肢體，播放時若角色曾因搆不到而平移，即時IK不會重現該平移，只會讓手臂伸到最長（已知限制）" data-i18n-title="極端大幅彎曲的曲線，彎曲極向球方向播放中途可能翻面，若發生請調高取樣數或改用折線模式（封閉曲線繞一整圈更容易觸發，建議先試折線模式）；另外一條軌跡只對應一個肢體，播放時若角色曾因搆不到而平移，即時IK不會重現該平移，只會讓手臂伸到最長（已知限制）">⚠️</span></div>
     </div>
 
     <div class="tabPanel" data-tab="overview" id="tabOverview">
-      <div class="panelTitle">即時顯示全部關節的旋轉角度（相對初始姿勢，單位度）與世界座標（單位公尺）；
-        點列可直接選取該關節，方便切換到其他分頁繼續操作。此分頁未開啟時不會更新內容，切回來會立刻刷新一次。</div>
+      <div class="panelTitle"><span data-i18n="即時顯示全部關節的旋轉角度（相對初始姿勢，單位度）與世界座標（單位公尺）；
+        點列可直接選取該關節，方便切換到其他分頁繼續操作。此分頁未開啟時不會更新內容，切回來會立刻刷新一次。">即時顯示全部關節的旋轉角度（相對初始姿勢，單位度）與世界座標（單位公尺）；
+        點列可直接選取該關節，方便切換到其他分頁繼續操作。此分頁未開啟時不會更新內容，切回來會立刻刷新一次。</span></div>
       <div class="row">
-        <label>篩選</label>
-        <input type="text" id="ovFilterInput" class="libNameInput" style="flex:0 1 180px;" placeholder="輸入關節中文名稱關鍵字…">
+        <label><span data-i18n="篩選">篩選</span></label>
+        <input type="text" id="ovFilterInput" aria-label="篩選關節" data-i18n-aria-label="篩選關節" class="libNameInput" style="flex:0 1 180px;" placeholder="輸入關節中文名稱關鍵字…" data-i18n-placeholder="輸入關節中文名稱關鍵字…">
         <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
-          <input type="checkbox" id="ovOnlyNonZero"> 只顯示非零角度
+          <input type="checkbox" id="ovOnlyNonZero"> <span data-i18n="只顯示非零角度">只顯示非零角度</span>
         </label>
-        <button id="ovExpandAllBtn">展開全部</button>
-        <button id="ovCollapseAllBtn">收合全部</button>
+        <button id="ovExpandAllBtn"><span data-i18n="展開全部">展開全部</span></button>
+        <button id="ovCollapseAllBtn"><span data-i18n="收合全部">收合全部</span></button>
       </div>
       <div class="ovHeadRow">
-        <span>關節</span><span>Rot X</span><span>Rot Y</span><span>Rot Z</span><span></span>
+        <span><span data-i18n="關節">關節</span></span><span>Rot X</span><span>Rot Y</span><span>Rot Z</span><span></span>
         <span>World X</span><span>World Y</span><span>World Z</span>
       </div>
       <div id="overviewGroups"></div>
-      <div id="overviewEmpty" style="display:none;">沒有符合篩選條件的關節</div>
+      <div id="overviewEmpty" style="display:none;"><span data-i18n="沒有符合篩選條件的關節">沒有符合篩選條件的關節</span></div>
     </div>
 
     <div class="tabPanel" data-tab="jointLimits" id="tabJointLimits">
-      <div class="panelTitle">設定每個關節的旋轉角度上下限（相對初始姿勢，單位度），依部位分組、可收合。
+      <div class="panelTitle"><span data-i18n="設定每個關節的旋轉角度上下限（相對初始姿勢，單位度），依部位分組、可收合。
         勾選啟用某一軸後，拖曳關節球／套用姿勢/JSON／歸零時都不會超出範圍。
-        建議先關掉限制、拖動關節看「目前角度」抓出合理範圍，再回來填入並勾選啟用。</div>
+        建議先關掉限制、拖動關節看「目前角度」抓出合理範圍，再回來填入並勾選啟用。">設定每個關節的旋轉角度上下限（相對初始姿勢，單位度），依部位分組、可收合。
+        勾選啟用某一軸後，拖曳關節球／套用姿勢/JSON／歸零時都不會超出範圍。
+        建議先關掉限制、拖動關節看「目前角度」抓出合理範圍，再回來填入並勾選啟用。</span></div>
       <div class="row">
-        <input type="text" id="jlFilterInput" placeholder="搜尋關節名稱…" style="flex:1 1 140px;min-width:100px;">
-        <button id="jlExpandAllBtn">全部展開</button>
-        <button id="jlCollapseAllBtn">全部收合</button>
+        <input type="text" id="jlFilterInput" aria-label="篩選關節" data-i18n-aria-label="篩選關節" placeholder="搜尋關節名稱…" style="flex:1 1 140px;min-width:100px;" data-i18n-placeholder="搜尋關節名稱…">
+        <button id="jlExpandAllBtn"><span data-i18n="全部展開">全部展開</span></button>
+        <button id="jlCollapseAllBtn"><span data-i18n="全部收合">全部收合</span></button>
       </div>
       <div class="row">
-        <button id="jlGenerateBtn">🎲 動作生成</button>
-        <button id="jlResetAllBtn">恢復預設</button>
-        <button id="jlAdvancedToggleBtn">進階設定 ▾</button>
+        <button id="jlGenerateBtn"><span data-i18n="🎲 動作生成">🎲 動作生成</span></button>
+        <button id="jlResetAllBtn"><span data-i18n="恢復預設">恢復預設</span></button>
+        <button id="jlAdvancedToggleBtn"><span data-i18n="進階設定 ▾">進階設定 ▾</span></button>
       </div>
       <div class="row">
         <span id="jlIsolationStatus" style="font-size:11px;color:#9a9ac2;"></span>
       </div>
       <div id="jlAdvancedSection" style="display:none;">
         <div class="row">
-          <label title="以 0° 為基準取格點；貼邊機率可另外選到上下限">格距（以 0° 為準）</label>
+          <label title="以 0° 為基準取格點；貼邊機率可另外選到上下限" data-i18n-title="以 0° 為基準取格點；貼邊機率可另外選到上下限"><span data-i18n="格距（以 0° 為準）">格距（以 0° 為準）</span></label>
           <input type="number" id="jlGridStepInput" value="15" min="1" step="1" style="width:50px;">
-          <label>°　貼邊機率</label>
+          <label><span data-i18n="°　貼邊機率">°　貼邊機率</span></label>
           <input type="number" id="jlEdgeProbInput" value="40" min="0" max="100" step="5" style="width:50px;">
           <label>%</label>
         </div>
         <div class="row">
-          <label><input type="checkbox" id="jlIsolationEnabledChk"> 啟用 Isolation（只隨機挑幾個分組動）</label>
-          <label>抽組數</label>
+          <label><input type="checkbox" id="jlIsolationEnabledChk"> <span data-i18n="啟用 Isolation（只隨機挑幾個分組動）">啟用 Isolation（只隨機挑幾個分組動）</span></label>
+          <label><span data-i18n="抽組數">抽組數</span></label>
           <input type="number" id="jlIsolationMinInput" value="1" min="1" step="1" style="width:40px;">
           <span>~</span>
           <input type="number" id="jlIsolationMaxInput" value="2" min="1" step="1" style="width:40px;">
-          <span>組</span>
+          <span><span data-i18n="組">組</span></span>
         </div>
       </div>
       <div id="jointLimitGroups"></div>
@@ -1096,10 +1100,10 @@
     </div>
 
     <div class="tabPanel" data-tab="easingGallery" id="tabEasingGallery">
-      <div class="panelTitle">Easing 函式動畫圖鑑 — 32 種緩動函式（跟「時間軸」分頁轉場選單同一份）的曲線與實際運動手感一次比較，方便挑選拍點轉場要用哪一種。</div>
+      <div class="panelTitle"><span data-i18n="Easing 函式動畫圖鑑 — 32 種緩動函式（跟「時間軸」分頁轉場選單同一份）的曲線與實際運動手感一次比較，方便挑選拍點轉場要用哪一種。">Easing 函式動畫圖鑑 — 32 種緩動函式（跟「時間軸」分頁轉場選單同一份）的曲線與實際運動手感一次比較，方便挑選拍點轉場要用哪一種。</span></div>
       <div class="row">
-        <button id="egPlayBtn">⏸ 暫停動畫</button>
-        <span id="egReducedMotionHint" style="display:none;font-size:10px;color:#9a9ac2;">已偵測到系統「減少動態效果」設定，預設暫停播放</span>
+        <button id="egPlayBtn"><span data-i18n="⏸ 暫停動畫">⏸ 暫停動畫</span></button>
+        <span id="egReducedMotionHint" style="display:none;font-size:10px;color:#9a9ac2;"><span data-i18n="已偵測到系統「減少動態效果」設定，預設暫停播放">已偵測到系統「減少動態效果」設定，預設暫停播放</span></span>
       </div>
       <div id="easingGalleryGroups"></div>
     </div>

@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import * as THREE from "three";
 import { BONE_SUFFIXES, FINGER_DEFS, HAND_SIDES, FINGER_JOINT_LABELS, FINGER_JOINT_KEYS, FINGER_JOINT_KEY_SET, ALL_JOINT_KEYS, LABEL_LOOKUP, OVERVIEW_GROUPS, IK_CHAINS, IK_LIMB_KEYS, SHOULDER_ASSIST_MAX_ANGLE, ROOT_FOLLOW_LERP_T_DEFAULT, SPINE_CCD_DAMPING_DEFAULT, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import { D, R, clampNum } from "../math/angles.js";
@@ -57,9 +58,9 @@ function addTrajPoint(limb){
 
 function generateShapeTrajPoints(limb, shapeType, n, radius, plane, opts = {}){
   const targetMesh = context.ikTargetMeshes[limb];
-  if (!targetMesh){ alert("找不到「" + limb + "」的 IK 目標球，請先到「手腳 IK」分頁開啟該肢體 IK"); return; }
+  if (!targetMesh){ alert(tr("找不到肢體 {limb} 的 IK 目標球，請先開啟該肢體 IK",{limb:tr(IK_CHAINS[limb].label)})); return; }
   if (context.trajPointMeshes[limb].length > 0){
-    const ok = confirm("這會清除「" + limb + "」目前已有的 " + context.trajPointMeshes[limb].length + " 個控制點，改成產生的形狀，確定要繼續嗎？");
+    const ok = confirm(tr("取代 {limb} 的 {count} 個控制點，改用產生的形狀？",{limb:tr(IK_CHAINS[limb].label),count:context.trajPointMeshes[limb].length}));
     if (!ok) return;
   }
   clearTrajPoints(limb); // 內部已含 updateTrajVisual/renderTrajPointList/scheduleAutoSave，但下面還會再重繪一次沒關係
@@ -193,7 +194,7 @@ function renderTrajPointList(){
     // 之後 getElementById 會一直回傳 null，導致清單卡死不再更新（已修正的舊bug）。
     const empty = document.createElement("span");
     empty.id = "trajPointEmpty";
-    empty.textContent = "尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」";
+    liveText(empty,()=>tr("尚未新增控制點——先拖橘色目標球到位，再按「+ 新增控制點」"));
     host.appendChild(empty);
     return;
   }
@@ -205,11 +206,12 @@ function renderTrajPointList(){
     }
     const sel = document.createElement("button");
     sel.className = "sel";
-    sel.textContent = `P${i + 1}`;
+    liveText(sel,()=>`P${i + 1}`);
     sel.onclick = () => context.selectIKMarker(context.trajActiveLimb, "trajPoint", i);
     const del = document.createElement("button");
     del.className = "del";
-    del.textContent = "×";
+    liveText(del,()=>"×");
+    liveAttribute(del,"title",()=>tr("刪除控制點 {point}",{point:`P${i+1}`}));
     del.onclick = (ev) => { ev.stopPropagation(); removeTrajPoint(context.trajActiveLimb, i); };
     chip.appendChild(sel);
     chip.appendChild(del);
@@ -225,8 +227,8 @@ function sampleTrajectory(limb, t){
 function generateKeyframesFromTrajectory(limb){
   const pts = context.trajPointMeshes[limb];
   const chain = IK_CHAINS[limb];
-  if (pts.length < 2){ alert("至少需要 2 個控制點才能生成軌跡拍點"); return; }
-  if (!context.ikEnabled[limb]){ alert("請先到「手腳 IK」分頁開啟「" + chain.label + "」的 IK，再生成軌跡拍點"); return; }
+  if (pts.length < 2){ alert(tr("至少需要 2 個控制點才能生成軌跡拍點")); return; }
+  if (!context.ikEnabled[limb]){ alert(tr("請先開啟 {limb} IK，再生成軌跡拍點",{limb:tr(chain.label)})); return; }
   const rootBone = context.bones[chain.root], midBone = context.bones[chain.mid], endBone = context.bones[chain.end];
   if (!rootBone || !midBone || !endBone) return;
 
@@ -304,10 +306,10 @@ function bindTrajUI(){
     sampleSlider.value = String(context.trajSampleCount);
     sampleSlider.oninput = (e) => {
       context.trajSampleCount = parseInt(e.target.value, 10);
-      if (sampleVal) sampleVal.textContent = String(context.trajSampleCount);
+      if (sampleVal) liveText(sampleVal,()=>String(context.trajSampleCount));
     };
   }
-  if (sampleVal) sampleVal.textContent = String(context.trajSampleCount);
+  if (sampleVal) liveText(sampleVal,()=>String(context.trajSampleCount));
 
   const genBtn = document.getElementById("trajGenerateBtn");
   if (genBtn) genBtn.onclick = () => { generateKeyframesFromTrajectory(context.trajActiveLimb); context.pushHistory(); };
@@ -338,18 +340,18 @@ function bindTrajShapeGenUI(){
     radiusYInput.style.display = (type === "ellipse") ? "" : "none";
     innerRatioLabel.style.display = (type === "star") ? "" : "none";
     innerRatioInput.style.display = (type === "star") ? "" : "none";
-    radiusLabel.textContent = (type === "ellipse") ? "長半徑(公尺)" : "半徑(公尺)";
+    liveText(radiusLabel,()=>(type === "ellipse") ? tr("長半徑(公尺)") : tr("半徑(公尺)"));
 
     if (type === "circle" || type === "ellipse"){
-      sidesLabel.textContent = "點數";
+      liveText(sidesLabel,()=>tr("點數"));
       sidesInput.min = "8"; sidesInput.max = "48";
       if (parseInt(sidesInput.value, 10) < 8) sidesInput.value = "20";
     } else if (type === "star"){
-      sidesLabel.textContent = "角數";
+      liveText(sidesLabel,()=>tr("角數"));
       sidesInput.min = "3"; sidesInput.max = "12";
       if (parseInt(sidesInput.value, 10) > 12) sidesInput.value = "5";
     } else { // polygon
-      sidesLabel.textContent = "邊數";
+      liveText(sidesLabel,()=>tr("邊數"));
       sidesInput.min = "3"; sidesInput.max = "12";
       if (parseInt(sidesInput.value, 10) > 12) sidesInput.value = "5";
     }

@@ -1,4 +1,4 @@
-import { t, onLanguageChange } from "../i18n/index.js";
+import { t, onLanguageChange, liveAttribute } from "../i18n/index.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createFloatingPanels(context){
   function initUIResize(){
@@ -112,7 +112,7 @@ export function createFloatingPanels(context){
     function syncFloatLanguage(){
       const floating=ui.classList.contains('uiFloating');
       floatBtn.textContent=t(floating?'📌 貼底面板':'🗗 浮動面板');
-      floatBtn.title=t(floating?'切換回貼底整版寬的面板':'切換成可拖曳移動、可縮放大小的浮動面板');
+      liveAttribute(floatBtn,'title',()=>t(floating?'切換回貼底整版寬的面板':'切換成可拖曳移動、可縮放大小的浮動面板'));
     }
     onLanguageChange(syncFloatLanguage);
     function setFloating(floating, save){

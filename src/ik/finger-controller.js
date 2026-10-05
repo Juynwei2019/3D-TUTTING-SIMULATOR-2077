@@ -1,4 +1,4 @@
-import { t, onLanguageChange } from "../i18n/index.js";
+import { t, liveAttribute } from "../i18n/index.js";
 import { jointLabel } from "../i18n/joint-labels.js";
 import { BONE_SUFFIXES, FINGER_DEFS, HAND_SIDES, FINGER_JOINT_LABELS, FINGER_JOINT_KEYS, FINGER_JOINT_KEY_SET, ALL_JOINT_KEYS, LABEL_LOOKUP, OVERVIEW_GROUPS, IK_CHAINS, IK_LIMB_KEYS, SHOULDER_ASSIST_MAX_ANGLE, ROOT_FOLLOW_LERP_T_DEFAULT, SPINE_CCD_DAMPING_DEFAULT, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import { solveCCDChain } from "../ik/ccd.js";
@@ -93,7 +93,7 @@ function buildFingerPanel(){
         btn.className = "fingerJointBtn";
         btn.dataset.i18n=FINGER_JOINT_LABELS[j];
         btn.textContent = t(FINGER_JOINT_LABELS[j]);
-        btn.title = jointLabel(key);
+        liveAttribute(btn,"title",()=>jointLabel(key));
         btn.dataset.jointkey = key;
         btn.onclick = () => context.selectJoint(key);
         row.appendChild(btn);
@@ -104,17 +104,13 @@ function buildFingerPanel(){
       ikBtn.id = "fingerIKBtn_" + fingerId;
       ikBtn.textContent = "IK";
       ikBtn.dataset.hand=hs.label;ikBtn.dataset.finger=fd.label;
-      ikBtn.title=t("{hand}{finger} IK 開關：開啟後拖曳指尖目標球，整根手指自動彎曲收斂",{hand:t(hs.label),finger:t(fd.label)});
+      liveAttribute(ikBtn,"title",()=>t("{hand}{finger} IK 開關：開啟後拖曳指尖目標球，整根手指自動彎曲收斂",{hand:t(hs.label),finger:t(fd.label)}));
       ikBtn.onclick = () => setFingerIKEnabled(fingerId, !context.fingerIKEnabled[fingerId]);
       row.appendChild(ikBtn);
 
       card.appendChild(row);
     }
   }
-  onLanguageChange(() => {
-    for(const btn of document.querySelectorAll('.fingerJointBtn'))btn.title=jointLabel(btn.dataset.jointkey);
-    for(const btn of document.querySelectorAll('.fingerIKToggleBtn'))btn.title=t('{hand}{finger} IK 開關：開啟後拖曳指尖目標球，整根手指自動彎曲收斂',{hand:t(btn.dataset.hand),finger:t(btn.dataset.finger)});
-  });
   updateFingerIKButtons();
 }
 return { solveFingerIKAll, buildFingerIKMarkers, syncFingerIKMarkerToDefault, setFingerIKEnabled, updateFingerIKButtons, buildFingerPanel };

@@ -1,4 +1,5 @@
-import { bindLanguageUI, onLanguageChange, t, liveText } from "./i18n/index.js";
+import { jointLabel, jointSearchText, jointCountLabel } from "./i18n/joint-labels.js";
+import { bindLanguageUI, onLanguageChange, t, liveText, liveAttribute, liveHTML } from "./i18n/index.js";
 import { createFingerTut } from "./fingertut/controller.js";
 import { bindTouchTimelineUI } from "./ui/touch-timeline.js";
 import { initMobileLayout } from "./ui/mobile-layout.js";
@@ -898,7 +899,7 @@ function ovMatchesFilter(key){
   const input = document.getElementById("ovFilterInput");
   const kw = (input && input.value ? input.value : "").trim().toLowerCase();
   if (!kw) return true;
-  const label = (LABEL_LOOKUP[key] || key).toLowerCase();
+  const label = jointSearchText(key);
   return label.includes(kw) || key.toLowerCase().includes(kw);
 }
 
@@ -931,8 +932,8 @@ function buildOverviewPanel(){
 
       const nameEl = document.createElement("span");
       nameEl.className = "ovName";
-      nameEl.textContent = LABEL_LOOKUP[key] || key;
-      nameEl.title = LABEL_LOOKUP[key] || key;
+      liveText(nameEl,()=>jointLabel(key));
+      liveAttribute(nameEl,"title",()=>jointLabel(key));
 
       const rotX = document.createElement("span"); rotX.className = "ovRot";
       const rotY = document.createElement("span"); rotY.className = "ovRot";
@@ -954,7 +955,7 @@ function buildOverviewPanel(){
     groupEl.className = "ovGroup";
     const head = document.createElement("div");
     head.className = "ovGroupHead" + (collapsed ? " collapsed" : "");
-    head.innerHTML = `<span><span class="ovCaret">▾</span>${group.label}</span><span class="ovCount">${body.children.length} 個關節</span>`;
+    liveHTML(head,()=>`<span><span class="ovCaret">▾</span>${t(group.label)}</span><span class="ovCount">${jointCountLabel(body.children.length)}</span>`);
     head.onclick = () => {
       const nowCollapsed = !body.classList.contains("collapsed");
       body.classList.toggle("collapsed", nowCollapsed);
@@ -1237,7 +1238,7 @@ function jlMatchesFilter(key){
   const input = document.getElementById("jlFilterInput");
   const kw = (input && input.value ? input.value : "").trim().toLowerCase();
   if (!kw) return true;
-  const label = (LABEL_LOOKUP[key] || key).toLowerCase();
+  const label = jointSearchText(key);
   return label.includes(kw) || key.toLowerCase().includes(kw);
 }
 
@@ -1263,7 +1264,7 @@ function buildJointLimitPanel(){
       const title = document.createElement("div");
       title.className = "jlJointTitle";
       const nameSpan = document.createElement("span");
-      nameSpan.textContent = LABEL_LOOKUP[key] || key;
+      liveText(nameSpan,()=>jointLabel(key));
       const curSpan = document.createElement("span");
       curSpan.className = "jlCurAngle";
       jointLimitCurAngleEls[key] = curSpan;
@@ -1278,19 +1279,20 @@ function buildJointLimitPanel(){
       weightRow.style.display = jlAdvancedVisible ? "" : "none";
       const weightLabel = document.createElement("span");
       weightLabel.className = "jlAxisLabel";
-      weightLabel.textContent = "機率";
+      liveText(weightLabel,()=>t("機率"));
       const weightInput = document.createElement("input");
       weightInput.type = "number"; weightInput.min = "0"; weightInput.max = "100"; weightInput.step = "5";
       weightInput.className = "jlNumInput";
       weightInput.value = getJointWeight(key);
-      weightInput.title = "這個關節「動作生成」時被摸到的機率(0~100)，100＝一定摸到";
+      liveAttribute(weightInput,"aria-label",()=>t("{joint} 生成機率",{joint:jointLabel(key)}));
+      liveAttribute(weightInput,"title",()=>t("這個關節「動作生成」時被摸到的機率(0~100)，100＝一定摸到"));
       weightInput.onchange = (e) => {
         const v = parseFloat(e.target.value);
         isolationSettings.jointWeights[key] = (isNaN(v) || v < 0) ? 0 : Math.min(100, v);
         saveIsolationSettings();
       };
       const weightPct = document.createElement("span");
-      weightPct.textContent = "%";
+      liveText(weightPct,()=>"%");
       weightRow.append(weightLabel, weightInput, weightPct);
       block.appendChild(weightRow);
 
@@ -1302,10 +1304,11 @@ function buildJointLimitPanel(){
         const chk = document.createElement("input");
         chk.type = "checkbox";
         chk.checked = axisLim.enabled;
+        liveAttribute(chk,"aria-label",()=>t("啟用 {joint} {axis} 限制",{joint:jointLabel(key),axis:axis.toUpperCase()}));
 
         const axisLabel = document.createElement("span");
         axisLabel.className = "jlAxisLabel";
-        axisLabel.textContent = axis.toUpperCase();
+        liveText(axisLabel,()=>axis.toUpperCase());
 
         // 沒啟用時把 min~max° 整組收起來，不佔版面；勾選後才展開輸入框。
         const rangeWrap = document.createElement("span");
@@ -1316,16 +1319,18 @@ function buildJointLimitPanel(){
         const minInput = document.createElement("input");
         minInput.type = "number"; minInput.step = "1"; minInput.className = "jlNumInput";
         minInput.value = axisLim.min;
+        liveAttribute(minInput,"aria-label",()=>t("{joint} {axis} 最小角度",{joint:jointLabel(key),axis:axis.toUpperCase()}));
 
         const sep = document.createElement("span");
-        sep.className = "jlSep"; sep.textContent = "~";
+        sep.className = "jlSep"; liveText(sep,()=>"~");
 
         const maxInput = document.createElement("input");
         maxInput.type = "number"; maxInput.step = "1"; maxInput.className = "jlNumInput";
         maxInput.value = axisLim.max;
+        liveAttribute(maxInput,"aria-label",()=>t("{joint} {axis} 最大角度",{joint:jointLabel(key),axis:axis.toUpperCase()}));
 
         const deg = document.createElement("span");
-        deg.textContent = "°";
+        liveText(deg,()=>"°");
 
         rangeWrap.append(minInput, sep, maxInput, deg);
 
@@ -1359,7 +1364,7 @@ function buildJointLimitPanel(){
     head.className = "ovGroupHead" + (collapsed ? " collapsed" : "");
 
     const leftSpan = document.createElement("span");
-    leftSpan.innerHTML = `<span class="ovCaret">▾</span>${group.label}`;
+    liveHTML(leftSpan,()=>`<span class="ovCaret">▾</span>${t(group.label)}`);
 
     const rightWrap = document.createElement("span");
     rightWrap.style.display = "flex";
@@ -1374,14 +1379,15 @@ function buildJointLimitPanel(){
 
     const weightLabel = document.createElement("span");
     weightLabel.className = "ovCount";
-    weightLabel.textContent = "權重";
+    liveText(weightLabel,()=>t("權重"));
 
     const weightInput = document.createElement("input");
     weightInput.type = "number"; weightInput.min = "0"; weightInput.step = "0.5";
     weightInput.value = getGroupWeight(group.id);
+    liveAttribute(weightInput,"aria-label",()=>t("{group} Isolation 權重",{group:t(group.label)}));
     weightInput.className = "jlNumInput";
     weightInput.style.width = "36px";
-    weightInput.title = "Isolation模式抽中這組的相對權重（數字越大越常被抽中，預設1）";
+    liveAttribute(weightInput,"title",()=>t("Isolation模式抽中這組的相對權重（數字越大越常被抽中，預設1）"));
     weightInput.onclick = (e) => e.stopPropagation(); // 避免點輸入框連帶觸發標題列的收合
     weightInput.onchange = (e) => {
       const v = parseFloat(e.target.value);
@@ -1391,7 +1397,7 @@ function buildJointLimitPanel(){
 
     const countSpan = document.createElement("span");
     countSpan.className = "ovCount";
-    countSpan.textContent = `${keys.length} 個關節`;
+    liveText(countSpan,()=>jointCountLabel(keys.length));
 
     weightWrap.append(weightLabel, weightInput);
     rightWrap.append(weightWrap, countSpan);
@@ -1408,7 +1414,7 @@ function buildJointLimitPanel(){
 
   const resetBtn = document.getElementById("jlResetAllBtn");
   if (resetBtn) resetBtn.onclick = () => {
-    if (!confirm(`確定要把全部 ${JOINT_LIMIT_KEYS.length} 個關節的限制都恢復成預設（停用）嗎？`)) return;
+    if (!confirm(t("確定要把全部 {p0} 個關節的限制都恢復成預設（停用）嗎？", {p0:JOINT_LIMIT_KEYS.length}))) return;
     JOINT_LIMITS = defaultJointLimits();
     saveJointLimits();
     buildJointLimitPanel();
@@ -1423,7 +1429,7 @@ function buildJointLimitPanel(){
   const advancedSection = document.getElementById("jlAdvancedSection");
   if (advancedSection) advancedSection.style.display = jlAdvancedVisible ? "" : "none";
   if (advancedToggleBtn){
-    advancedToggleBtn.textContent = jlAdvancedVisible ? "進階設定 ▴" : "進階設定 ▾";
+    liveText(advancedToggleBtn,()=>jlAdvancedVisible ? t("進階設定 ▴") : t("進階設定 ▾"));
     advancedToggleBtn.onclick = () => {
       jlAdvancedVisible = !jlAdvancedVisible;
       buildJointLimitPanel();
@@ -1728,7 +1734,7 @@ function applyJson(){
     updateSelectedBar();
     return true;
   } catch (e){
-    alert("JSON 格式錯誤：" + e.message);
+    alert(t("JSON 格式錯誤：") + e.message);
     return false;
   }
 }
@@ -1761,11 +1767,11 @@ function buildJsonRefTable(){
       const row = document.createElement("div");
       row.className = "jrRow";
       const nameEl = document.createElement("span");
-      nameEl.className = "jrName"; nameEl.textContent = LABEL_LOOKUP[key] || key; nameEl.title = LABEL_LOOKUP[key] || key;
+      nameEl.className = "jrName"; liveText(nameEl,()=>jointLabel(key)); liveAttribute(nameEl,"title",()=>jointLabel(key));
       const keyEl = document.createElement("span");
-      keyEl.className = "jrKey"; keyEl.textContent = key; keyEl.title = "JSON 裡對應的 key：\"" + key + "\"";
+      keyEl.className = "jrKey"; liveText(keyEl,()=>key); liveAttribute(keyEl,"title",()=>t("JSON 裡對應的 key：\"") + key + "\"");
       const valEl = document.createElement("span");
-      valEl.className = "jrVal jrDim"; valEl.textContent = "—";
+      valEl.className = "jrVal jrDim"; liveText(valEl,()=>"—");
       row.append(nameEl, keyEl, valEl);
       body.appendChild(row);
       jsonRefRowEls[key] = valEl;
@@ -1775,7 +1781,7 @@ function buildJsonRefTable(){
     groupEl.className = "jrGroup";
     const head = document.createElement("div");
     head.className = "ovGroupHead" + (collapsed ? " collapsed" : "");
-    head.innerHTML = `<span><span class="ovCaret">▾</span>${group.label}</span><span class="ovCount">${keys.length} 個關節</span>`;
+    liveHTML(head,()=>`<span><span class="ovCaret">▾</span>${t(group.label)}</span><span class="ovCount">${jointCountLabel(keys.length)}</span>`);
     head.onclick = () => {
       const nowCollapsed = !body.classList.contains("collapsed");
       body.classList.toggle("collapsed", nowCollapsed);
@@ -1799,7 +1805,7 @@ function updateJsonRefTable(){
   let parsed = null, parseOk = true;
   try {
     parsed = JSON.parse(area.value);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("最外層必須是物件");
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(t("最外層必須是物件"));
   } catch (e){
     parseOk = false;
   }
@@ -1809,22 +1815,22 @@ function updateJsonRefTable(){
     const el = jsonRefRowEls[key];
     el.classList.remove("jrOk", "jrErr", "jrDim");
     if (!parseOk){
-      el.textContent = "（JSON 尚未寫完整或有語法錯誤）";
+      liveText(el,()=>t("（JSON 尚未寫完整或有語法錯誤）"));
       el.classList.add("jrDim");
       continue;
     }
     const v = parsed[key];
     if (v === undefined){
-      el.textContent = "未設定（套用時會維持原角度）";
+      liveText(el,()=>t("未設定（套用時會維持原角度）"));
       el.classList.add("jrDim");
       continue;
     }
     if (!Array.isArray(v) || v.length !== 3 || v.some(n => typeof n !== "number" || !isFinite(n))){
-      el.textContent = "格式錯誤，應為 [X,Y,Z] 三個數字";
+      liveText(el,()=>t("格式錯誤，應為 [X,Y,Z] 三個數字"));
       el.classList.add("jrErr");
       continue;
     }
-    el.textContent = `X ${v[0].toFixed(1)}°  Y ${v[1].toFixed(1)}°  Z ${v[2].toFixed(1)}°`;
+    liveText(el,()=>`X ${v[0].toFixed(1)}°  Y ${v[1].toFixed(1)}°  Z ${v[2].toFixed(1)}°`);
     el.classList.add("jrOk");
   }
 }
@@ -1914,9 +1920,9 @@ function readJSONFile(file, cb){
   const reader = new FileReader();
   reader.onload = () => {
     try { cb(JSON.parse(reader.result)); }
-    catch (e){ alert("JSON 檔案解析失敗：" + e.message); }
+    catch (e){ alert(t("JSON 檔案解析失敗：") + e.message); }
   };
-  reader.onerror = () => alert("讀取檔案失敗。");
+  reader.onerror = () => alert(t("讀取檔案失敗。"));
   reader.readAsText(file);
 }
 
@@ -2381,7 +2387,7 @@ function tryLoadAutosave(){
     ? `${savedDate.getMonth()+1}/${savedDate.getDate()} ${String(savedDate.getHours()).padStart(2,"0")}:${String(savedDate.getMinutes()).padStart(2,"0")}`
     : "";
   const ok = confirm(
-    `偵測到自動存檔（${data.keyframes.length} 個拍點${timeStr ? "，" + timeStr : ""}），要還原上次的編輯進度嗎？\n按「取消」會保留目前的空白畫布，並清除這份自動存檔。`
+    t("偵測到自動存檔（{count} 個拍點{time}），要還原上次的編輯進度嗎？\n按「取消」會保留目前的空白畫布，並清除這份自動存檔。",{count:data.keyframes.length,time:timeStr ? " · "+timeStr : ""})
   );
   if (!ok){
     autosave.clear();
@@ -2920,7 +2926,7 @@ async function decodeKfWaveform(file){
   if (result.status === "ready"){
     if (track) track.classList.remove("waveformLoading", "waveformError");
   } else {
-    console.warn("波形解碼失敗（音樂仍可正常播放）：", result.error);
+    console.warn(t("波形解碼失敗（音樂仍可正常播放）："), result.error);
     if (track){ track.classList.remove("waveformLoading"); track.classList.add("waveformError"); }
   }
   updateBeatGridGeometry();
@@ -4191,7 +4197,7 @@ const history = createHistory({
 const autosave = createAutosave({
   getStorage: () => localStorage, capture: snapshotTimelineData,
   onSaved: showAutosaveIndicator,
-  onError: error => console.warn("自動存檔失敗：", error),
+  onError: error => console.warn(t("自動存檔失敗："), error),
 });
 const projectFiles = createProjectFiles({
   getKeyframes: () => keyframes, snapshotTimelineData, downloadJSON, readJSONFile,

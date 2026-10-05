@@ -16,7 +16,7 @@ jobs:
   verify:
     name: Tests, build and browser regression
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

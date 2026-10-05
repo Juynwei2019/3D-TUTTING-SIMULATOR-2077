@@ -1,3 +1,5 @@
+import { t, liveText, translateDOM } from "../i18n/index.js";
+const translatedSpan=key=>`<span data-i18n="${key}">${t(key)}</span>`;
 
 // ======================================================================
 // 扶握箱功能 — UI 區塊（mountGrabBoxUI）
@@ -24,20 +26,20 @@ const GRAB_SHAPE_LABELS = { box: "長方體", sphere: "球體", cylinder: "圓�
 
 function grabPanelHTML(){
   const shapeBtns = Object.keys(GRAB_SHAPE_LABELS)
-    .map(type => `<button data-shape="${type}">${GRAB_SHAPE_LABELS[type]}</button>`).join("");
+    .map(type => `<button data-shape="${type}" data-i18n="${GRAB_SHAPE_LABELS[type]}">${t(GRAB_SHAPE_LABELS[type])}</button>`).join("");
   return `
-    <div class="panelTitle">扶握箱 — 胸前放一個透明形狀，調整雙手到位後勾選「扶著箱子」即可貼合表面；移動/旋轉箱子時扶著的手會跟著動（未開 IK 的手會自動開啟）。</div>
+    <div class="panelTitle">${translatedSpan("扶握箱 — 胸前放一個透明形狀，調整雙手到位後勾選「扶著箱子」即可貼合表面；移動/旋轉箱子時扶著的手會跟著動（未開 IK 的手會自動開啟）。")}</div>
     <div class="row">
-      <button id="grabVisibleBtn">顯示扶握箱</button>
-      <button id="grabModeBtn">切換：位置</button>
+      <button id="grabVisibleBtn">${translatedSpan("顯示扶握箱")}</button>
+      <button id="grabModeBtn">${translatedSpan("切換：位置")}</button>
     </div>
     <div class="row" id="grabShapeBtns" style="align-items:center;">
-      <label style="margin-right:2px;">形狀</label>${shapeBtns}
+      <label style="margin-right:2px;">${translatedSpan("形狀")}</label>${shapeBtns}
     </div>
     <div id="grabShapeParams"></div>
     <div class="row">
-      <label><input type="checkbox" id="grabHandCb_rArm"> 右手扶著箱子</label>
-      <label><input type="checkbox" id="grabHandCb_lArm"> 左手扶著箱子</label>
+      <label><input type="checkbox" id="grabHandCb_rArm"> ${translatedSpan("右手扶著箱子")}</label>
+      <label><input type="checkbox" id="grabHandCb_lArm"> ${translatedSpan("左手扶著箱子")}</label>
     </div>
   `;
 }
@@ -46,8 +48,8 @@ function grabShapeParamsHTML(shapeType, params){
   const defs = GRAB_SHAPE_PARAM_INPUTS[shapeType];
   return defs.map(def => `
     <div class="row">
-      <label style="min-width:90px;">${def.label}</label>
-      <input type="range" id="grabParam_${shapeType}_${def.key}" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}">
+      <label style="min-width:90px;">${translatedSpan(def.label)}</label>
+      <input type="range" id="grabParam_${shapeType}_${def.key}" aria-label="${t(def.label)}" data-i18n-aria-label="${def.label}" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}">
       <span id="grabParamVal_${shapeType}_${def.key}">${params[def.key].toFixed(2)}</span>
     </div>
   `).join("");
@@ -56,6 +58,7 @@ function grabShapeParamsHTML(shapeType, params){
 function mountGrabBoxUI(container, core){
   if (!container) return;
   container.innerHTML = grabPanelHTML();
+  translateDOM(container);
 
   const visibleBtn = container.querySelector("#grabVisibleBtn");
   const modeBtn = container.querySelector("#grabModeBtn");
@@ -96,7 +99,7 @@ function mountGrabBoxUI(container, core){
 
   function render(state){
     visibleBtn.classList.toggle("active", state.visible);
-    modeBtn.textContent = state.mode === "translate" ? "切換：位置" : "切換：旋轉";
+    liveText(modeBtn,()=>t(state.mode === "translate" ? "切換：位置" : "切換：旋轉"));
     shapeBtnsWrap.querySelectorAll("button[data-shape]").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.shape === state.shapeType);
     });
@@ -105,6 +108,7 @@ function mountGrabBoxUI(container, core){
     // 避免使用者正在拖曳滑桿時 DOM 被重建打斷拖曳。
     if (state.shapeType !== lastShapeType){
       paramsWrap.innerHTML = grabShapeParamsHTML(state.shapeType, state.shapeParams[state.shapeType]);
+      translateDOM(paramsWrap);
       bindParamSliders(state.shapeType);
       lastShapeType = state.shapeType;
     } else {

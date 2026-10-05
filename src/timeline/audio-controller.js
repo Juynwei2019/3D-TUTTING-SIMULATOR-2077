@@ -1,3 +1,4 @@
+import { t as tr } from "../i18n/index.js";
 // Session-only media ownership. No DOM queries, timeline state or persistence.
 export function createTimelineAudio({ getAudio, getOffset, getBpm, urls = URL, warn = console.warn }){
   let objectUrl = null;
@@ -21,7 +22,7 @@ export function createTimelineAudio({ getAudio, getOffset, getBpm, urls = URL, w
     const audio = getAudio();
     if (!audio || !audio.src) return;
     try { audio.currentTime = Math.max(0, getOffset()); } catch (_) {}
-    audio.play().catch(error => warn('音樂播放失敗（可能需要先跟頁面互動一次）：', error));
+    audio.play().catch(error => warn(tr("音樂播放失敗（可能需要先跟頁面互動一次）："), error));
   }
   function pause(){
     const audio = getAudio();
@@ -30,7 +31,7 @@ export function createTimelineAudio({ getAudio, getOffset, getBpm, urls = URL, w
   function togglePreview(){
     const audio = getAudio();
     if (!audio || !audio.src) return;
-    if (audio.paused) audio.play().catch(error => warn('音樂播放失敗：', error));
+    if (audio.paused) audio.play().catch(error => warn(tr("音樂播放失敗："), error));
     else audio.pause();
   }
   return {

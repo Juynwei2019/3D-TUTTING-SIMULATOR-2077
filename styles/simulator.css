@@ -643,7 +643,7 @@
     width:100% !important; height:58vh !important; height:58dvh !important; min-height:0;
     max-width:100%; padding:8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     border:1px solid #3a3a66; border-radius:14px 14px 0 0; background:#0d0d19f5;
-    overflow:hidden; box-sizing:border-box;
+    overflow:hidden; box-sizing:border-box; z-index:7;
   }
   #ui #uiTopBtnRow { position:static; flex:0 0 44px; justify-content:flex-end; margin-bottom:4px; }
   #ui #mobilePanelToggle { display:inline-block; }

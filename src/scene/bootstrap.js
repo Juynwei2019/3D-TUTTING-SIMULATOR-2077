@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -61,7 +62,7 @@ export function createSceneBootstrap(context){
 
       for (const key of ALL_JOINT_KEYS){
         context.bones[key] = findBone(context.model, BONE_SUFFIXES[key]);
-        if (!context.bones[key]) console.warn("找不到骨骼:", BONE_SUFFIXES[key]);
+        if (!context.bones[key]) console.warn(tr("找不到骨骼:"), BONE_SUFFIXES[key]);
       }
       for (const key of ALL_JOINT_KEYS){
         if (context.bones[key]) context.restQuat[key] = context.bones[key].quaternion.clone();
@@ -74,7 +75,7 @@ export function createSceneBootstrap(context){
         const chain = FINGER_IK_CHAINS[fingerId];
         let tipBone = findBone(context.model, chain.tipSuffix);
         if (!tipBone){
-          console.warn("找不到指尖骨骼(" + chain.tipSuffix + ")，" + chain.label + " IK 退回用第3節自身當effector，精準度會變差");
+          console.warn(tr("找不到指尖骨骼(") + chain.tipSuffix + ")，" + tr(chain.label) + tr(" IK 退回用第3節自身當effector，精準度會變差"));
           tipBone = context.bones[chain.bones[2]];
         }
         context.fingerEffectorBones[fingerId] = tipBone;
@@ -131,7 +132,7 @@ export function createSceneBootstrap(context){
       document.getElementById("loading").style.display = "none";
       // #ui 的顯示/隱藏（flex/none）已由 bindTopUI() 內的 initUIVisibility() 依 localStorage 設定好，這裡不再覆蓋
     }, undefined, (err) => {
-      document.getElementById("loading").textContent = "模型載入失敗，請檢查網路連線";
+      liveText(document.getElementById("loading"),()=>tr("模型載入失敗，請檢查網路連線"));
       console.error(err);
     });
   }
