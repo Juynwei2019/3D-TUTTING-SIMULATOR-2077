@@ -121,28 +121,28 @@ export function createSceneSelection(context){
     if (context.selectedIK){
       let labelText, mesh;
       if (context.selectedIK.limb === "spine"){
-        labelText = `${SPINE_IK_CHAIN.label}・頭部目標球`;
+        labelText = `${t(SPINE_IK_CHAIN.label)}・${t("頭部目標球")}`;
         mesh = context.spineIKTargetMesh;
       } else if (context.selectedIK.limb.startsWith("lookAt_")){
         const name = context.selectedIK.limb.replace("lookAt_", "");
-        labelText = `${LOOKAT_CONFIG[name].label}・Look-At目標球`;
+        labelText = `${t(LOOKAT_CONFIG[name].label)}・${t("Look-At目標球")}`;
         mesh = context.lookAtTargetMesh[name];
       } else if (context.selectedIK.limb.startsWith(FINGER_IK_PREFIX)){
         const fingerId = context.selectedIK.limb.slice(FINGER_IK_PREFIX.length);
         labelText = t('{finger}・指尖目標球',{finger:fingerLabel(fingerId)});
         mesh = context.fingerIKTargetMeshes[fingerId];
       } else if (context.selectedIK.limb === "body"){
-        labelText = "身體位置（整個角色，控制環顯示於髖部）";
+        labelText = t("身體位置（整個角色，控制環顯示於髖部）");
         mesh = context.bodyGizmoProxy;
       } else if (context.selectedIK.role === "trajPoint"){
         const chain = IK_CHAINS[context.selectedIK.limb];
         const idx = context.selectedIK.index || 0;
-        labelText = `${chain.label}・軌跡控制點 #${idx + 1}`;
+        labelText = `${t(chain.label)}・${t("軌跡控制點")} #${idx + 1}`;
         mesh = context.trajPointMeshes[context.selectedIK.limb][idx];
         if (!mesh){ deselectJoint(); return; }
       } else {
         const chain = IK_CHAINS[context.selectedIK.limb];
-        labelText = `${chain.label}・${context.selectedIK.role === "target" ? "IK目標球" : "彎曲極向球"}`;
+        labelText = `${t(chain.label)}・${context.selectedIK.role === "target" ? t("IK目標球") : t("彎曲極向球")}`;
         mesh = context.selectedIK.role === "target" ? context.ikTargetMeshes[context.selectedIK.limb] : context.ikPoleMeshes[context.selectedIK.limb];
       }
       label.textContent = labelText;

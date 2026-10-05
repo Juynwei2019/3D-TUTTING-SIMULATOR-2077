@@ -1,3 +1,4 @@
+import { t } from "../i18n/index.js";
 import { EASINGS, EASING_GROUPS } from "../math/easings.js";
 import { clampNum } from "../math/angles.js";
 
@@ -42,8 +43,8 @@ function buildEasingSVG(name, w, h){
 
 function buildEasingSelectOptions(){
   return EASING_GROUPS.map(g => {
-    const opts = g.items.map(([val,label]) => `<option value="${val}">${label}</option>`).join("");
-    return `<optgroup label="${g.label}">${opts}</optgroup>`;
+    const opts = g.items.map(([val,label]) => `<option value="${val}" data-i18n="${label}">${t(label)}</option>`).join("");
+    return `<optgroup label="${t(g.label)}" data-i18n-label="${g.label}">${opts}</optgroup>`;
   }).join("");
 }
 

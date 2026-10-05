@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { FINGER_JOINT_KEYS } from "../rig/definitions.js";
 import { GROOVE_PRESETS, GROOVE_ARCHETYPES } from "../motion/definitions.js";
 
@@ -34,13 +35,13 @@ export function createLibraryDomainController(context){
   function formatRelativeSavedTime(ts){
     if (!ts) return "";
     const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
-    if (diffSec < 60) return "剛剛";
+    if (diffSec < 60) return tr("剛剛");
     const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return diffMin + "分鐘前";
+    if (diffMin < 60) return diffMin + tr("分鐘前");
     const diffHr = Math.round(diffMin / 60);
-    if (diffHr < 24) return diffHr + "小時前";
+    if (diffHr < 24) return diffHr + tr("小時前");
     const diffDay = Math.round(diffHr / 24);
-    if (diffDay < 30) return diffDay + "天前";
+    if (diffDay < 30) return diffDay + tr("天前");
     const d = new Date(ts);
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   }
@@ -53,18 +54,18 @@ export function createLibraryDomainController(context){
     const ms = Math.round((60000 / context.bpm) * totalBeats);
     const sec = (ms / 1000).toFixed(1);
     const when = formatRelativeSavedTime(item.savedAt);
-    return `${frameCount}拍・約${sec}秒${when ? "・" + when : ""}`;
+    return tr("{p0}拍・約{p1}秒{p2}", {p0:frameCount, p1:sec, p2:when ? "・" + when : ""});
   }
 
   function captureSelectedMove(){
     const total = context.keyframes.length;
-    if (total === 0){ alert("目前時間軸沒有任何拍點，請先到「拍點」分頁排好動作。"); return null; }
+    if (total === 0){ alert(tr("目前時間軸沒有任何拍點，請先到「拍點」分頁排好動作。")); return null; }
     const startEl = document.getElementById("moveLibStartInput");
     const endEl = document.getElementById("moveLibEndInput");
     let a = parseInt(startEl.value, 10);
     let b = parseInt(endEl.value, 10);
     if (!Number.isFinite(a) || !Number.isFinite(b)){
-      alert("請輸入有效的起始拍與結束拍（例如 1、4）。"); return null;
+      alert(tr("請輸入有效的起始拍與結束拍（例如 1、4）。")); return null;
     }
     if (a > b) { const t = a; a = b; b = t; }
     a = Math.max(1, Math.min(a, total));
@@ -76,7 +77,7 @@ export function createLibraryDomainController(context){
 
   function insertMoveData(data){
     if (!data || !Array.isArray(data.frames) || data.frames.length === 0){
-      alert("這個招式資料格式錯誤或是空的。"); return;
+      alert(tr("這個招式資料格式錯誤或是空的。")); return;
     }
     const cloned = JSON.parse(JSON.stringify(data.frames));
     const insertAt = (context.kfEditingIndex >= 0 && context.kfEditingIndex < context.keyframes.length) ? context.kfEditingIndex + 1 : context.keyframes.length;
@@ -89,7 +90,7 @@ export function createLibraryDomainController(context){
 
   function updateMoveLibRangeHint(){
     const hint = document.getElementById("moveLibRangeHint");
-    if (hint) hint.textContent = `（目前時間軸共 ${context.keyframes.length} 拍）`;
+    if (hint) liveText(hint, ()=>tr("（目前時間軸共 {p0} 拍）", {p0:context.keyframes.length}));
   }
 
   function captureCurrentGrooveConfig(){
@@ -146,12 +147,12 @@ export function createLibraryDomainController(context){
   function grooveLibSubtitle(item){
     const data = item.data || {};
     const jointCount = Array.isArray(data.jointSet) ? data.jointSet.length : 0;
-    const squatTag = data.squatEnabled ? "蹲彈開" : "蹲彈關";
+    const squatTag = data.squatEnabled ? tr("蹲彈開") : tr("蹲彈關");
     const when = formatRelativeSavedTime(item.savedAt);
     // 自動生成的項目標上原型名稱：庫裡混了手調與自動生成時，一眼看得出哪些是機器抽的
     const m = data.meta;
     const genTag = (m && GROOVE_ARCHETYPES[m.archetype]) ? ("🤖" + GROOVE_ARCHETYPES[m.archetype].short + "・") : "";
-    return `${genTag}${jointCount}個關節・${squatTag}${when ? "・" + when : ""}`;
+    return tr("{p0}{p1}個關節・{p2}{p3}", {p0:genTag, p1:jointCount, p2:squatTag, p3:when ? "・" + when : ""});
   }
 
   function bindLibraryUI(){
@@ -194,7 +195,7 @@ export function createLibraryDomainController(context){
       subtitleFn: moveLibSubtitle,
       onRender: (count) => {
         const badge = document.getElementById("moveLibCount");
-        if (badge) badge.textContent = count;
+        if (badge) liveText(badge, ()=>count);
       }
     });
     const moveSearchInput = document.getElementById("moveLibSearchInput");
@@ -213,11 +214,11 @@ export function createLibraryDomainController(context){
     document.getElementById("moveLibImportOneFile").onchange = (e) => { context.moveLibCtrl.importOne(e.target.files[0]); e.target.value = ""; };
 
     document.getElementById("moveLibUseCurAsStartBtn").onclick = () => {
-      if (context.kfEditingIndex < 0){ alert("請先到「拍點」分頁點選一個拍點。"); return; }
+      if (context.kfEditingIndex < 0){ alert(tr("請先到「拍點」分頁點選一個拍點。")); return; }
       document.getElementById("moveLibStartInput").value = context.kfEditingIndex + 1;
     };
     document.getElementById("moveLibUseCurAsEndBtn").onclick = () => {
-      if (context.kfEditingIndex < 0){ alert("請先到「拍點」分頁點選一個拍點。"); return; }
+      if (context.kfEditingIndex < 0){ alert(tr("請先到「拍點」分頁點選一個拍點。")); return; }
       document.getElementById("moveLibEndInput").value = context.kfEditingIndex + 1;
     };
 

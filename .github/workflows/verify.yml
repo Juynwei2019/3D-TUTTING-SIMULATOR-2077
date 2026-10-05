@@ -48,6 +48,9 @@ jobs:
       - name: Run FingerTut regression
         run: npm run test:fingertut
 
+      - name: Run language switching regression
+        run: npm run test:language
+
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

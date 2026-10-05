@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createI18n, LANGUAGE_STORAGE_KEY } from '../src/i18n/index.js';
-import { english } from '../src/i18n/messages.js';
+import { english } from '../src/i18n/index.js';
 
 test('language defaults, unsupported preferences and missing keys fall back to Chinese',()=>{
   const i=createI18n({getItem:()=> 'fr'});
@@ -28,4 +28,27 @@ test('every translation is nonempty and preserves interpolation parameters',()=>
     assert.ok(value.length,key);
     assert.deepEqual((value.match(/\{\w+\}/g)||[]).sort(),(key.match(/\{\w+\}/g)||[]).sort(),key);
   }
+});
+
+test('live text and tooltip updates preserve nodes and replace obsolete renderers',async()=>{
+  const {i18n,t,liveText,liveAttribute,refreshLiveTranslations}=await import('../src/i18n/index.js');
+  const attrs=new Map([['data-tooltip','old']]);let clicks=0;
+  const node={textContent:'',setAttribute:(k,v)=>attrs.set(k,v),hasAttribute:k=>attrs.has(k),onclick:()=>clicks++};
+  const root={querySelectorAll:()=>[node]};
+  try{
+    i18n.setLanguage('zh-Hant');liveText(node,()=>t('▶ 播放'));liveAttribute(node,'title',()=>t('套用「{name}」',{name:'自訂 English'}));
+    assert.equal(node.textContent,'▶ 播放');const click=node.onclick;
+    i18n.setLanguage('en');refreshLiveTranslations(root);
+    assert.equal(node.textContent,'▶ Play');assert.equal(attrs.get('data-tooltip'),'Apply “自訂 English”');assert.equal(node.onclick,click);
+    node.onclick();assert.equal(clicks,1);
+    liveText(node,()=>t('■ 停止'));i18n.setLanguage('zh-Hant');refreshLiveTranslations(root);assert.equal(node.textContent,'■ 停止');
+  }finally{i18n.setLanguage('zh-Hant');}
+});
+
+test('all authored translation annotations have dictionary entries',async()=>{
+  const {readFile}=await import('node:fs/promises');const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+  const decode=s=>s.replaceAll('&quot;','"').replaceAll('&#x27;',"'").replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
+  const keys=Array.from(html.matchAll(/data-i18n(?:-(?:title|aria-label|placeholder))?="([^"]+)"/g),m=>decode(m[1]));
+  assert.ok(keys.length>0);
+  for(const key of keys)assert.ok(Object.hasOwn(english,key),'missing: '+key);
 });

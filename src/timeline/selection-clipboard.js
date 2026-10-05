@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 // Host adapter provides live state and owns rendering/history/persistence effects.
 export function createTimelineSelection(context, doc = document){
   function timelineClipboardCount(){
@@ -19,7 +20,7 @@ export function createTimelineSelection(context, doc = document){
       const parts = [];
       if (context.kfMultiSelected.size) parts.push(`POSE ${context.kfMultiSelected.size}`);
       if (context.grooveMultiSelected.size) parts.push(`GROOVE ${context.grooveMultiSelected.size}`);
-      countEl.textContent = total ? `已選 ${parts.join(" · ")}` : "已選 0 個";
+      liveText(countEl, ()=>total ? tr("已選 {p0}", {p0:parts.join(" · ")}) : tr("已選 0 個"));
     }
     if (delBtn) delBtn.disabled = total === 0;
     if (copyBtn) copyBtn.disabled = total === 0;
@@ -101,7 +102,7 @@ export function createTimelineSelection(context, doc = document){
       const parts=[];
       if (context.timelineClipboard.poseItems.length) parts.push(`${context.timelineClipboard.poseItems.length} POSE`);
       if (context.timelineClipboard.grooveItems.length) parts.push(`${context.timelineClipboard.grooveItems.length} GROOVE`);
-      hud.textContent = `已複製 ${parts.join(" + ")}`;
+      liveText(hud, ()=>tr("已複製 {p0}", {p0:parts.join(" + ")}));
       hud.style.left = "50%"; hud.style.top = "16px"; hud.style.transform = "translateX(-50%)"; hud.style.display="block";
       clearTimeout(copyTimelineSelection._t); copyTimelineSelection._t=setTimeout(()=>{hud.style.display="none"; hud.style.transform="";},900);
     }
@@ -112,7 +113,7 @@ export function createTimelineSelection(context, doc = document){
     const {poseIndices, grooveIndices} = currentTimelineClipboardSelection();
     const total = poseIndices.length + grooveIndices.length;
     if (!total) return false;
-    if (confirmDelete && !context.confirm(`確定要刪除已選取的 ${total} 個 Timeline 項目嗎？此動作可用 Ctrl+Z 復原。`)) return false;
+    if (confirmDelete && !context.confirm(tr("確定要刪除已選取的 {p0} 個 Timeline 項目嗎？此動作可用 Ctrl+Z 復原。", {p0:total}))) return false;
     poseIndices.slice().sort((a,b)=>b-a).forEach(i => context.keyframes.splice(i,1));
     grooveIndices.slice().sort((a,b)=>b-a).forEach(i => context.grooveSequence.splice(i,1));
     context.kfEditingIndex = -1; context.grooveSeqSelectedIndex = -1;

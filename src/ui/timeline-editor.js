@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute, liveHTML } from "../i18n/index.js";
 import { buildEasingSVG } from "./easing-gallery.js";
 
 // Rendering and edit gestures delegate all data changes to host callbacks.
@@ -18,7 +19,7 @@ export function createTimelineEditor(context, doc = document){
       // 之後 getElementById 回傳 null，host.appendChild(null) 會拋例外中斷整個函式（已修正的舊bug）。
       const empty = doc.createElement("span");
       empty.id = "kfEmpty";
-      empty.textContent = "尚未新增任何拍點——先用關節控制環擺出第一個姿勢，再按「+ 新增拍點」";
+      liveText(empty, ()=>tr("尚未新增任何拍點——先用關節控制環擺出第一個姿勢，再按「+ 新增拍點」"));
       host.appendChild(empty);
       context.updateBeatGridGeometry();
       context.renderGrooveLoopGhosts();
@@ -55,27 +56,27 @@ export function createTimelineEditor(context, doc = document){
       if (context.kfMultiSelectMode){
         const check = doc.createElement("span");
         check.className = "kfCheckMark";
-        check.textContent = "✓";
-        check.setAttribute("data-tooltip", context.kfMultiSelected.has(i) ? "已選取；可拖曳任一已選 POSE 整組移動" : "點 F 按鈕加入多選");
+        liveText(check, ()=>"✓");
+        liveAttribute(check, "data-tooltip", ()=>context.kfMultiSelected.has(i) ? tr("已選取；可拖曳任一已選 POSE 整組移動") : tr("點 F 按鈕加入多選"));
         chip.appendChild(check);
       }
 
       const sel = doc.createElement("button");
       sel.className = "sel";
-      sel.textContent = (kf.waveBake?"🌊 ":"")+`F${i+1}`;
-      sel.setAttribute("data-tooltip", context.kfMultiSelectMode ? "點擊勾選／取消勾選" : "點擊套用這個拍點的姿勢");
+      liveText(sel, ()=>(kf.waveBake?"🌊 ":"")+`F${i+1}`);
+      liveAttribute(sel, "data-tooltip", ()=>context.kfMultiSelectMode ? tr("點擊勾選／取消勾選") : tr("點擊套用這個拍點的姿勢"));
       sel.onclick = () => { if (context.kfMultiSelectMode) context.toggleKfMultiSelectItem(i); else context.selectKeyframe(i); };
 
       const labelBtn = doc.createElement("button");
       labelBtn.className = "kfLabelBtn" + (kf.label ? " hasLabel" : "");
-      labelBtn.textContent = kf.label ? kf.label : "✎";
-      labelBtn.setAttribute("data-tooltip", kf.label ? `備註：${kf.label}（點擊編輯／清空）` : "點擊新增備註（例如「插腰」「收拍」）");
+      liveText(labelBtn, ()=>kf.label ? kf.label : "✎");
+      liveAttribute(labelBtn, "data-tooltip", ()=>kf.label ? tr("備註：{p0}（點擊編輯／清空）", {p0:kf.label}) : tr("點擊新增備註（例如「插腰」「收拍」）"));
       labelBtn.onclick = (ev) => { ev.stopPropagation(); context.renameKeyframeLabel(i); };
 
       const dup = doc.createElement("button");
       dup.className = "dup";
-      dup.textContent = "⧉";
-      dup.setAttribute("data-tooltip", "複製此拍點（插入在後面）");
+      liveText(dup, ()=>"⧉");
+      liveAttribute(dup, "data-tooltip", ()=>tr("複製此拍點（插入在後面）"));
       dup.onclick = (ev) => { ev.stopPropagation(); context.duplicateKeyframe(i); context.pushHistory(); };
 
 
@@ -86,8 +87,8 @@ export function createTimelineEditor(context, doc = document){
       if (kf.traj && Object.keys(kf.traj).length > 0){
         const trajTag = doc.createElement("span");
         trajTag.className = "kfTrajTag";
-        trajTag.textContent = "〜";
-        trajTag.title = "含軌跡資料：" + Object.keys(kf.traj).map(l => context.IK_CHAINS[l] ? context.IK_CHAINS[l].label : l).join("、");
+        liveText(trajTag, ()=>"〜");
+        liveAttribute(trajTag, "title", ()=>tr("含軌跡資料：") + Object.keys(kf.traj).map(l => context.IK_CHAINS[l] ? tr(context.IK_CHAINS[l].label) : l).join("、"));
         chip.appendChild(trajTag);
       }
 
@@ -97,8 +98,8 @@ export function createTimelineEditor(context, doc = document){
         easeTag.className = "kfEaseTag";
         const beats = kf.beats || 1;
         const easeName = kf.easing || "easeInOutQuad";
-        easeTag.title = `${easeName} · ${beats} 拍`;
-        easeTag.innerHTML = buildEasingSVG(easeName, 26, 15) + `<span>${beats}拍</span>`;
+        liveAttribute(easeTag, "title", ()=>tr("{p0} · {p1} 拍", {p0:easeName, p1:beats}));
+        liveHTML(easeTag, ()=>buildEasingSVG(easeName, 26, 15) + tr("<span>{p0}拍</span>", {p0:beats}));
         chip.appendChild(easeTag);
       }
 
@@ -106,7 +107,7 @@ export function createTimelineEditor(context, doc = document){
       if (i < context.keyframes.length - 1 && !context.kfMultiSelectMode){
         const resizeHandle = doc.createElement("div");
         resizeHandle.className = "timelineResizeHandle poseResizeHandle";
-        resizeHandle.setAttribute("data-tooltip", `拖曳調整 F${i+1} → F${i+2} 轉場長度（1/4拍吸附）`);
+        liveAttribute(resizeHandle, "data-tooltip", ()=>tr("拖曳調整 F{p0} → F{p1} 轉場長度（1/4拍吸附）", {p0:i+1, p1:i+2}));
         resizeHandle.addEventListener("pointerdown", (ev) => context.beginPoseResize(ev, i, chip, resizeHandle));
         resizeHandle.addEventListener("click", (ev) => ev.stopPropagation());
         chip.appendChild(resizeHandle);

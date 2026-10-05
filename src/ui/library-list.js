@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 export function renderLibraryList(items, listElId, emptyElId, handlers, emptyText, document = globalThis.document){
   const host = document.getElementById(listElId);
   host.innerHTML = "";
@@ -5,7 +6,7 @@ export function renderLibraryList(items, listElId, emptyElId, handlers, emptyTex
     const empty = document.createElement("span");
     empty.id = emptyElId;
     empty.className = "libEmpty";
-    empty.textContent = emptyText || "";
+    liveText(empty, ()=>tr(emptyText || ""));
     host.appendChild(empty);
     return;
   }
@@ -15,7 +16,7 @@ export function renderLibraryList(items, listElId, emptyElId, handlers, emptyTex
 
     const sel = document.createElement("button");
     sel.className = "sel";
-    sel.title = "套用「" + item.name + "」";
+    liveAttribute(sel, "title", ()=>tr("套用「{name}」",{name:item.name}));
     sel.onclick = () => handlers.apply(item);
     const nameSpan = document.createElement("span");
     nameSpan.className = "selName";
@@ -26,7 +27,7 @@ export function renderLibraryList(items, listElId, emptyElId, handlers, emptyTex
       if (subText){
         const subSpan = document.createElement("span");
         subSpan.className = "selSub";
-        subSpan.textContent = subText;
+        liveText(subSpan, ()=>handlers.subtitle(item));
         sel.appendChild(subSpan);
       }
     }
@@ -35,23 +36,23 @@ export function renderLibraryList(items, listElId, emptyElId, handlers, emptyTex
     if (typeof handlers.rename === "function"){
       const ren = document.createElement("button");
       ren.className = "ren";
-      ren.textContent = "✎";
-      ren.title = "重新命名「" + item.name + "」";
+      liveText(ren, ()=>"✎");
+      liveAttribute(ren, "title", ()=>tr("重新命名「{name}」",{name:item.name}));
       ren.onclick = (ev) => { ev.stopPropagation(); handlers.rename(item); };
       chip.appendChild(ren);
     }
 
     const exp = document.createElement("button");
     exp.className = "exp";
-    exp.textContent = "⬇";
-    exp.title = "匯出「" + item.name + "」為 JSON 檔";
+    liveText(exp, ()=>"⬇");
+    liveAttribute(exp, "title", ()=>tr("匯出「{name}」為 JSON 檔",{name:item.name}));
     exp.onclick = (ev) => { ev.stopPropagation(); handlers.exportOne(item); };
     chip.appendChild(exp);
 
     const del = document.createElement("button");
     del.className = "del";
-    del.textContent = "×";
-    del.title = "刪除「" + item.name + "」";
+    liveText(del, ()=>"×");
+    liveAttribute(del, "title", ()=>tr("刪除「{name}」",{name:item.name}));
     del.onclick = (ev) => { ev.stopPropagation(); handlers.del(item); };
     chip.appendChild(del);
 

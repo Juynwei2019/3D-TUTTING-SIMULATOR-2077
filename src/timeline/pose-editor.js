@@ -1,3 +1,4 @@
+import { t as tr } from "../i18n/index.js";
 import { insertKeyframe, duplicateKeyframeData, reorderKeyframeData } from "../timeline/data.js";
 
 // Live host getters preserve shared rig and playback coordination.
@@ -28,7 +29,7 @@ export function createPoseEditor(context){
   function renameKeyframeLabel(i){
     if (!context.keyframes[i]) return;
     const current = context.keyframes[i].label || "";
-    const next = prompt("拍點備註（例如「插腰」「收拍」），留空即可清除：", current);
+    const next = prompt(tr("拍點備註（例如「插腰」「收拍」），留空即可清除："), current);
     if (next === null) return; // 使用者按取消，不變動
     const trimmed = next.trim().slice(0, 24);
     if (trimmed) context.keyframes[i].label = trimmed; else delete context.keyframes[i].label;

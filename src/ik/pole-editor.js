@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { BONE_SUFFIXES, FINGER_DEFS, HAND_SIDES, FINGER_JOINT_LABELS, FINGER_JOINT_KEYS, FINGER_JOINT_KEY_SET, ALL_JOINT_KEYS, LABEL_LOOKUP, OVERVIEW_GROUPS, IK_CHAINS, IK_LIMB_KEYS, SHOULDER_ASSIST_MAX_ANGLE, ROOT_FOLLOW_LERP_T_DEFAULT, SPINE_CCD_DAMPING_DEFAULT, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import * as THREE from "three";
 
@@ -57,7 +58,7 @@ function updatePoleRadiusUI(){
   const limb=context.selectedIK?.role==='pole'&&IK_CHAINS[context.selectedIK.limb]?context.selectedIK.limb:null;
   panel.style.display=limb?'':'none';
   if(!limb) return;
-  document.getElementById('poleRadiusTitle').textContent=IK_CHAINS[limb].label+'・極向球範圍';
+  liveText(document.getElementById('poleRadiusTitle'), ()=>tr(IK_CHAINS[limb].label)+tr("・極向球範圍"));
   document.getElementById('poleRadiusInput').value=Number(poleRadius(limb).toFixed(4));
 }
 
@@ -72,7 +73,7 @@ function bindPoleRadiusUI(){
     if(reset) delete context.poleRadiusCustom[limb]; else context.poleRadiusCustom[limb]=r;
     const mid=poleMid(limb);
     const ok=!mid||context.ikPoleMeshes[limb].position.distanceTo(mid)<=poleRadius(limb)||alignPoleInRadius(limb);
-    document.getElementById('poleRadiusNotice').textContent=ok?'':'目前方向無法安全對齊，請先調整肢體姿勢再對齊。';
+    liveText(document.getElementById('poleRadiusNotice'), ()=>ok?'':tr("目前方向無法安全對齊，請先調整肢體姿勢再對齊。"));
     updatePoleRadiusUI();context.pushHistory();context.scheduleAutoSave();
   };
   input.onchange=()=>change(false);
@@ -80,7 +81,7 @@ function bindPoleRadiusUI(){
   document.getElementById('poleRadiusAlign').onclick=()=>{
     if(context.selectedIK?.role!=='pole'||context.kfPlaying||context.poleDrag)return;
     context.pushHistory();const ok=alignPoleInRadius(context.selectedIK.limb);
-    document.getElementById('poleRadiusNotice').textContent=ok?'已保留彎曲方向並對齊。':'肢體方向退化或不一致，請先稍微彎曲肢體再試。';
+    liveText(document.getElementById('poleRadiusNotice'), ()=>ok?tr("已保留彎曲方向並對齊。"):tr("肢體方向退化或不一致，請先稍微彎曲肢體再試。"));
     context.pushHistory();context.scheduleAutoSave();
   };
 }
@@ -92,11 +93,11 @@ function beginPoleDrag(){
   // No relocation during mouseDown: TransformControls has already captured its start position.
   if(context.kfPlaying||mesh.position.distanceTo(center)>poleRadius(limb)+1e-7){
     context.poleDrag={limb,blocked:true,start:mesh.position.clone()};
-    document.getElementById('poleRadiusNotice').textContent='請先按「對齊目前彎曲方向」再拖曳；播放時請先暫停。';
+    liveText(document.getElementById('poleRadiusNotice'), ()=>tr("請先按「對齊目前彎曲方向」再拖曳；播放時請先暫停。"));
     return;
   }
   context.pushHistory();context.poleDrag={limb,center,radius:poleRadius(limb)};
-  document.getElementById('poleRadiusNotice').textContent='';
+  liveText(document.getElementById('poleRadiusNotice'), ()=>'');
 }
 
 function clampPoleDrag(){

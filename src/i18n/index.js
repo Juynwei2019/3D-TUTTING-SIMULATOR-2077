@@ -1,4 +1,6 @@
-import { english } from './messages.js';
+import { english as firstBatchEnglish } from './messages.js';
+import { batch2English } from './batch2-messages.js';
+export const english = {...firstBatchEnglish,...batch2English};
 export const LANGUAGE_STORAGE_KEY = 'tuttingLanguage';
 export function createI18n(storage){
   let language='zh-Hant';
@@ -26,7 +28,7 @@ export const t=(key,values)=>i18n.t(key,values);
 export const onLanguageChange=listener=>i18n.subscribe(listener);
 export function translateDOM(root=document){
   for(const el of root.querySelectorAll('[data-i18n]'))el.textContent=t(el.dataset.i18n);
-  for(const attr of ['title','aria-label','placeholder','data-tooltip']){
+  for(const attr of ['title','aria-label','placeholder','data-tooltip','label']){
     for(const el of root.querySelectorAll(`[data-i18n-${attr}]`)){
       const value=t(el.getAttribute(`data-i18n-${attr}`));el.setAttribute(attr,value);
       if(attr==='title'&&el.hasAttribute('data-tooltip'))el.setAttribute('data-tooltip',value);
@@ -37,6 +39,35 @@ export function translateDOM(root=document){
 }
 export function bindLanguageUI(){
   translateDOM();
-  onLanguageChange(()=>translateDOM());
+  onLanguageChange(()=>{translateDOM();refreshLiveTranslations();});
   document.getElementById('languageSelect').addEventListener('change',event=>i18n.setLanguage(event.target.value));
+}
+
+// Keep renderers on the existing nodes; changing locale never rebuilds inputs.
+const liveRenderers=new WeakMap();
+function resolveText(render){
+  const value=typeof render==='function'?render():render;
+  return typeof value==='function'?value():value;
+}
+export function liveText(node,render){return liveProperty(node,'textContent',render);}
+export function liveHTML(node,render){return liveProperty(node,'innerHTML',render);}
+export function liveAttribute(node,attribute,render){return liveProperty(node,'@'+attribute,render);}
+function liveProperty(node,property,render){
+  if(!node)return;
+  let map=liveRenderers.get(node);if(!map){map=new Map();liveRenderers.set(node,map);node.setAttribute?.('data-live-i18n','');}
+  map.set(property,render);
+  applyTranslation(node,property,render);
+}
+function applyTranslation(node,property,render){
+  const value=resolveText(render);
+  if(property.startsWith('@')){
+    const attribute=property.slice(1);
+    if(node.getAttribute?.(attribute)!==value)node.setAttribute(attribute,value);
+  }else if(node[property]!==value)node[property]=value;
+  if(property==='@title'&&node.hasAttribute?.('data-tooltip'))node.setAttribute('data-tooltip',value);
+}
+export function refreshLiveTranslations(root=document){
+  for(const node of root.querySelectorAll('[data-live-i18n]')){
+    for(const [property,render] of liveRenderers.get(node)||[])applyTranslation(node,property,render);
+  }
 }

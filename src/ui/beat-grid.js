@@ -1,3 +1,4 @@
+import { liveText } from "../i18n/index.js";
 import { touchTimelineEditing } from "./touch-timeline.js";
 import { clampNum } from "../math/angles.js";
 
@@ -111,7 +112,7 @@ export function createBeatGrid(context){
         const label = document.createElement("span");
         label.className = "beatGridTickLabel";
         label.style.left = `${x}px`;
-        label.textContent = String(Math.round(beat) + 1);
+        liveText(label, ()=>String(Math.round(beat) + 1));
         ruler.appendChild(label);
       }
     }
@@ -207,7 +208,7 @@ export function createBeatGrid(context){
         ghost.style.left = `${(cycleStart + local) * context.BEAT_GRID_PX_PER_BEAT}px`;
         ghost.style.width = `${Math.max(2, visibleDur * context.BEAT_GRID_PX_PER_BEAT - 2)}px`;
         const item = libItems.find(it => it.id === entry.libId);
-        ghost.textContent = item ? `↻ ${item.name}` : "↻ ⚠";
+        liveText(ghost, ()=>item ? `↻ ${item.name}` : "↻ ⚠");
         host.appendChild(ghost);
         local += dur;
       });
@@ -303,7 +304,7 @@ export function createBeatGrid(context){
     const x = context.BEAT_GRID_LABEL_W + poseBeat * context.BEAT_GRID_PX_PER_BEAT;
     playhead.style.left = `${x}px`;
     playhead.classList.add("visible");
-    if (label) label.textContent = `Beat ${(poseBeat + 1).toFixed(2)}`;
+    if (label) liveText(label, ()=>`Beat ${(poseBeat + 1).toFixed(2)}`);
     if (scroller) scroller.classList.add("playing");
     updateBeatGridGrooveHighlight(now, poseBeat);
     autoScrollBeatGridToPlayhead(x);
@@ -374,7 +375,7 @@ export function createBeatGrid(context){
     const opt = document.createElement("option");
     opt.dataset.customZoom = "1";
     opt.value = String(px);
-    opt.textContent = custom ? `Fit ${Math.round(px / 72 * 100)}%` : `${Math.round(px / 72 * 100)}%`;
+    liveText(opt, ()=>custom ? `Fit ${Math.round(px / 72 * 100)}%` : `${Math.round(px / 72 * 100)}%`);
     select.appendChild(opt);
     select.value = opt.value;
   }

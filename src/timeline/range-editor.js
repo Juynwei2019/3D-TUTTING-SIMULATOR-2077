@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import { clampNum } from "../math/angles.js";
 
 // Host adapter provides live state and owns rendering/history/persistence effects.
@@ -54,7 +55,7 @@ export function createRangeEditor(context, doc = document){
   function showRangeEditHud(message, ms=1100){
     const hud = doc.getElementById("timelineDragHud");
     if (!hud) return;
-    hud.textContent = message;
+    liveText(hud, ()=>typeof message==='function'?message():tr(message));
     hud.style.left = "50%"; hud.style.top = "16px"; hud.style.transform = "translateX(-50%)"; hud.style.display = "block";
     clearTimeout(showRangeEditHud._t);
     showRangeEditHud._t = setTimeout(() => { hud.style.display="none"; hud.style.transform=""; }, ms);
@@ -68,7 +69,7 @@ export function createRangeEditor(context, doc = document){
       : [];
     const grooveItems = hit.grooveIndices.map(i => context.deepCloneTimelineItem(context.grooveSequence[i]));
     if (!poseItems.length && !grooveItems.length){
-      showRangeEditHud("Range 內沒有可複製項目");
+      showRangeEditHud(()=>tr("Range 內沒有可複製項目"));
       return false;
     }
     context.beatGridRangeClipboard = {
@@ -81,7 +82,7 @@ export function createRangeEditor(context, doc = document){
     const parts=[];
     if (hit.poseTransitions.length) parts.push(`${hit.poseTransitions.length} POSE transition`);
     if (hit.grooveIndices.length) parts.push(`${hit.grooveIndices.length} GROOVE`);
-    showRangeEditHud(`已複製 Range：${parts.join(" + ")}`);
+    showRangeEditHud(()=>tr("已複製 Range：{p0}", {p0:parts.join(" + ")}));
     return true;
   }
 
@@ -120,7 +121,7 @@ export function createRangeEditor(context, doc = document){
     context.renderKeyframeChips(); context.renderGrooveSeqChips(); context.scheduleAutoSave();
     if (push) context.pushHistory();
     updateBeatGridRangeUI();
-    if (showHud) showRangeEditHud(`已貼上 Range：${poseCopies.length ? (poseCopies.length-1)+" POSE transition" : ""}${poseCopies.length && grooveCopies.length ? " + " : ""}${grooveCopies.length ? grooveCopies.length+" GROOVE" : ""}`);
+    if (showHud) showRangeEditHud(()=>tr("已貼上 Range：{p0}{p1}{p2}", {p0:poseCopies.length ? (poseCopies.length-1)+" POSE transition" : "", p1:poseCopies.length && grooveCopies.length ? " + " : "", p2:grooveCopies.length ? grooveCopies.length+" GROOVE" : ""}));
     return true;
   }
 
@@ -129,7 +130,7 @@ export function createRangeEditor(context, doc = document){
     if (!copyBeatGridRange()) return false;
     // copy 本身不寫 history；paste 只寫一次，因此整個 Duplicate 是單一 Undo transaction。
     const ok = pasteBeatGridRange({push:true, showHud:false});
-    if (ok) showRangeEditHud("Range 已重複到選取範圍之後");
+    if (ok) showRangeEditHud(()=>tr("Range 已重複到選取範圍之後"));
     return ok;
   }
 
@@ -138,11 +139,11 @@ export function createRangeEditor(context, doc = document){
     const hit = getBeatGridRangeAffectedItems();
     const poseCount = hit.poseTransitions.length;
     const grooveCount = hit.grooveIndices.length;
-    if (!poseCount && !grooveCount){ showRangeEditHud("Range 內沒有可刪除項目"); return false; }
+    if (!poseCount && !grooveCount){ showRangeEditHud(()=>tr("Range 內沒有可刪除項目")); return false; }
     const parts=[];
-    if (poseCount) parts.push(`${poseCount} 個 POSE transition`);
-    if (grooveCount) parts.push(`${grooveCount} 個 GROOVE clip`);
-    if (!context.confirm(`確定刪除 Range 相交的 ${parts.join("、")}？\n\n目前版本以完整 Timeline 項目為單位刪除，後方內容會自動前移。此動作可用 Ctrl+Z 復原。`)) return false;
+    if (poseCount) parts.push(()=>tr("{p0} 個 POSE transition", {p0:poseCount}));
+    if (grooveCount) parts.push(()=>tr("{p0} 個 GROOVE clip", {p0:grooveCount}));
+    if (!context.confirm(tr("確定刪除 Range 相交的 {p0}？\n\n目前版本以完整 Timeline 項目為單位刪除，後方內容會自動前移。此動作可用 Ctrl+Z 復原。", {p0:parts.map(render=>render()).join("、")}))) return false;
 
     // POSE transition i 對應移除它的起始 frame i；保留最後 target frame，確保至少留下一個姿勢。
     hit.poseTransitions.slice().sort((a,b)=>b-a).forEach(i => {
@@ -159,7 +160,7 @@ export function createRangeEditor(context, doc = document){
     context.updateKfMultiSelectBar(); context.syncEasingControlsFromSelection();
     context.renderKeyframeChips(); context.renderGrooveSeqChips(); context.scheduleAutoSave(); context.pushHistory();
     updateBeatGridRangeUI();
-    showRangeEditHud(`已刪除 ${parts.join(" + ")}`);
+    showRangeEditHud(()=>tr("已刪除 {p0}", {p0:parts.map(render=>render()).join(" + ")}));
     return true;
   }
 
@@ -188,12 +189,11 @@ export function createRangeEditor(context, doc = document){
         const counts = [];
         if (hit.poseTransitions.length) counts.push(`P${hit.poseTransitions.length}`);
         if (hit.grooveIndices.length) counts.push(`G${hit.grooveIndices.length}`);
-        info.textContent = `Beat ${formatRangeBeatLabel(context.beatGridRangeStart)}→${formatRangeBeatLabel(context.beatGridRangeEnd)} · ${context.formatBeatValue(context.beatGridRangeEnd - context.beatGridRangeStart)}拍${counts.length ? " · "+counts.join("/") : ""}`;
-        info.title = `${info.textContent}
-  Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位`;
+        liveText(info, ()=>tr("Beat {p0}→{p1} · {p2}拍{p3}", {p0:formatRangeBeatLabel(context.beatGridRangeStart), p1:formatRangeBeatLabel(context.beatGridRangeEnd), p2:context.formatBeatValue(context.beatGridRangeEnd - context.beatGridRangeStart), p3:counts.length ? " · "+counts.join("/") : ""}));
+        liveAttribute(info, "title", ()=>tr("{p0}\n  Range 編輯以與範圍相交的完整 POSE transition / GROOVE clip 為單位", {p0:info.textContent}));
       } else {
-        info.textContent = "未選範圍";
-        info.title = info.textContent;
+        liveText(info, ()=>tr("未選範圍"));
+        liveAttribute(info, "title", ()=>info.textContent);
       }
     }
     if (loopBtn){
@@ -201,8 +201,8 @@ export function createRangeEditor(context, doc = document){
       const playable = valid && (context.keyframes.length >= 2 || context.waveClips.length > 0) && context.beatGridRangeStart < poseTotal - 1e-6;
       loopBtn.disabled = !playable;
       loopBtn.classList.toggle("active", playable && context.beatGridRangeLoop);
-      loopBtn.textContent = playable && context.beatGridRangeLoop ? "⟳ Range ON" : "⟳ Range";
-      loopBtn.title = playable ? "只循環播放選取範圍" : (valid ? "Range 必須與 POSE／WAVING 播放範圍重疊" : "請先在 Beat Ruler 上拖曳選取範圍");
+      liveText(loopBtn, ()=>playable && context.beatGridRangeLoop ? "⟳ Range ON" : "⟳ Range");
+      liveAttribute(loopBtn, "title", ()=>playable ? tr("只循環播放選取範圍") : (valid ? tr("Range 必須與 POSE／WAVING 播放範圍重疊") : tr("請先在 Beat Ruler 上拖曳選取範圍")));
     }
     if (copyBtn) copyBtn.disabled = !valid || affectedCount === 0 || context.kfPlaying;
     if (pasteBtn) pasteBtn.disabled = !valid || beatGridRangeClipboardCount() === 0 || context.kfPlaying;

@@ -1,3 +1,5 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
+import { jointLabel } from "../i18n/joint-labels.js";
 import { LABEL_LOOKUP } from "../rig/definitions.js";
 import { GROOVE_WAVE_EASE_PREFIX, GROOVE_WAVE_EASE_BI_PREFIX, grooveWaveValue } from "../motion/groove-wave.js";
 import { buildEasingSelectOptions } from "../ui/easing-gallery.js";
@@ -19,7 +21,7 @@ export function createGroovePanel(context){
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "grooveToggleBtn";
-      btn.textContent = LABEL_LOOKUP[key] || key;
+      liveText(btn, ()=>jointLabel(key));
       btn.dataset.key = key;
       btn.classList.toggle("active", context.grooveJointSet.has(key));
       btn.classList.toggle("customized", isGrooveJointCustomized(key));
@@ -33,8 +35,8 @@ export function createGroovePanel(context){
       const editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "grooveEditBtn";
-      editBtn.textContent = "⚙";
-      editBtn.title = "自訂「" + (LABEL_LOOKUP[key] || key) + "」的律動參數";
+      liveText(editBtn, ()=>"⚙");
+      liveAttribute(editBtn, "title", ()=>tr("自訂「") + (jointLabel(key)) + tr("」的律動參數"));
       editBtn.dataset.key = key;
       editBtn.classList.toggle("editing", context.grooveEditingKey === key);
       editBtn.onclick = () => selectGrooveEditingJoint(key);
@@ -78,7 +80,7 @@ export function createGroovePanel(context){
 
     const params = context.getGrooveParams(context.grooveEditingKey);
     const label = document.getElementById("grooveEditorLabel");
-    if (label) label.textContent = LABEL_LOOKUP[context.grooveEditingKey] || context.grooveEditingKey;
+    if (label) liveText(label, ()=>jointLabel(context.grooveEditingKey));
 
     document.querySelectorAll("#grooveAxisBtns button").forEach(b => {
       b.classList.toggle("active", b.dataset.axis === params.axis);
@@ -116,9 +118,9 @@ export function createGroovePanel(context){
     const ampVal = document.getElementById("grooveAmpVal");
     const freqVal = document.getElementById("grooveFreqVal");
     const phaseVal = document.getElementById("groovePhaseVal");
-    if (ampVal) ampVal.textContent = params.amp + "°";
-    if (freqVal) freqVal.textContent = "×" + params.freq;
-    if (phaseVal) phaseVal.textContent = params.phase.toFixed(2);
+    if (ampVal) liveText(ampVal, ()=>params.amp + "°");
+    if (freqVal) liveText(freqVal, ()=>"×" + params.freq);
+    if (phaseVal) liveText(phaseVal, ()=>params.phase.toFixed(2));
   }
 
   function buildGrooveWaveSVG(wave, w, h){
@@ -152,12 +154,16 @@ export function createGroovePanel(context){
     if (!_grooveGenOptionsBuilt){
       sel.innerHTML = context.GROOVE_ARCHETYPE_IDS
         .map(id => `<option value="${id}">${context.GROOVE_ARCHETYPES[id].label}</option>`).join("");
+      for(const option of sel.options){
+        const key=context.GROOVE_ARCHETYPES[option.value].label;
+        liveText(option,()=>tr(key));
+      }
       _grooveGenOptionsBuilt = true;
     }
 
     const arc = context.GROOVE_ARCHETYPES[sel.value] || context.GROOVE_ARCHETYPES.down;
     const desc = document.getElementById("grooveGenDesc");
-    if (desc) desc.textContent = arc.desc;
+    if (desc) liveText(desc, ()=>tr(arc.desc));
 
     // 結果列：只有「目前這組律動確實是自動生成且沒被手動改過」時才顯示 seed，
     // 否則顯示的 seed 重現出來會是別的東西（見 invalidateGrooveGenMeta）。
@@ -166,11 +172,11 @@ export function createGroovePanel(context){
       if (context.grooveLastGenMeta){
         const m = context.grooveLastGenMeta;
         const arcLabel = (context.GROOVE_ARCHETYPES[m.archetype] || {}).label || m.archetype;
-        const loop = Number.isFinite(m.loopBeats) ? `・循環 ${m.loopBeats} 拍` : "";
-        const energy = Number.isFinite(m.energy) ? `・總幅度 ${m.energy}°` : "";
-        result.textContent = `目前：${arcLabel}・種子 ${m.seed}${loop}${energy}・${context.grooveJointSet.size} 個關節・蹲彈${context.grooveSquatEnabled ? "開" : "關"}`;
+        const loop = ()=>Number.isFinite(m.loopBeats) ? tr("・循環 {p0} 拍", {p0:m.loopBeats}) : "";
+        const energy = ()=>Number.isFinite(m.energy) ? tr("・總幅度 {p0}°", {p0:m.energy}) : "";
+        liveText(result, ()=>tr("目前：{p0}・種子 {p1}{p2}{p3}・{p4} 個關節・蹲彈{p5}", {p0:tr(arcLabel), p1:m.seed, p2:loop(), p3:energy(), p4:context.grooveJointSet.size, p5:context.grooveSquatEnabled ? tr("開") : tr("關")}));
       } else {
-        result.textContent = "目前的律動不是自動生成的（或已手動修改過），沒有可重現的種子。";
+        liveText(result, ()=>tr("目前的律動不是自動生成的（或已手動修改過），沒有可重現的種子。"));
       }
     }
 
@@ -221,7 +227,7 @@ export function createGroovePanel(context){
     if (saveBtn) saveBtn.onclick = () => {
       if (!context.grooveLibCtrl) return;
       if (context.grooveJointSet.size === 0 && !context.grooveSquatEnabled){
-        alert("目前沒有任何律動內容可存——請先按「🎲 生成並套用」。");
+        alert(tr("目前沒有任何律動內容可存——請先按「🎲 生成並套用」。"));
         return;
       }
       const name = context.grooveLastGenMeta
@@ -243,7 +249,7 @@ export function createGroovePanel(context){
         context.grooveLibCtrl.saveData(context.grooveGenAutoName(arcId, cfg.meta.seed), cfg);
       }
       // 批次刻意不動目前的律動設定（跟「自動生成招式」只存進招式庫、不動時間軸同一個原則）
-      alert(`已生成 ${n} 組「${context.GROOVE_ARCHETYPES[arcId].label}」律動並存入律動庫。\n接著可到「時間軸」分頁的「律動序列」把它們排成段落。`);
+      alert(tr("已生成 {p0} 組「{p1}」律動並存入律動庫。\n接著可到「時間軸」分頁的「律動序列」把它們排成段落。", {p0:n, p1:tr(context.GROOVE_ARCHETYPES[arcId].label)}));
     };
 
     renderGrooveGenUI();
@@ -273,7 +279,7 @@ export function createGroovePanel(context){
 
   function resetAllGrooveCustom(){
     if (Object.keys(context.grooveCustomParams).length === 0) return;
-    const ok = confirm("確定要把所有關節的律動參數恢復成預設值嗎？此動作無法復原。");
+    const ok = confirm(tr("確定要把所有關節的律動參數恢復成預設值嗎？此動作無法復原。"));
     if (!ok) return;
     context.grooveCustomParams = {};
     for (const key of context.GROOVE_JOINT_KEYS) updateGrooveChipCustomizedMark(key);
@@ -297,7 +303,7 @@ export function createGroovePanel(context){
     const slider = document.getElementById("grooveWarmupBeatsSlider");
     if (slider) slider.value = String(context.grooveWarmupBeats);
     const val = document.getElementById("grooveWarmupBeatsVal");
-    if (val) val.textContent = context.grooveWarmupBeats + "拍";
+    if (val) liveText(val, ()=>context.grooveWarmupBeats + tr("拍"));
     document.querySelectorAll("#grooveWarmupCurveBtns button").forEach(b => {
       b.classList.toggle("active", b.dataset.curve === context.grooveWarmupCurve);
     });
@@ -312,7 +318,7 @@ export function createGroovePanel(context){
     if (warmupSlider) warmupSlider.oninput = (e) => {
       context.grooveWarmupBeats = parseFloat(e.target.value);
       const val = document.getElementById("grooveWarmupBeatsVal");
-      if (val) val.textContent = context.grooveWarmupBeats + "拍";
+      if (val) liveText(val, ()=>context.grooveWarmupBeats + tr("拍"));
       context.scheduleAutoSave();
     };
     document.querySelectorAll("#grooveWarmupCurveBtns button").forEach(b => {
@@ -344,7 +350,7 @@ export function createGroovePanel(context){
           context.resetSquatFootAnchors();
         }
         previewBtn.classList.toggle("active", context.groovePreviewEnabled);
-        previewBtn.textContent = context.groovePreviewEnabled ? "■ 停止預覽" : "▶ 律動預覽";
+        liveText(previewBtn, ()=>context.groovePreviewEnabled ? tr("■ 停止預覽") : tr("▶ 律動預覽"));
       };
     }
 
@@ -370,7 +376,8 @@ export function createGroovePanel(context){
     // 之前先跑一次，選單若那時還是空的，回填 value 會靜默失敗。
     const grooveEaseSel = document.getElementById("grooveWaveEaseSelect");
     if (grooveEaseSel && !grooveEaseSel.options.length){
-      grooveEaseSel.innerHTML = `<option value="">—（用上面的 bounce／sine）</option>` + buildEasingSelectOptions();
+      grooveEaseSel.innerHTML = tr("<option value=\"\">—（用上面的 bounce／sine）</option>") + buildEasingSelectOptions();
+      liveText(grooveEaseSel.options[0],()=>tr("—（用上面的 bounce／sine）"));
     }
     const applyCompositeWave = () => {
       if (!context.grooveEditingKey) return;
@@ -398,7 +405,7 @@ export function createGroovePanel(context){
       const v = parseFloat(e.target.value);
       setGrooveCustomField(context.grooveEditingKey, "amp", v);
       const ampVal = document.getElementById("grooveAmpVal");
-      if (ampVal) ampVal.textContent = v + "°";
+      if (ampVal) liveText(ampVal, ()=>v + "°");
     };
     const freqSlider = document.getElementById("grooveFreqSlider");
     if (freqSlider) freqSlider.oninput = (e) => {
@@ -406,7 +413,7 @@ export function createGroovePanel(context){
       const v = parseFloat(e.target.value);
       setGrooveCustomField(context.grooveEditingKey, "freq", v);
       const freqVal = document.getElementById("grooveFreqVal");
-      if (freqVal) freqVal.textContent = "×" + v;
+      if (freqVal) liveText(freqVal, ()=>"×" + v);
     };
     const phaseSlider = document.getElementById("groovePhaseSlider");
     if (phaseSlider) phaseSlider.oninput = (e) => {
@@ -414,7 +421,7 @@ export function createGroovePanel(context){
       const v = parseFloat(e.target.value);
       setGrooveCustomField(context.grooveEditingKey, "phase", v);
       const phaseVal = document.getElementById("groovePhaseVal");
-      if (phaseVal) phaseVal.textContent = v.toFixed(2);
+      if (phaseVal) liveText(phaseVal, ()=>v.toFixed(2));
     };
 
     const resetJointBtn = document.getElementById("grooveResetJointBtn");
@@ -461,12 +468,12 @@ export function createGroovePanel(context){
     const phaseVal = document.getElementById("grooveSquatPhaseVal");
     const lateralFreqVal = document.getElementById("grooveSquatLateralFreqVal");
     const lateralPhaseVal = document.getElementById("grooveSquatLateralPhaseVal");
-    if (vertVal) vertVal.textContent = params.vertAmp + "cm";
-    if (lateralVal) lateralVal.textContent = params.lateralAmp + "cm";
-    if (freqVal) freqVal.textContent = "×" + params.freq;
-    if (phaseVal) phaseVal.textContent = params.phase.toFixed(2);
-    if (lateralFreqVal) lateralFreqVal.textContent = "×" + params.lateralFreq;
-    if (lateralPhaseVal) lateralPhaseVal.textContent = params.lateralPhase.toFixed(2);
+    if (vertVal) liveText(vertVal, ()=>params.vertAmp + "cm");
+    if (lateralVal) liveText(lateralVal, ()=>params.lateralAmp + "cm");
+    if (freqVal) liveText(freqVal, ()=>"×" + params.freq);
+    if (phaseVal) liveText(phaseVal, ()=>params.phase.toFixed(2));
+    if (lateralFreqVal) liveText(lateralFreqVal, ()=>"×" + params.lateralFreq);
+    if (lateralPhaseVal) liveText(lateralPhaseVal, ()=>params.lateralPhase.toFixed(2));
   }
 
   function setGrooveSquatField(field, value){
@@ -504,42 +511,42 @@ export function createGroovePanel(context){
       const v = parseFloat(e.target.value);
       setGrooveSquatField("vertAmp", v);
       const el = document.getElementById("grooveSquatVertVal");
-      if (el) el.textContent = v + "cm";
+      if (el) liveText(el, ()=>v + "cm");
     };
     const lateralSlider = document.getElementById("grooveSquatLateralSlider");
     if (lateralSlider) lateralSlider.oninput = (e) => {
       const v = parseFloat(e.target.value);
       setGrooveSquatField("lateralAmp", v);
       const el = document.getElementById("grooveSquatLateralVal");
-      if (el) el.textContent = v + "cm";
+      if (el) liveText(el, ()=>v + "cm");
     };
     const freqSlider = document.getElementById("grooveSquatFreqSlider");
     if (freqSlider) freqSlider.oninput = (e) => {
       const v = parseFloat(e.target.value);
       setGrooveSquatField("freq", v);
       const el = document.getElementById("grooveSquatFreqVal");
-      if (el) el.textContent = "×" + v;
+      if (el) liveText(el, ()=>"×" + v);
     };
     const phaseSlider = document.getElementById("grooveSquatPhaseSlider");
     if (phaseSlider) phaseSlider.oninput = (e) => {
       const v = parseFloat(e.target.value);
       setGrooveSquatField("phase", v);
       const el = document.getElementById("grooveSquatPhaseVal");
-      if (el) el.textContent = v.toFixed(2);
+      if (el) liveText(el, ()=>v.toFixed(2));
     };
     const lateralFreqSlider = document.getElementById("grooveSquatLateralFreqSlider");
     if (lateralFreqSlider) lateralFreqSlider.oninput = (e) => {
       const v = parseFloat(e.target.value);
       setGrooveSquatField("lateralFreq", v);
       const el = document.getElementById("grooveSquatLateralFreqVal");
-      if (el) el.textContent = "×" + v;
+      if (el) liveText(el, ()=>"×" + v);
     };
     const lateralPhaseSlider = document.getElementById("grooveSquatLateralPhaseSlider");
     if (lateralPhaseSlider) lateralPhaseSlider.oninput = (e) => {
       const v = parseFloat(e.target.value);
       setGrooveSquatField("lateralPhase", v);
       const el = document.getElementById("grooveSquatLateralPhaseVal");
-      if (el) el.textContent = v.toFixed(2);
+      if (el) liveText(el, ()=>v.toFixed(2));
     };
 
     const resetBtn = document.getElementById("grooveSquatResetBtn");

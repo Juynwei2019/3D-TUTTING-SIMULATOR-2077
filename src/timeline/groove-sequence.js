@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createGrooveSequence(context){
   function selectGrooveSeqEntry(i){
@@ -93,22 +94,25 @@ export function createGrooveSequence(context){
   function updateGrooveSeqTotalLabel(){
     const el = document.getElementById("grooveSeqTotalBeats");
     if (!el) return;
-    if (context.grooveSequence.length === 0){ el.textContent = ""; return; }
+    if (context.grooveSequence.length === 0){ liveText(el, ()=>""); return; }
     const total = grooveSeqTotalBeats();
     const kfTotal = context.kfTotalBeats();
-    let msg = `序列總拍數：${total}拍`;
+    const message=()=>{
+    let msg = tr("序列總拍數：{p0}拍", {p0:total});
     if (kfTotal > 0){
       if (Math.abs(total - kfTotal) < 1e-9){
-        msg += `・跟編舞總拍數（${kfTotal}拍）一致，剛好整段循環一次`;
+        msg += tr("・跟編舞總拍數（{p0}拍）一致，剛好整段循環一次", {p0:kfTotal});
       } else if (total < kfTotal){
         const loops = kfTotal / total;
-        msg += `・編舞共${kfTotal}拍（會循環約${loops.toFixed(1)}輪`;
-        msg += Math.abs(loops - Math.round(loops)) < 1e-9 ? "，剛好整數次）" : "，最後一輪會在中途被切斷）";
+        msg += tr("・編舞共{p0}拍（會循環約{p1}輪", {p0:kfTotal, p1:loops.toFixed(1)});
+        msg += Math.abs(loops - Math.round(loops)) < 1e-9 ? tr("，剛好整數次）") : tr("，最後一輪會在中途被切斷）");
       } else {
-        msg += `・編舞共${kfTotal}拍（序列比編舞長，後面 ${total - kfTotal} 拍的段落播不到）`;
+        msg += tr("・編舞共{p0}拍（序列比編舞長，後面 {p1} 拍的段落播不到）", {p0:kfTotal, p1:total - kfTotal});
       }
     }
-    el.textContent = msg;
+      return msg;
+    };
+    liveText(el, message);
   }
 
   function renderGrooveSeqChips(){
@@ -142,8 +146,8 @@ export function createGrooveSequence(context){
       chip.classList.toggle("multiChecked", context.kfMultiSelectMode && context.grooveMultiSelected.has(i));
       chip.addEventListener("click", () => { if (context.kfMultiSelectMode) context.toggleGrooveMultiSelectItem(i); else selectGrooveSeqEntry(i); });
       if (context.kfMultiSelectMode){
-        const check=document.createElement("span"); check.className="kfCheckMark"; check.textContent="✓";
-        check.setAttribute("data-tooltip", context.grooveMultiSelected.has(i) ? "已選取；可拖曳任一已選 GROOVE 整組移動" : "點此段加入多選");
+        const check=document.createElement("span"); check.className="kfCheckMark"; liveText(check, ()=>"✓");
+        liveAttribute(check, "data-tooltip", ()=>context.grooveMultiSelected.has(i) ? tr("已選取；可拖曳任一已選 GROOVE 整組移動") : tr("點此段加入多選"));
         chip.appendChild(check);
       }
 
@@ -152,17 +156,17 @@ export function createGrooveSequence(context){
         // 引用到已被刪除的律動庫項目：顯示警示選項，讓使用者知道要重新指定，而不是靜默失效。
         const optMissing = document.createElement("option");
         optMissing.value = entry.libId;
-        optMissing.textContent = "⚠ 已刪除的律動";
+        liveText(optMissing, ()=>tr("⚠ 已刪除的律動"));
         sel.appendChild(optMissing);
       }
       libItems.forEach(it => {
         const opt = document.createElement("option");
         opt.value = it.id;
-        opt.textContent = it.name;
+        liveText(opt, ()=>it.name);
         if (it.id === entry.libId) opt.selected = true;
         sel.appendChild(opt);
       });
-      sel.title = "這段套用哪個律動庫項目";
+      liveAttribute(sel, "title", ()=>tr("這段套用哪個律動庫項目"));
       // clip 本身可拖曳；操作下拉選單時不要讓父層把 pointer 起手誤判成拖曳。
       sel.onpointerdown = (ev) => { ev.stopPropagation(); if (!context.kfMultiSelectMode) selectGrooveSeqEntry(i); };
       sel.onmousedown = (ev) => ev.stopPropagation();
@@ -175,7 +179,7 @@ export function createGrooveSequence(context){
       beatsInput.className = "beatsInput";
       beatsInput.min = context.BEAT_GRID_SNAP > 0 ? String(context.BEAT_GRID_SNAP) : "0.01"; beatsInput.max = "64"; beatsInput.step = context.BEAT_GRID_SNAP > 0 ? String(context.BEAT_GRID_SNAP) : "0.01";
       beatsInput.value = context.formatBeatValue(entry.beats);
-      beatsInput.title = "這段維持幾拍（支援 1/4 拍）；也可拖曳 clip 右側邊緣調整";
+      liveAttribute(beatsInput, "title", ()=>tr("這段維持幾拍（支援 1/4 拍）；也可拖曳 clip 右側邊緣調整"));
       beatsInput.draggable = false;
       // 1 拍 compact clip 空間很窄，直接操作數字框時禁止事件冒泡到可拖曳的父層。
       beatsInput.onpointerdown = (ev) => { ev.stopPropagation(); if (!context.kfMultiSelectMode) selectGrooveSeqEntry(i); };
@@ -186,18 +190,18 @@ export function createGrooveSequence(context){
 
       const beatsUnit = document.createElement("span");
       beatsUnit.className = "beatUnit";
-      beatsUnit.textContent = "拍";
+      liveText(beatsUnit, ()=>tr("拍"));
       beatsUnit.style.cssText = "font-size:10px; color:#6a6a9a; padding:0 3px;";
       chip.appendChild(beatsUnit);
 
       const dup = document.createElement("button");
-      dup.className = "dup"; dup.textContent = "⧉"; dup.title = "複製這段";
+      dup.className = "dup"; liveText(dup, ()=>"⧉"); liveAttribute(dup, "title", ()=>tr("複製這段"));
       dup.onclick = (ev) => { ev.stopPropagation(); duplicateGrooveSeqEntry(i); context.pushHistory(); };
       if (!context.kfMultiSelectMode) chip.appendChild(dup);
 
       const resizeHandle = document.createElement("div");
       resizeHandle.className = "timelineResizeHandle grooveResizeHandle";
-      resizeHandle.setAttribute("data-tooltip", "拖曳左右調整這段律動長度（1/4拍吸附）");
+      liveAttribute(resizeHandle, "data-tooltip", ()=>tr("拖曳左右調整這段律動長度（1/4拍吸附）"));
       resizeHandle.addEventListener("pointerdown", (ev) => context.beginGrooveResize(ev, i, chip, resizeHandle));
       resizeHandle.addEventListener("click", (ev) => ev.stopPropagation());
       if (!context.kfMultiSelectMode) chip.appendChild(resizeHandle);
@@ -227,11 +231,11 @@ export function createGrooveSequence(context){
       extraDeleteWarning: (item) => {
         const refCount = context.grooveSequence.filter(e => e.libId === item.id).length;
         if (refCount === 0) return null;
-        return `⚠️「時間軸」分頁的律動序列裡有 ${refCount} 個段落正在使用這個律動，刪除後那幾段播放時會沿用前一個有效段落的設定（若前面沒有其他有效段落，則那幾拍不套用律動）。`;
+        return tr("⚠️「時間軸」分頁的律動序列裡有 {p0} 個段落正在使用這個律動，刪除後那幾段播放時會沿用前一個有效段落的設定（若前面沒有其他有效段落，則那幾拍不套用律動）。", {p0:refCount});
       },
       onRender: (count) => {
         const badge = document.getElementById("grooveLibCount");
-        if (badge) badge.textContent = count;
+        if (badge) liveText(badge, ()=>count);
         renderGrooveSeqChips(); // 庫項目增/刪/改名，序列清單的下拉選單內容要跟著重繪
       }
     });
@@ -254,7 +258,7 @@ export function createGrooveSequence(context){
     if (addBtn){
       addBtn.onclick = () => {
         const items = context.grooveLibCtrl ? context.grooveLibCtrl.getItems() : [];
-        if (items.length === 0){ alert("律動庫目前是空的，請先在上面「律動庫」存至少一項律動設定。"); return; }
+        if (items.length === 0){ alert(tr("律動庫目前是空的，請先在上面「律動庫」存至少一項律動設定。")); return; }
         addGrooveSeqEntry(items[0].id);
         context.pushHistory();
       };

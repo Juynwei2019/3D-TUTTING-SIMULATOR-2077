@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createTimelineReorder(context){
   function timelineReorderItems(kind){ return kind === "pose" ? context.keyframes : context.grooveSequence; }
@@ -80,9 +81,9 @@ export function createTimelineReorder(context){
     const hud=document.getElementById("timelineDragHud");
     if(hud){
       const items=timelineReorderItems(kind), count=context.timelineReorderDrag.sourceIndices.length;
-      let where=t.boundary>=items.length?"插入尾端":`插入 ${kind==="pose"?`F${t.boundary+1}`:`第${t.boundary+1}段`} 前`;
+      const where=()=>t.boundary>=items.length?tr("插入尾端"):tr("插入 {p0} 前", {p0:kind==="pose"?`F${t.boundary+1}`:tr("第{p0}段", {p0:t.boundary+1})});
       const moved=!isGroupMoveNoop(context.timelineReorderDrag.sourceIndices,t.finalIndex);
-      hud.textContent=`${timelineReorderLabel(kind)}${count>1?` ×${count}`:""} · ${where} · ${moved?`→ 第${t.finalIndex+1}格`:"保持原位"}`;
+      liveText(hud, ()=>`${timelineReorderLabel(kind)}${count>1?` ×${count}`:""} · ${where()} · ${moved?tr("→ 第{p0}格", {p0:t.finalIndex+1}):tr("保持原位")}`);
       hud.style.left=`${Math.min(window.innerWidth-280,ev.clientX+12)}px`; hud.style.top=`${Math.max(6,ev.clientY-30)}px`; hud.style.display="block";
     }
   }

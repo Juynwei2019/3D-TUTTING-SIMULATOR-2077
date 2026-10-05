@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { ALL_JOINT_KEYS, FINGER_IDS } from "../rig/definitions.js";
 import * as THREE from "three";
 import { solveTwoBoneIK } from "../ik/two-bone.js";
@@ -51,15 +52,15 @@ export function createWaveController(context){
     document.getElementById('waveCompensationSection').hidden=isBody;
     document.getElementById('waveCustomRoute').hidden=c.route!=='custom';
     for(const [id,key]of [['waveStartNode','startNode'],['waveEndNode','endNode']]){const el=document.getElementById(id);el.value=c[key];el.disabled=!!context.waveRun;}
-    document.getElementById('waveRouteHint').textContent='正向：'+nodes.map(n=>n[1]).join(' → ');
+    liveText(document.getElementById('waveRouteHint'), ()=>tr("正向：")+nodes.map(n=>tr(n[1])).join(' → '));
     const el=document.getElementById('waveLocation');
-    if(!context.waveRun){el.textContent='尚未預覽';return;}
+    if(!context.waveRun){liveText(el, ()=>tr("尚未預覽"));return;}
     const p=position??wavePosition(context.waveRun.phase,c);
-    const locationLabel=c.mode==='bipolar'?'峰谷中心':'波峰';
-    if(p<0){el.textContent=locationLabel+'：起點外側';return;}
-    if(p>waveRouteLength(c)){el.textContent=locationLabel+'：終點外側';return;}
+    const locationLabel=()=>tr(c.mode==='bipolar'?'峰谷中心':'波峰');
+    if(p<0){liveText(el, ()=>locationLabel()+tr("：起點外側"));return;}
+    if(p>waveRouteLength(c)){liveText(el, ()=>locationLabel()+tr("：終點外側"));return;}
     const nearest=nodes.reduce((best,n)=>Math.abs(n[0]-p)<Math.abs(best[0]-p)?n:best);
-    el.textContent=locationLabel+'附近：'+nearest[1]+(!c.fingers&&nearest[1].includes('手指')?'（手指未參與）':'');
+    liveText(el, ()=>locationLabel()+tr("附近：")+tr(nearest[1])+(!c.fingers&&nearest[1].includes('手指')?tr("（手指未參與）"):''));
   }
 
   function waveDurationSeconds(config,tempo){return config.beats*60/(tempo*config.speed);}
@@ -67,8 +68,8 @@ export function createWaveController(context){
   function updateWaveTiming(){
     const c=context.waveRun?context.waveRun.config:context.waveConfig,el=document.getElementById('waveTiming');if(!el)return;
     const seconds=waveDurationSeconds(c,context.bpm);
-    const text='BPM '+context.bpm+' · 單程 '+seconds.toFixed(2)+' 秒（'+(c.beats/c.speed).toFixed(2)+' 拍）'+(c.direction==='pingpong'?' · 完整往返 '+(seconds*2).toFixed(2)+' 秒':'');
-    if(el.textContent!==text)el.textContent=text;
+    const text=()=>'BPM '+context.bpm+tr(" · 單程 ")+seconds.toFixed(2)+tr(" 秒（")+(c.beats/c.speed).toFixed(2)+tr(" 拍）")+(c.direction==='pingpong'?tr(" · 完整往返 ")+(seconds*2).toFixed(2)+tr(" 秒"):'');
+    liveText(el, text);
   }
 
   function setWaveSpeed(value,now=performance.now()){
@@ -86,7 +87,7 @@ export function createWaveController(context){
     const reverse=r.config.direction==='rl'||(r.config.direction==='pingpong'&&Math.floor(r.phase)%2===1);
     const pass=r.config.direction==='pingpong'&&reverse?1:0;
     r.phase=pass+Math.min(1-1e-9,reverse?1-u:u);r.playing=false;r.finished=false;r.last=performance.now();
-    tickWave(r.last);waveUI('波峰已停格 · 可調整各部位幅度或繼續播放');
+    tickWave(r.last);waveUI(()=>tr("波峰已停格 · 可調整各部位幅度或繼續播放"));
   }
 
   function cleanWave(raw={}){
@@ -145,21 +146,21 @@ export function createWaveController(context){
   function waveUI(message){
     updateWaveRouteUI();
     document.getElementById('waveSpeed').value=context.waveConfig.speed;
-    document.getElementById('waveSpeedValue').textContent=context.waveConfig.speed.toFixed(2)+'×';
+    liveText(document.getElementById('waveSpeedValue'), ()=>context.waveConfig.speed.toFixed(2)+'×');
     updateWaveTiming();
     const fields={Route:'route',Direction:'direction',Repeat:'repeat',Amplitude:'amplitude',Width:'width',Beats:'beats',Fingers:'fingers'};
     fields.Shape='shape';
     fields.Polarity='polarity';
     fields.Mode='mode';
-    document.getElementById('waveShapeHint').textContent=context.WAVE_SHAPE_HINTS[context.waveConfig.shape]+' 套用整條所選路線；切換波形前請先停止預覽。';
+    liveText(document.getElementById('waveShapeHint'), ()=>tr(context.WAVE_SHAPE_HINTS[context.waveConfig.shape])+tr(" 套用整條所選路線；切換波形前請先停止預覽。"));
     for(const [id,key]of Object.entries(fields)){const e=document.getElementById('wave'+id);if(!e)continue;if(key==='fingers')e.checked=context.waveConfig[key];else e.value=context.waveConfig[key];e.disabled=!!context.waveRun;}
     document.getElementById('waveFingers').disabled=!!context.waveRun||context.waveConfig.route==='body';
-    for(const [id,key]of Object.entries(context.WAVE_GAIN_FIELDS)){document.getElementById('wave'+id).value=context.waveConfig[key];document.getElementById('wave'+id+'Value').textContent=context.waveConfig[key]+'%';}
+    for(const [id,key]of Object.entries(context.WAVE_GAIN_FIELDS)){document.getElementById('wave'+id).value=context.waveConfig[key];liveText(document.getElementById('wave'+id+'Value'), ()=>context.waveConfig[key]+'%');}
     document.getElementById('wavePlay').disabled=!!context.waveRun?.playing;
-    document.getElementById('wavePlay').textContent=context.waveRun?(context.waveRun.finished?'▶ 重播':'▶ 繼續'):'▶ Waving 預覽';
+    liveText(document.getElementById('wavePlay'), ()=>context.waveRun?(context.waveRun.finished?tr("▶ 重播"):tr("▶ 繼續")):tr("▶ Waving 預覽"));
     document.getElementById('wavePause').disabled=!context.waveRun?.playing;
     document.getElementById('waveStop').disabled=!context.waveRun;
-    if(message)document.getElementById('waveStatus').textContent=message;
+    if(message)liveText(document.getElementById('waveStatus'), ()=>typeof message==='function'?message():tr(message));
   }
 
   function captureWaveFeet(){
@@ -210,19 +211,19 @@ export function createWaveController(context){
     const r=context.waveRun;context.waveRun=null;
     if(r?.ground)context.model.position.copy(r.ground.position);
     if(r){for(const [k,v]of Object.entries(r.base)){if(!context.bones[k])continue;context.bones[k].quaternion.copy(v.q);context.poseController.setJointState(k, v.target, v.current);}context.model?.updateMatrixWorld(true);}
-    if(document.getElementById('wavePlay')){document.getElementById('waveProgress').value=0;document.getElementById('waveSeek').value=0;document.getElementById('waveSeekValue').textContent='0%';waveUI(message);}
+    if(document.getElementById('wavePlay')){document.getElementById('waveProgress').value=0;document.getElementById('waveSeek').value=0;liveText(document.getElementById('waveSeekValue'), ()=>'0%');waveUI(message);}
   }
 
   function startWave(){
     context.tgCancelPreview();
     context.waveTrackActive=false;
     const conflict=waveConflict();if(conflict){waveUI(conflict);return;}
-    if(!context.model||waveSides(context.waveConfig).some(side=>!context.bones[side+'Hand'])){waveUI('請等待角色載入');return;}
-    if(waveHasBody(context.waveConfig)&&['hips','spine','spine1','spine2'].some(k=>!context.bones[k]||!context.restQuat[k])){waveUI('Body Wave 需要骨盆及完整三節脊椎骨骼');return;}
-    if(context.waveRun){if(context.waveRun.finished){context.waveRun.phase=0;context.waveRun.finished=false;}context.waveRun.playing=true;context.waveRun.last=performance.now();waveUI('播放中');return;}
+    if(!context.model||waveSides(context.waveConfig).some(side=>!context.bones[side+'Hand'])){waveUI(()=>tr("請等待角色載入"));return;}
+    if(waveHasBody(context.waveConfig)&&['hips','spine','spine1','spine2'].some(k=>!context.bones[k]||!context.restQuat[k])){waveUI(()=>tr("Body Wave 需要骨盆及完整三節脊椎骨骼"));return;}
+    if(context.waveRun){if(context.waveRun.finished){context.waveRun.phase=0;context.waveRun.finished=false;}context.waveRun.playing=true;context.waveRun.last=performance.now();waveUI(()=>tr("播放中"));return;}
     context.deselectJoint();context.model.updateMatrixWorld(true);
     const ground=waveHasBody(context.waveConfig)?captureWaveFeet():null;
-    if(waveHasBody(context.waveConfig)&&!ground){waveUI('Body Wave 腳掌固定需要完整雙腿骨骼');return;}
+    if(waveHasBody(context.waveConfig)&&!ground){waveUI(()=>tr("Body Wave 腳掌固定需要完整雙腿骨骼"));return;}
     const base={},entries=[];
     // Capture local bend axes from current bone directions and character up.
     const up=new THREE.Vector3(0,1,0).applyQuaternion(context.model.getWorldQuaternion(new THREE.Quaternion()));
@@ -256,17 +257,17 @@ export function createWaveController(context){
     for(const {k}of entries)base[k]={parentInModel:context.model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(context.bones[k].parent.getWorldQuaternion(new THREE.Quaternion())),q:context.bones[k].quaternion.clone(),target:(context.poseController.getTarget(k)||[0,0,0]).slice(),current:(context.poseController.getCurrent(k)||[0,0,0]).slice()};
     if(waveIsRelay(context.waveConfig))for(const {k}of entries)if(k[0]==='l'||k[0]==='r')base[k].parentInChest=context.bones.spine2.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(context.bones[k].parent.getWorldQuaternion(new THREE.Quaternion()));
     if(ground)for(const f of ground.feet)for(const k of f.keys)base[k]={q:context.bones[k].quaternion.clone(),target:(context.poseController.getTarget(k)||[0,0,0]).slice(),current:(context.poseController.getCurrent(k)||[0,0,0]).slice()};
-    context.waveRun={base,entries,ground,config:{...context.waveConfig},phase:0,last:performance.now(),playing:true};waveUI('播放中 · 波峰沿所選路線傳遞');
+    context.waveRun={base,entries,ground,config:{...context.waveConfig},phase:0,last:performance.now(),playing:true};waveUI(()=>tr("播放中 · 波峰沿所選路線傳遞"));
   }
 
   function tickWave(now){
     updateWaveTiming();
     const r=context.waveRun;if(!r)return;
-    const conflict=waveConflict();if(conflict){stopWave('預覽停止：'+conflict);return;}
+    const conflict=waveConflict();if(conflict){stopWave(()=>tr("預覽停止：")+tr(conflict));return;}
     if(r.playing){r.phase+=Math.max(0,now-r.last)*context.bpm*r.config.speed/(60000*r.config.beats);}
     r.last=now;
     const end=r.config.direction==='pingpong'?2:1;
-    if(r.config.repeat==='once'&&r.phase>=end){r.phase=end;r.playing=false;r.finished=true;waveUI('單次完成 · 可重播或停止還原');}
+    if(r.config.repeat==='once'&&r.phase>=end){r.phase=end;r.playing=false;r.finished=true;waveUI(()=>tr("單次完成 · 可重播或停止還原"));}
     const pos=wavePosition(r.phase,r.config);
     if(r.ground){
       context.model.position.copy(r.ground.position);
@@ -295,7 +296,7 @@ export function createWaveController(context){
     document.getElementById('waveProgress').value=r.finished?1:r.phase%1;
     const percent=Math.max(0,Math.min(100,(pos+r.config.width)/(waveRouteLength(r.config)+2*r.config.width)*100));
     document.getElementById('waveSeek').value=percent;
-    document.getElementById('waveSeekValue').textContent=percent.toFixed(1)+'%';
+    liveText(document.getElementById('waveSeekValue'), ()=>percent.toFixed(1)+'%');
     updateWaveRouteUI(pos);
   }
 
@@ -324,21 +325,21 @@ export function createWaveController(context){
     updateSelected=updateSelected===true;
     const replacing=updateSelected?context.waveClips.find(c=>c.id===context.waveClipSelected):null;
     const status=document.getElementById('waveBakeStatus');
-    const say=message=>status.textContent=message;
-    if(context.kfPlaying){say('請先停止時間軸播放');return;}
-    if(context.waveRun){say('請先停止 Waving 預覽，再加入時間軸');return;}
+    const say=message=>liveText(status, ()=>typeof message==='function'?message():tr(message));
+    if(context.kfPlaying){say(()=>tr("請先停止時間軸播放"));return;}
+    if(context.waveRun){say(()=>tr("請先停止 Waving 預覽，再加入時間軸"));return;}
     const conflict=waveConflict();if(conflict){say(conflict);return;}
-    if(!context.model){say('請等待角色載入');return;}
-    if(!updateSelected&&context.waveClips.length>=128){say('最多 128 個 WAVING 區塊');return;}
-    if(updateSelected&&!replacing){say('請先選取 WAVING 區塊');return;}
+    if(!context.model){say(()=>tr("請等待角色載入"));return;}
+    if(!updateSelected&&context.waveClips.length>=128){say(()=>tr("最多 128 個 WAVING 區塊"));return;}
+    if(updateSelected&&!replacing){say(()=>tr("請先選取 WAVING 區塊"));return;}
     const selected=!replacing&&document.getElementById('waveBakePlacement').value==='selected';
-    if(selected&&!(context.kfEditingIndex>=0&&context.kfEditingIndex<context.keyframes.length)){say('請先在時間軸選取一個拍點');return;}
+    if(selected&&!(context.kfEditingIndex>=0&&context.kfEditingIndex<context.keyframes.length)){say(()=>tr("請先在時間軸選取一個拍點"));return;}
     let plan;
     try{plan=waveBakePlan(context.waveConfig,document.getElementById('waveBakeBeats').value,document.getElementById('waveBakeCycles').value);}
     catch(e){say(e.message);return;}
     const index=context.keyframes.length?(selected?context.kfEditingIndex:context.keyframes.length-1):-1;
     const startBeat=replacing?replacing.start:(selected?context.keyframeStartBeat(index):Math.max(context.beatGridPoseTotalBeats(),context.waveTrackEnd()));
-    if(context.waveClipOverlap(startBeat,plan.totalBeats,replacing?.id)){say('此位置已有 WAVING 區塊，請移動原區塊或選擇尾端加入');return;}
+    if(context.waveClipOverlap(startBeat,plan.totalBeats,replacing?.id)){say(()=>tr("此位置已有 WAVING 區塊，請移動原區塊或選擇尾端加入"));return;}
     const oldFrame=index>=0?JSON.parse(JSON.stringify(context.keyframes[index])):null;
     const saved={body:context.snapshotBodyTransform(),bones:{},...context.poseController.snapshotState()};
     for(const k of ALL_JOINT_KEYS)if(context.bones[k])saved.bones[k]=context.bones[k].quaternion.clone();
@@ -347,7 +348,7 @@ export function createWaveController(context){
     try{
       if(context.keyframes.length)context.waveBaseAtBeat(startBeat);
       startWave();const run=context.waveRun;
-      if(!run)throw new Error(document.getElementById('waveStatus').textContent||'無法建立 Waving');
+      if(!run)throw new Error(document.getElementById('waveStatus').textContent||tr("無法建立 Waving"));
       run.playing=false;run.config.repeat='loop';
       clipKeys=Object.keys(run.base);
       const metadata={id:'wave_'+Date.now()+'_'+Math.random().toString(36).slice(2),config:cleanWave(context.waveConfig)};
@@ -355,7 +356,7 @@ export function createWaveController(context){
       clipFeet=metadata.feet||null;
       for(let i=0;i<=plan.count;i++){
         run.phase=i/plan.samplesPerPass;tickWave(performance.now());
-        if(context.waveRun!==run)throw new Error(document.getElementById('waveStatus').textContent||'腳掌固定失敗');
+        if(context.waveRun!==run)throw new Error(document.getElementById('waveStatus').textContent||tr("腳掌固定失敗"));
         const frame=captureWaveTimelinePose();
         frame.beats=plan.stepBeats;frame.easing='linear';
         if(i<plan.count)frame.waveBake=metadata;
@@ -369,7 +370,7 @@ export function createWaveController(context){
       context.poseController.restoreState(saved);
       context.model.updateMatrixWorld(true);context.kfIndex=savedKfIndex;
     }
-    if(error){say('未加入：'+error.message);return;}
+    if(error){say(()=>tr("未加入：")+error.message);return;}
     const clip={id:replacing?.id||context.makeLibId(),start:startBeat,beats:plan.totalBeats,
       cycles:Number(document.getElementById('waveBakeCycles').value),config:cleanWave(context.waveConfig),
       fadeIn:Math.min(replacing?.fadeIn||.5,plan.totalBeats/2),fadeOut:Math.min(replacing?.fadeOut||.5,plan.totalBeats/2),
@@ -380,7 +381,7 @@ export function createWaveController(context){
     context.waveClips.sort((a,b)=>a.start-b.start);context.waveClipSelected=clip.id;
     context.kfEditingIndex=-1;context.kfMultiSelected.clear();context.grooveMultiSelected.clear();context.grooveSeqSelectedIndex=-1;
     context.renderKeyframeChips();context.pushHistory();context.scheduleAutoSave();
-    context.waveTrackMessage((replacing?'已更新':'已加入')+' WAVING 區塊：'+plan.totalBeats+' 拍，起點 Beat '+(startBeat+1)+'。');
+    context.waveTrackMessage(()=>(replacing?tr("已更新"):tr("已加入"))+tr(" WAVING 區塊：")+plan.totalBeats+tr(" 拍，起點 Beat ")+(startBeat+1)+'。');
   }
 
   function applyBakedWaveFeet(frame){
@@ -397,7 +398,7 @@ export function createWaveController(context){
 
   function isBakedWavePlaying(){return context.waveTrackActive||(context.kfPlaying&&!!context.keyframes[context.kfIndex]?.waveBake);}
 
-  function restoreWave(value){stopWave();context.waveConfig=cleanWave(value);waveUI('就緒 · 設定已還原');}
+  function restoreWave(value){stopWave();context.waveConfig=cleanWave(value);waveUI(()=>tr("就緒 · 設定已還原"));}
 
   function bindWave(){
     context.bindWaveTrack();
@@ -408,11 +409,11 @@ export function createWaveController(context){
     document.getElementById('waveBakeOpenTimeline').onclick=()=>document.querySelector('.tabBtn[data-tab="keyframe"]').click();
     for(const [id,key]of [['waveStartNode','startNode'],['waveEndNode','endNode']]){
       const el=document.getElementById(id);
-      for(const [value,,label]of context.WAVE_ROUTE_NODES){const option=document.createElement('option');option.value=value;option.textContent=label;el.appendChild(option);}
+      for(const [value,,label]of context.WAVE_ROUTE_NODES){const option=document.createElement('option');option.value=value;liveText(option, ()=>tr(label));el.appendChild(option);}
       el.onchange=e=>{
         if(context.waveRun){waveUI();return;}
         const other=key==='startNode'?'endNode':'startNode';
-        if(e.target.value===context.waveConfig[other]){waveUI('起點與終點不可相同，請選另一個節點');return;}
+        if(e.target.value===context.waveConfig[other]){waveUI(()=>tr("起點與終點不可相同，請選另一個節點"));return;}
         context.pushHistory();context.waveConfig=cleanWave({...context.waveConfig,[key]:e.target.value});waveUI();context.pushHistory();context.scheduleAutoSave();
       };
     }
@@ -441,7 +442,7 @@ export function createWaveController(context){
       document.getElementById('wave'+id).onchange=e=>{if(context.waveRun)return;context.pushHistory();context.waveConfig=cleanWave({...context.waveConfig,[key]:key==='fingers'?e.target.checked:e.target.value});waveUI();context.pushHistory();context.scheduleAutoSave();};
     }
     document.getElementById('wavePlay').onclick=startWave;
-    document.getElementById('wavePause').onclick=()=>{tickWave(performance.now());if(context.waveRun)context.waveRun.playing=false;waveUI('已暫停 · 可繼續或停止還原');};
+    document.getElementById('wavePause').onclick=()=>{tickWave(performance.now());if(context.waveRun)context.waveRun.playing=false;waveUI(()=>tr("已暫停 · 可繼續或停止還原"));};
     document.getElementById('waveStop').onclick=()=>stopWave();waveUI();
   }
   return { waveIsRelay, waveHasBody, waveBounds, waveLocalIndex, waveSides, waveRouteLength, waveNodes, updateWaveRouteUI, waveDurationSeconds, updateWaveTiming, setWaveSpeed, seekWave, cleanWave, wavePulse, waveValue, wavePosition, waveConflict, waveUI, captureWaveFeet, solveWaveFeet, stopWave, startWave, tickWave, captureWaveTimelinePose, waveBakePlan, bakeWaveToTimeline, applyBakedWaveFeet, isBakedWavePlaying, restoreWave, bindWave };

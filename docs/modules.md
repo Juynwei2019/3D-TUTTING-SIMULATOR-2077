@@ -244,4 +244,4 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 
 ## 語言切換
 
-`i18n/index.js` 提供偏好容錯、翻譯與即時訂閱，`i18n/messages.js` 管理第一批對照，`i18n/joint-labels.js` 產生顯示用名稱。DOM 只更新有標記的文字與屬性；FingerTut、選取提示、手機與浮動面板更新動態文字，領域資料與專案 schema 保持不變。範圍與驗證見 [language-switching.md](language-switching.md)。
+`i18n/index.js` 提供偏好容錯、翻譯與即時訂閱，`i18n/messages.js` 與 `i18n/batch2-messages.js` 管理前兩批對照，`i18n/joint-labels.js` 產生顯示用名稱。DOM 只更新有標記的文字與屬性；FingerTut、選取提示、手機與浮動面板更新動態文字；時間軸、資料庫、IK／朝向、Wave、律動及生成器使用 `liveText`／`liveAttribute` 保存既有節點的純文字更新函式。斷開的節點以 WeakMap 管理，不在語言切換時重建輸入與事件，領域資料與專案 schema 保持不變。範圍與驗證見 [language-switching.md](language-switching.md)。

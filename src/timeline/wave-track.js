@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import { touchTimelineEditing } from "../ui/touch-timeline.js";
 import { ALL_JOINT_KEYS } from "../rig/definitions.js";
 import { eulerToQuat } from "../math/quaternions.js";
@@ -14,7 +15,7 @@ export function createWaveTrack(context){
 
   function wavePlaybackEnd(){return Math.max(context.beatGridPoseTotalBeats(),waveTrackEnd());}
 
-  function waveTrackMessage(s){document.getElementById('waveBakeStatus').textContent=s;document.getElementById('waveTrackNotice').textContent=s;}
+  function waveTrackMessage(s){liveText(document.getElementById('waveBakeStatus'), ()=>typeof s==='function'?s():tr(s));liveText(document.getElementById('waveTrackNotice'), ()=>typeof s==='function'?s():tr(s));}
 
   function waveClipOverlap(start,beats,except){return context.waveClips.some(c=>c.id!==except&&start<c.start+c.beats-1e-8&&start+beats>c.start+1e-8);}
 
@@ -115,7 +116,7 @@ export function createWaveTrack(context){
     if(context.kfPlaying)return false;const c=context.waveClips.find(c=>c.id===id);if(!c)return false;
     const next={...c,...patch};
     if(!Number.isFinite(next.start)||next.start<0||next.start>100000||!Number.isFinite(next.beats)||next.beats<.25||next.beats>1024||waveClipOverlap(next.start,next.beats,id)){
-      waveTrackMessage('未修改：區塊不可重疊，長度需為 0.25～1024 拍。');renderWaveTrack();return false;
+      waveTrackMessage(()=>tr("未修改：區塊不可重疊，長度需為 0.25～1024 拍。"));renderWaveTrack();return false;
     }
     next.fadeIn=Math.max(.05,Math.min(next.beats/2,next.fadeIn));next.fadeOut=Math.max(.05,Math.min(next.beats/2,next.fadeOut));
     context.pushHistory();Object.assign(c,next);context.waveClips.sort((a,b)=>a.start-b.start);context.pushHistory();context.scheduleAutoSave();context.renderKeyframeChips();return true;
@@ -124,7 +125,7 @@ export function createWaveTrack(context){
   function deleteWaveClip(){if(context.kfPlaying)return;context.pushHistory();context.waveClips=context.waveClips.filter(c=>c.id!==context.waveClipSelected);context.waveClipSelected=null;context.pushHistory();context.scheduleAutoSave();context.renderKeyframeChips();}
 
   function duplicateWaveClip(){
-    if(context.kfPlaying)return;if(context.waveClips.length>=128){waveTrackMessage('最多 128 個 WAVING 區塊');return;}const c=context.waveClips.find(c=>c.id===context.waveClipSelected);if(!c)return;
+    if(context.kfPlaying)return;if(context.waveClips.length>=128){waveTrackMessage(()=>tr("最多 128 個 WAVING 區塊"));return;}const c=context.waveClips.find(c=>c.id===context.waveClipSelected);if(!c)return;
     const copy=context.waveClone(c);copy.id=context.makeLibId();copy.start=c.start+c.beats;
     while(waveClipOverlap(copy.start,copy.beats,null)){const blockers=context.waveClips.filter(x=>copy.start<x.start+x.beats&&copy.start+copy.beats>x.start);copy.start=Math.max(...blockers.map(x=>x.start+x.beats));}
     context.pushHistory();context.waveClips.push(copy);context.waveClipSelected=copy.id;context.pushHistory();context.scheduleAutoSave();context.renderKeyframeChips();
@@ -136,7 +137,7 @@ export function createWaveTrack(context){
     document.getElementById('waveBakeCycles').value=c.cycles;
     document.getElementById('waveBakeBeats').value=c.beats/(c.cycles*(c.config.direction==='pingpong'?2:1));
     document.querySelector('.tabBtn[data-tab="waving"]').click();document.getElementById('waveBakeSection').open=true;
-    waveTrackMessage('已載入選取區塊設定；調整後按「更新選取區塊」。');
+    waveTrackMessage(()=>tr("已載入選取區塊設定；調整後按「更新選取區塊」。"));
   }
 
   function layoutWaveTrack(){
@@ -147,12 +148,12 @@ export function createWaveTrack(context){
 
   function renderWaveTrack(){
     const host=document.getElementById('waveTrackList');if(!host)return;host.replaceChildren();
-    if(!context.waveClips.length){const hint=document.createElement('span');hint.className='small';hint.textContent='尚未加入 Waving 區塊';host.append(hint);}
+    if(!context.waveClips.length){const hint=document.createElement('span');hint.className='small';liveText(hint, ()=>tr("尚未加入 Waving 區塊"));host.append(hint);}
     for(const c of context.waveClips){
       const el=document.createElement('div');el.className='waveClip'+(c.id===context.waveClipSelected?' selected':'');el.dataset.id=c.id;el.tabIndex=0;el.setAttribute('role','button');
-      el.textContent='🌊 '+({both:'雙臂',left:'左手',right:'右手',custom:'局部',body:'身體',leftBody:'左手 → 身體',rightBody:'右手 → 身體'}[c.config.route])+' · '+Number(c.beats.toFixed(2))+' 拍';
-      el.title='起點 Beat '+(c.start+1)+'；拖曳移動，右緣調長度；雙擊編輯波形';
-      const handle=document.createElement('span');handle.className='waveResize';handle.title='拖曳調整長度';el.append(handle);
+      liveText(el, ()=>'🌊 '+({both:tr("雙臂"),left:tr("左手"),right:tr("右手"),custom:tr("局部"),body:tr("身體"),leftBody:tr("左手 → 身體"),rightBody:tr("右手 → 身體")}[c.config.route])+' · '+Number(c.beats.toFixed(2))+tr(" 拍"));
+      liveAttribute(el, "title", ()=>tr("起點 Beat ")+(c.start+1)+tr("；拖曳移動，右緣調長度；雙擊編輯波形"));
+      const handle=document.createElement('span');handle.className='waveResize';liveAttribute(handle, "title", ()=>tr("拖曳調整長度"));el.append(handle);
       el.ondblclick=()=>{selectWaveClip(c.id);loadWaveClipSettings();};
       el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectWaveClip(c.id);}};
       el.onclick=e=>{if(e.pointerType==='touch'&&!touchTimelineEditing(e))selectWaveClip(c.id);};

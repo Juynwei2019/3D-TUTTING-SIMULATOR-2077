@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import * as THREE from "three";
 import { BONE_SUFFIXES, FINGER_DEFS, HAND_SIDES, FINGER_JOINT_LABELS, FINGER_JOINT_KEYS, FINGER_JOINT_KEY_SET, ALL_JOINT_KEYS, LABEL_LOOKUP, OVERVIEW_GROUPS, IK_CHAINS, IK_LIMB_KEYS, SHOULDER_ASSIST_MAX_ANGLE, ROOT_FOLLOW_LERP_T_DEFAULT, SPINE_CCD_DAMPING_DEFAULT, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import { D, R, clampNum } from "../math/angles.js";
@@ -57,7 +58,7 @@ function updateHandFollowUI(){
     const other=name==='rHand'?'lHand':'rHand',bound=context.handFollowSource[name]==='other';
     select.value=context.handFollowSource[name];select.querySelector('option[value="other"]').disabled=!context.bones[other];
     for(const prefix of ['handRangeMin_','handRangeMax_','handRangeDefault_'])document.getElementById(prefix+name).disabled=bound;
-    document.getElementById('handFollowStatus_'+name).textContent=bound?(context.lookAtEnabled[name]?'追蹤另一手的實際手腕；半徑暫停。':'追蹤已暫停。'):'';
+    liveText(document.getElementById('handFollowStatus_'+name), ()=>bound?(context.lookAtEnabled[name]?tr("追蹤另一手的實際手腕；半徑暫停。"):tr("追蹤已暫停。")):'');
     if(context.lookAtTargetMesh[name])context.lookAtTargetMesh[name].visible=context.lookAtEnabled[name]&&!bound;
   }
 }
@@ -97,12 +98,12 @@ function renderLACustomList(){
   const points=context.laPathConfig.points||[];
   points.forEach((p,i)=>{
     const group=document.createElement('span'),select=document.createElement('button'),del=document.createElement('button');
-    select.textContent='P'+(i+1);select.title=p.map(x=>x.toFixed(3)).join(', ');select.disabled=!!context.laPathRun;
+    liveText(select, ()=>'P'+(i+1));liveAttribute(select, "title", ()=>p.map(x=>x.toFixed(3)).join(', '));select.disabled=!!context.laPathRun;
     select.classList.toggle('active',context.selectedIK?.role==='laPoint'&&context.selectedIK.index===i);select.onclick=()=>selectLACustom(i);
-    del.textContent='×';del.title='刪除 P'+(i+1);del.disabled=!!context.laPathRun;del.onclick=()=>mutateLACustom(()=>context.laPathConfig.points.splice(i,1));
+    liveText(del, ()=>'×');liveAttribute(del, "title", ()=>tr("刪除 P")+(i+1));del.disabled=!!context.laPathRun;del.onclick=()=>mutateLACustom(()=>context.laPathConfig.points.splice(i,1));
     group.append(select,del);host.append(group);
   });
-  if(!points.length)host.textContent='尚無控制點：按「建立方形」開始，或新增控制點。';
+  if(!points.length){const empty=document.createElement("span");liveText(empty,()=>tr("尚無控制點：按「建立方形」開始，或新增控制點。"));host.append(empty);}
 }
 
 function rebuildLACustomMeshes(){
@@ -180,7 +181,7 @@ function updateLAPathUI(){
   for(const [id,key] of Object.entries(fields)){const el=document.getElementById('laPath'+id);if(el){el.value=context.laPathConfig[key];el.disabled=!!context.laPathRun;}}
   if(custom){document.getElementById('laPathSize').disabled=true;document.getElementById('laPathPlane').disabled=true;}
   const play=document.getElementById('laPathPlay');if(!play)return;
-  play.disabled=!!context.laPathRun?.playing;play.textContent=context.laPathRun?'▶ 繼續':'▶ 播放預覽';
+  play.disabled=!!context.laPathRun?.playing;liveText(play, ()=>context.laPathRun?tr("▶ 繼續"):tr("▶ 播放預覽"));
   document.getElementById('laPathPause').disabled=!context.laPathRun?.playing;
   document.getElementById('laPathStop').disabled=!context.laPathRun;
   // Only the owned part is locked. Other parts remain editable.
@@ -203,13 +204,13 @@ function stopLAPath(){
 
 function startLAPath(reset=false){
   if(context.waveRun)context.stopWave();
-  if(context.laPathConfig.shape==='custom'&&(context.laPathConfig.points||[]).length<((context.laPathConfig.closed||context.laPathConfig.mode==='curve')?3:2)){document.getElementById('laPathStatus').textContent=(context.laPathConfig.closed||context.laPathConfig.mode==='curve')?'封閉路徑或平滑曲線至少需要 3 個控制點。':'開放折線至少需要 2 個控制點。';return;}
+  if(context.laPathConfig.shape==='custom'&&(context.laPathConfig.points||[]).length<((context.laPathConfig.closed||context.laPathConfig.mode==='curve')?3:2)){liveText(document.getElementById('laPathStatus'), ()=>(context.laPathConfig.closed||context.laPathConfig.mode==='curve')?tr("封閉路徑或平滑曲線至少需要 3 個控制點。"):tr("開放折線至少需要 2 個控制點。"));return;}
   if(context.selectedIK?.role==='laPoint')context.deselectJoint();
 
-  if(context.kfPlaying){document.getElementById('laPathStatus').textContent='請先停止時間軸播放，再啟動軌跡預覽。';return;}
+  if(context.kfPlaying){liveText(document.getElementById('laPathStatus'), ()=>tr("請先停止時間軸播放，再啟動軌跡預覽。"));return;}
   if(context.laPathRun){if(reset)context.laPathRun.phase=0;context.laPathRun.playing=!reset;context.laPathRun.last=performance.now();updateLAPathUI();return;}
   const n=context.laPathConfig.part,b=context.bones[LOOKAT_CONFIG[n].key];
-  if(!b||(context.HAND_AIM_NAMES.includes(n)&&!context.handAimAxes[n])){document.getElementById('laPathStatus').textContent='模型或所需骨骼尚未就緒。';return;}
+  if(!b||(context.HAND_AIM_NAMES.includes(n)&&!context.handAimAxes[n])){liveText(document.getElementById('laPathStatus'), ()=>tr("模型或所需骨骼尚未就緒。"));return;}
   context.pushHistory();if(context.selectedIK?.limb==='lookAt_'+n)context.deselectJoint();context.handRangeDrag=null;
   if(n==='head')context.headFollowSource='free';if(context.HAND_AIM_NAMES.includes(n))context.handFollowSource[n]='free';
   const roll=context.handAim[n]?.roll||0;setLookAtEnabled(n,true);if(context.handAim[n])context.handAim[n].roll=roll;
@@ -217,7 +218,7 @@ function startLAPath(reset=false){
   const local=context.HAND_AIM_NAMES.includes(n)?handAimAxis(n):LOOKAT_CONFIG[n].localForward.clone();
   context.laPathRun={name:n,phase:0,last:performance.now(),playing:!reset,ref,local,roll,range:{...context.handAimRange[n]},config:cleanLAPath(context.laPathConfig)};
   solveLAPath(n);updateLookAtButtons();updateLAPathUI();context.pushHistory();context.scheduleAutoSave();
-  document.getElementById('laPathStatus').textContent='預覽中：路徑跟隨部位平移；橘色路徑已套用內外半徑限制。停止後可修改設定。';
+  liveText(document.getElementById('laPathStatus'), ()=>tr("預覽中：路徑跟隨部位平移；橘色路徑已套用內外半徑限制。停止後可修改設定。"));
 }
 
 function tickLAPath(now){
@@ -258,7 +259,7 @@ function bindLAPath(){
   document.getElementById('laPathPlay').onclick=()=>startLAPath();
   document.getElementById('laPathPause').onclick=()=>{tickLAPath(performance.now());if(context.laPathRun)context.laPathRun.playing=false;updateLAPathUI();};
   document.getElementById('laPathReset').onclick=()=>{startLAPath(true);if(context.laPathRun)solveLAPath(context.laPathRun.name);};
-  document.getElementById('laPathStop').onclick=()=>{stopLAPath();context.pushHistory();context.scheduleAutoSave();document.getElementById('laPathStatus').textContent='已停止，保留目前姿勢與自由目標位置。';};
+  document.getElementById('laPathStop').onclick=()=>{stopLAPath();context.pushHistory();context.scheduleAutoSave();liveText(document.getElementById('laPathStatus'), ()=>tr("已停止，保留目前姿勢與自由目標位置。"));};
   updateLAPathUI();
 }
 
@@ -325,9 +326,9 @@ function bindHandRangeUI(){
       const min=reset?0.08:Number(document.getElementById('handRangeMin_'+name).value);
       const max=reset?0.4:Number(document.getElementById('handRangeMax_'+name).value);
       const notice=document.getElementById('handRangeNotice_'+name);
-      if(!validHandRange(min,max)){notice.textContent='內半徑須至少 0.001，外半徑須大於內半徑。';updateLookAtRangeUI();return;}
+      if(!validHandRange(min,max)){liveText(notice, ()=>tr("內半徑須至少 0.001，外半徑須大於內半徑。"));updateLookAtRangeUI();return;}
       context.pushHistory();context.handAimRange[name]={min,max};alignHandRange(name);
-      notice.textContent='已保留目標方向並套用範圍。';updateLookAtRangeUI();context.pushHistory();context.scheduleAutoSave();
+      liveText(notice, ()=>tr("已保留目標方向並套用範圍。"));updateLookAtRangeUI();context.pushHistory();context.scheduleAutoSave();
     };
     document.getElementById('handRangeMin_'+name).onchange=()=>apply(false);
     document.getElementById('handRangeMax_'+name).onchange=()=>apply(false);
@@ -371,7 +372,7 @@ function updateHeadFollowUI(){
   for(const name of ['rHand','lHand'])select.querySelector('option[value="'+name+'"]').disabled=!context.bones[name];
   const bound=context.headFollowSource!=='free';
   for(const prefix of ['handRangeMin_','handRangeMax_','handRangeDefault_']){const el=document.getElementById(prefix+'head');if(el)el.disabled=bound;}
-  document.getElementById('headFollowStatus').textContent=bound?(context.lookAtEnabled.head?'追蹤實際手腕位置；半徑限制暫停，播放沿用拍點姿勢。':'追蹤已暫停；開啟頭部 LookAt 可繼續。'):'拖曳目標球控制方向。';
+  liveText(document.getElementById('headFollowStatus'), ()=>bound?(context.lookAtEnabled.head?tr("追蹤實際手腕位置；半徑限制暫停，播放沿用拍點姿勢。"):tr("追蹤已暫停；開啟頭部 LookAt 可繼續。")):tr("拖曳目標球控制方向。"));
   if(context.lookAtTargetMesh.head)context.lookAtTargetMesh.head.visible=context.lookAtEnabled.head&&!bound;
 }
 
@@ -420,7 +421,7 @@ function updateHandAimUI(){
     document.getElementById('handAimMode_'+name).value=state.mode;
     document.getElementById('handAimRoll_'+name).value=state.roll;
     document.getElementById('handAimFlip_'+name).checked=state.flip;
-    document.getElementById('handAimStatus_'+name).textContent=available?'':'缺少手指骨骼，無法校準';
+    liveText(document.getElementById('handAimStatus_'+name), ()=>available?'':tr("缺少手指骨骼，無法校準"));
   }
   if(context.laPathRun)updateLAPathUI();
 }

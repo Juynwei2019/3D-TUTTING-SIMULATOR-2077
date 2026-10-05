@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { BONE_SUFFIXES, FINGER_DEFS, HAND_SIDES, FINGER_JOINT_LABELS, FINGER_JOINT_KEYS, FINGER_JOINT_KEY_SET, ALL_JOINT_KEYS, LABEL_LOOKUP, OVERVIEW_GROUPS, IK_CHAINS, IK_LIMB_KEYS, SHOULDER_ASSIST_MAX_ANGLE, ROOT_FOLLOW_LERP_T_DEFAULT, SPINE_CCD_DAMPING_DEFAULT, SPINE_IK_CHAIN, LOOKAT_CONFIG, FINGER_IK_CHAINS, FINGER_IDS, FINGER_IK_PREFIX } from "../rig/definitions.js";
 import * as THREE from "three";
 import { solveTwoBoneIK } from "../ik/two-bone.js";
@@ -82,10 +83,10 @@ function updateFootPlantUI() {
   cb.disabled = !context.model || context.kfPlaying || (!context.ikEnabled.rLeg && !context.ikEnabled.lLeg);
   const active = context.FOOT_PLANT_LIMBS.filter(isFootPlanted);
   const label = document.getElementById('footPlantStatus');
-  const message = context.kfPlaying ? '播放中：腳底固定暫停' : active.length
-    ? (context.footPlantLimited ? '已達腿部伸展範圍 · ' : '已固定 · ') + active.map(l => IK_CHAINS[l].label).join('、')
-    : (context.footPlantNotice || (context.ikEnabled.rLeg || context.ikEnabled.lLeg ? '開啟後將腳底對齊地面並固定' : '請先啟用左腳或右腳 IK'));
-  if (label.textContent !== message) label.textContent = message;
+  const message = () => context.kfPlaying ? tr("播放中：腳底固定暫停") : active.length
+    ? (context.footPlantLimited ? tr("已達腿部伸展範圍 · ") : tr("已固定 · ")) + active.map(l => tr(IK_CHAINS[l].label)).join('、')
+    : (tr(context.footPlantNotice || "") || (context.ikEnabled.rLeg || context.ikEnabled.lLeg ? tr("開啟後將腳底對齊地面並固定") : tr("請先啟用左腳或右腳 IK")));
+  liveText(label, message);
   for (const limb of context.FOOT_PLANT_LIMBS) {
     const b = document.getElementById('orientBtn_'+limb);
     if (b) b.disabled = isFootPlanted(limb);
@@ -135,7 +136,7 @@ function solveFootPlant() {
   } else {
     // Impossible initial contact configuration: fail explicitly rather than claim a lock.
     setFootPlantEnabled(false);
-    context.footPlantNotice = '無法同時貼地，請先調整腿部姿勢再開啟';
+    context.footPlantNotice = "無法同時貼地，請先調整腿部姿勢再開啟";
     updateFootPlantUI();
     return;
   }

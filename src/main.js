@@ -1,4 +1,4 @@
-import { bindLanguageUI, onLanguageChange, t } from "./i18n/index.js";
+import { bindLanguageUI, onLanguageChange, t, liveText } from "./i18n/index.js";
 import { createFingerTut } from "./fingertut/controller.js";
 import { bindTouchTimelineUI } from "./ui/touch-timeline.js";
 import { initMobileLayout } from "./ui/mobile-layout.js";
@@ -1886,14 +1886,14 @@ function saveLibraryToStorage(key, arr){
 function renderStorageUsageIndicator(){
   const used = getTotalLibraryStorageBytes();
   const pct = Math.min(100, Math.round(used / ESTIMATED_STORAGE_QUOTA_BYTES * 100));
-  let text = `💾 姿勢／手勢／招式／律動庫共用空間：約 ${formatBytes(used)}（估計上限約 5MB 的 ${pct}%）`;
+  const text = ()=>t("💾 姿勢／手勢／招式／律動庫共用空間：約 {used}（估計上限約 5MB 的 {pct}%）",{used:formatBytes(used),pct})+(pct>=90?t("　⚠ 空間快滿了，建議盡快匯出備份並刪除不需要的項目"):"");
   const color = pct >= 90 ? "#ff6b6b" : (pct >= 70 ? "#f0b060" : "#6a6a9a");
-  if (pct >= 90) text += "　⚠ 空間快滿了，建議盡快匯出備份並刪除不需要的項目";
+
   // 姿勢/手勢/招式庫分頁跟律動庫分頁各自有一個提示 span，共用同一份文字/顏色，不用分開算兩次。
   for (const id of ["libStorageUsageHint", "libStorageUsageHint2"]){
     const el = document.getElementById(id);
     if (!el) continue;
-    el.textContent = text;
+    liveText(el,text);
     el.style.color = color;
   }
 }
@@ -2831,7 +2831,7 @@ function stopKeyframePlayback(...args){
 function importKfMusic(file){
   if (!file) return;
   timelineAudio.importFile(file, parseFloat(document.getElementById("kfMusicVolume").value));
-  document.getElementById("kfMusicName").textContent = file.name;
+  liveText(document.getElementById("kfMusicName"),()=>file.name);
   document.getElementById("kfMusicRemoveBtn").style.display = "";
   document.getElementById("kfMusicControlsRow").style.display = "flex";
   const waveformRow = document.getElementById("beatGridWaveformRow");
@@ -2851,7 +2851,7 @@ function removeKfMusic(){
   timelineAudio.remove();
   waveform.clear();
   resetKfWaveformZoomUI();
-  document.getElementById("kfMusicName").textContent = "尚未匯入音樂";
+  liveText(document.getElementById("kfMusicName"),()=>t("尚未匯入音樂"));
   document.getElementById("kfMusicRemoveBtn").style.display = "none";
   document.getElementById("kfMusicControlsRow").style.display = "none";
   const waveformRow = document.getElementById("beatGridWaveformRow");
@@ -2887,7 +2887,7 @@ function syncKfMusicPreviewBtn(){
   const btn = document.getElementById("kfMusicPreviewBtn");
   const audioEl = document.getElementById("kfAudioEl");
   if (!btn || !audioEl) return;
-  btn.textContent = audioEl.paused ? "🎵 試聽" : "⏸ 暫停";
+  liveText(btn,()=>t(audioEl.paused ? "🎵 試聽" : "⏸ 暫停"));
 }
 
 // ---- BG-4.1：Waveform 與 Beat Grid 共用時間座標／scroll／Playhead ----

@@ -1,3 +1,4 @@
+import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import { touchTimelineEditing } from "../ui/touch-timeline.js";
 // Live host getters preserve shared rig and playback coordination.
 export function createTimelineResize(context){
@@ -36,7 +37,7 @@ export function createTimelineResize(context){
     const select = document.getElementById("beatGridSnapSelect");
     if (select) select.value = String(context.BEAT_GRID_SNAP);
     const legend = document.getElementById("beatGridSnapLegend");
-    if (legend) legend.textContent = `Snap＝${formatSnapLabel()}${context.BEAT_GRID_SNAP > 0 ? "拍" : ""}`;
+    if (legend) liveText(legend, ()=>`Snap＝${formatSnapLabel()}${context.BEAT_GRID_SNAP > 0 ? tr("拍") : ""}`);
     document.querySelectorAll("#grooveSeqList .beatsInput").forEach(input => {
       input.step = context.BEAT_GRID_SNAP > 0 ? String(context.BEAT_GRID_SNAP) : "0.01";
       input.min = context.BEAT_GRID_SNAP > 0 ? String(context.BEAT_GRID_SNAP) : "0.01";
@@ -61,7 +62,7 @@ export function createTimelineResize(context){
     if (!match){
       match = document.createElement("option");
       match.value = formatBeatValue(value);
-      match.textContent = `${formatBeatValue(value)} 拍`;
+      liveText(match, ()=>tr("{p0} 拍", {p0:formatBeatValue(value)}));
       match.dataset.customBeat = "1";
       select.appendChild(match);
     }
@@ -84,9 +85,9 @@ export function createTimelineResize(context){
       const easeTag = chip.querySelector(".kfEaseTag");
       if (easeTag && !isEnd){
         const easeName = kf.easing || "easeInOutQuad";
-        easeTag.title = `${easeName} · ${formatBeatValue(durationBeats)} 拍`;
+        liveAttribute(easeTag, "title", ()=>tr("{p0} · {p1} 拍", {p0:easeName, p1:formatBeatValue(durationBeats)}));
         const span = easeTag.querySelector("span");
-        if (span) span.textContent = `${formatBeatValue(durationBeats)}拍`;
+        if (span) liveText(span, ()=>tr("{p0}拍", {p0:formatBeatValue(durationBeats)}));
       }
     }
     if (context.kfEditingIndex >= 0 && context.keyframes[context.kfEditingIndex]){
@@ -142,7 +143,7 @@ export function createTimelineResize(context){
     const showHud = (ev, beats) => {
       if (!hud) return;
       const extra = config.hudExtra ? config.hudExtra(beats) : "";
-      hud.textContent = `${config.label || "Duration"} · ${formatBeatValue(beats)} beat${Math.abs(beats - 1) < 1e-9 ? "" : "s"}${extra ? ` · ${extra}` : ""}`;
+      liveText(hud, ()=>`${config.label || "Duration"} · ${formatBeatValue(beats)} beat${Math.abs(beats - 1) < 1e-9 ? "" : "s"}${extra ? ` · ${extra}` : ""}`);
       hud.style.left = `${Math.min(window.innerWidth - 230, ev.clientX + 12)}px`;
       hud.style.top = `${Math.max(6, ev.clientY - 30)}px`;
       hud.style.display = "block";

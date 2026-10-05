@@ -1,3 +1,4 @@
+import { t as tr, liveText } from "../i18n/index.js";
 import { touchTimelineEditing } from "../ui/touch-timeline.js";
 import { clampNum } from "../math/angles.js";
 import { ALL_JOINT_KEYS } from "../rig/definitions.js";
@@ -33,7 +34,7 @@ export function createTimelineTransport(context){
     context.stopLAPath();
     if (context.kfPlaying){ stopKeyframePlayback(); return; }
     if (context.keyframes.length < 2 && !context.waveClips.length){
-      alert("至少需要 2 個拍點才能播放（目前只有 " + context.keyframes.length + " 個）");
+      alert(tr("至少需要 2 個拍點才能播放（目前只有 ") + context.keyframes.length + tr(" 個）"));
       return;
     }
     // (預設循環功能已移除，原本這裡用來避免跟拍點播放同時搶骨骼的判斷已不再需要)
@@ -53,13 +54,13 @@ export function createTimelineTransport(context){
       const audioEl = document.getElementById("kfAudioEl");
       if (audioEl && audioEl.src){
         try { audioEl.currentTime = clampNum(context.timelineBeatToAudioTime(playStartBeat), 0, context.waveform.duration || Number.MAX_SAFE_INTEGER); } catch (_) {}
-        audioEl.play().catch((e) => console.warn("音樂播放失敗（可能需要先跟頁面互動一次）：", e));
+        audioEl.play().catch((e) => console.warn(tr("音樂播放失敗（可能需要先跟頁面互動一次）："), e));
       }
     } else {
       context.playKfMusicIfLoaded();
     }
     document.getElementById("kfPlayBtn").classList.add("playing");
-    document.getElementById("kfPlayBtn").textContent = "■ 停止";
+    liveText(document.getElementById("kfPlayBtn"), ()=>tr("■ 停止"));
     context.updateOnionSkins(); // 立刻依 kfIndex=0 顯示第一段過渡的殘影，不用等到跨到下一拍才出現
     const beatGridScroll = document.getElementById("beatGridScroll");
     if (beatGridScroll){
@@ -77,7 +78,7 @@ export function createTimelineTransport(context){
     context.transformControls.enabled = true;
     context.pauseKfMusic();
     document.getElementById("kfPlayBtn").classList.remove("playing");
-    document.getElementById("kfPlayBtn").textContent = "▶ 播放";
+    liveText(document.getElementById("kfPlayBtn"), ()=>tr("▶ 播放"));
     context.renderKeyframeChips();
     context.resetBeatGridPlaybackUI();
   }
@@ -122,7 +123,7 @@ export function createTimelineTransport(context){
     const x = context.BEAT_GRID_LABEL_W + beat * context.BEAT_GRID_PX_PER_BEAT;
     playhead.style.left = `${x}px`;
     playhead.classList.add("visible");
-    if (label) label.textContent = `Beat ${(beat + 1).toFixed(2)}`;
+    if (label) liveText(label, ()=>`Beat ${(beat + 1).toFixed(2)}`);
     context.autoScrollBeatGridToPlayhead(x);
   }
 
