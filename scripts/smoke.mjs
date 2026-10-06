@@ -467,6 +467,10 @@ try {
 } catch (error) {
   await mkdir('test-results', { recursive: true });
   await writeFile('test-results/failure.txt', error.stack || String(error));
+  if(process.env.GITHUB_ACTIONS){
+    const message=(error.stack||String(error)).replaceAll('%','%25').replaceAll('\r','%0D').replaceAll('\n','%0A');
+    console.error('::error title=Browser regression failed::'+message);
+  }
   throw error;
 } finally {
   await browser?.close();
