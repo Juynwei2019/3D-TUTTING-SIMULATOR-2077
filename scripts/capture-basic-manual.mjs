@@ -40,7 +40,12 @@ try{
   browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),args:['--no-sandbox','--enable-unsafe-swiftshader']});
   const {context,page,press,tab,shot}=await open({width:1280,height:960});
   await shot('01-interface');
-  await tab('fingers');await press('#fingerTutToggle');
+  await tab('fingers');
+  const topHandle=await page.locator('#uiResizeHandle').boundingBox();
+  await page.mouse.move(topHandle.x+topHandle.width/2,topHandle.y+topHandle.height/2);await page.mouse.down();
+  await page.mouse.move(topHandle.x+topHandle.width/2,topHandle.y+topHandle.height/2-80,{steps:8});await page.mouse.up();
+  await shot('08-fingertut-inactive');
+  await press('#fingerTutToggle');
   assert.equal(await page.locator('#fingerTutToggle').getAttribute('aria-pressed'),'true');
   await shot('02-fingertut');
   await page.locator('#fingerTutPreset').selectOption('in');
@@ -76,5 +81,5 @@ try{
   await mobile.shot('07-mobile');
   await mobile.press('#mobilePanelToggle');assert.equal(await mobile.page.locator('#mobilePanelToggle').getAttribute('aria-expanded'),'false');
   await mobile.press('#mobilePanelToggle');await mobile.context.close();
-  assert.deepEqual(errors,[]);console.log('PASS: 7 manual screenshots; FingerTut, palm presets, joint selection, 3 distinct poses, playback, JSON export/import, pose library, mobile collapse/expand.');
+  assert.deepEqual(errors,[]);console.log('PASS: 8 manual screenshots; FingerTut, palm presets, joint selection, 3 distinct poses, playback, JSON export/import, pose library, mobile collapse/expand.');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

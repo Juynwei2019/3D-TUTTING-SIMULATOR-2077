@@ -706,15 +706,54 @@
   .customTooltip { display:none; }
 }
 
-.fingerTutPanel { border:1px solid #345063; border-radius:10px; padding:12px; margin-bottom:12px; background:#101a28; }
-.fingerTutPanel .row { flex-wrap:wrap; }
+.fingerTutPanel { border:1px solid #345063; border-radius:12px; padding:14px; margin-bottom:12px; background:#101a28; }
+.fingerTutHeader { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.fingerTutHeader > div:first-child { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; }
+.fingerTutHeader h2 { margin:0; font-size:18px; letter-spacing:.5px; color:#e5f8ff; }
+.fingerTutHeader p { margin:0; font-size:12px; color:#9cb9ca; }
+.fingerTutActions { display:flex; flex-wrap:wrap; gap:8px; }
+#fingerTutToggle { border-color:#36b8bf; color:#c5fbff; background:#123540; font-weight:600; }
 #fingerTutToggle[aria-pressed=true] { background:#00c7bd; color:#07151a; }
-.fingerTutSlider { display:grid; grid-template-columns:72px minmax(0,1fr) 42px; gap:8px; align-items:center; margin:8px 0; font-size:12px; }
-.fingerTutSlider input { width:100%; min-width:0; background:transparent; border:0; padding:0; accent-color:#00c7bd; }
-.fingerTutSlider output { text-align:right; }
+#fingerTutStatus { margin:6px 0 10px; line-height:1.6; color:#b7cad6; }
+.fingerTutSettings { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:14px; }
+.fingerTutCard { min-width:0; margin:0; padding:10px 12px 12px; border:1px solid #2c465a; border-radius:9px; background:#0d1723; }
+.fingerTutCard legend { padding:0 6px; font-size:13px; font-weight:600; color:#7de5ed; }
+.fingerTutCardHint { margin:0 0 6px; font-size:11px; line-height:1.6; color:#92a8bd; }
+.fingerTutPalmSelectors { display:grid; grid-template-columns:110px minmax(0,1fr); gap:6px 8px; align-items:center; margin-bottom:6px; font-size:12px; color:#b7cad6; }
+.fingerTutPalmSelectors select { min-width:0; width:100%; }
+.fingerTutSlider { display:grid; grid-template-columns:76px minmax(0,1fr) 48px; gap:8px; align-items:center; margin:4px 0; font-size:12px; color:#b7cad6; }
+.fingerTutSlider > span { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
+.fingerTutFineTune { margin-top:8px; }
+.fingerTutFineTune summary { cursor:pointer; padding:8px 0; font-size:12px; color:#98c5d7; }
+.fingerTutSlider input { width:100%; min-width:0; height:32px; background:transparent; border:0; padding:0; accent-color:#00c7bd; cursor:pointer; }
+.fingerTutSlider output { padding:4px; box-sizing:border-box; border:1px solid #2d465a; border-radius:5px; background:#152737; color:#d3f5ff; text-align:center; font-variant-numeric:tabular-nums; }
+.fingerTutSlider input:disabled { opacity:.4; cursor:default; }
+.fingerTutSlider input:disabled + output { color:#7d92a4; }
 .fingerTutSlider input::-webkit-slider-runnable-track { height:6px; border-radius:999px; background:#345063; }
-.fingerTutSlider input::-webkit-slider-thumb { margin-top:-9px; }
+.fingerTutSlider input::-webkit-slider-thumb { width:18px; height:18px; margin-top:-6px; border-radius:50%; background:#70e2ed; }
 .fingerTutSlider input::-moz-range-track { height:6px; border-radius:999px; background:#345063; }
+.fingerTutSlider input::-moz-range-thumb { width:18px; height:18px; border:0; border-radius:50%; background:#70e2ed; }
+.fingerTutCardActions { display:flex; justify-content:flex-end; margin-top:6px; }
+.fingerTutFooter { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-top:12px; }
+.fingerTutHelp { min-width:0; flex:1; }
+.fingerTutHelp summary { cursor:pointer; padding:6px 0; color:#98c5d7; font-size:12px; }
+.fingerTutHelp p { line-height:1.7; color:#9db2c4; }
+.fingerTutFooter > button { flex-shrink:0; }
+@media (max-width:640px), (pointer:coarse) and (max-width:960px) and (max-height:500px) {
+  .fingerTutPanel { padding:10px; }
+  .fingerTutSettings { grid-template-columns:1fr; gap:12px; }
+  .fingerTutCard { padding:8px; }
+  .fingerTutActions { width:100%; }
+  .fingerTutActions button { flex:1; }
+  .fingerTutPalmSelectors { grid-template-columns:80px minmax(0,1fr); }
+  .fingerTutSlider { grid-template-columns:80px minmax(0,1fr) 44px; gap:6px; }
+  .fingerTutSlider input { height:44px; }
+  .fingerTutSlider input::-webkit-slider-thumb { width:24px; height:24px; margin-top:-9px; }
+  .fingerTutSlider input::-moz-range-thumb { width:24px; height:24px; }
+  .fingerTutFineTune summary, .fingerTutHelp summary { min-height:44px; box-sizing:border-box; padding:12px 0; }
+  .fingerTutFooter { flex-wrap:wrap; }
+  .fingerTutHelp { flex-basis:100%; }
+}
 
 /* Language remains accessible when the mobile drawer is collapsed. */
 #languageSelect { max-width:120px; min-width:0; }
@@ -724,7 +763,7 @@
   #ui #uiTopBtnRow .uiTopBtn { padding:4px 6px; font-size:12px; }
 
 }
-html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 42px; }
+html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 48px; }
 @media (max-width:640px), (pointer:coarse) and (max-width:960px) and (max-height:500px) {
   html[lang="en"] #selectedStatusBox { flex-wrap:wrap; gap:3px 5px; }
   html[lang="en"] #selectedStatusBox > span:first-child { flex:none; white-space:nowrap; }
@@ -733,4 +772,8 @@ html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 42p
 }
 @media (pointer:coarse) and (min-width:641px) and (max-width:960px) and (max-height:500px) {
   #ui.mobileCollapsed { width:280px !important; }
+}
+
+@media (max-width:640px), (pointer:coarse) and (max-width:960px) and (max-height:500px) {
+  html[lang="en"] .fingerTutSlider { grid-template-columns:90px minmax(0,1fr) 44px; }
 }

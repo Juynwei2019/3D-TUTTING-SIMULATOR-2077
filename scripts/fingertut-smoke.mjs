@@ -72,7 +72,17 @@ try{for(const entry of entries)for(const viewport of viewports){
     for(const key of Object.keys(before.pose).filter(k=>/(Thumb|Index|Middle|Ring|Pinky)/.test(k)))assert.deepEqual(normalize(placed.pose[key]),before.pose[key],key);
     assert.equal(placed.rig.arms.rArm.enabled,false);assert.equal(placed.rig.fingers.rPinky.enabled,false);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal page overflow');
+    const cards=await page.locator('.fingerTutCard').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width};}));
+    assert.equal(cards.length,2,'placement and orientation have distinct settings cards');
+    if(mobile){assert.ok(Math.abs(cards[0].x-cards[1].x)<1&&cards[1].y>cards[0].y,'mobile cards stack');}
+    else{assert.ok(cards[1].x>cards[0].x&&Math.abs(cards[0].y-cards[1].y)<1,'desktop cards sit side by side');}
+    const slider=await page.locator('#fingerTut_height').boundingBox();
+    assert.ok(slider.height>=(mobile?44:32),'slider has a usable pointer target');
+    const help=page.locator('.fingerTutHelp');assert.equal(await help.getAttribute('open'),null,'instructions start collapsed');
+    await press('.fingerTutHelp summary');assert.notEqual(await help.getAttribute('open'),null);await press('.fingerTutHelp summary');
+
     assert.equal(await page.evaluate(()=>document.getElementById('displayTogglesPanel').classList.contains('collapsed')),true);
+    await page.locator('#uiTabBody').evaluate(el=>el.scrollTop=0);
     await page.screenshot({path:`test-results/fingertut/${label}-active.png`});
     await page.evaluate(()=>window.__fingerTutTest.undo());
     await page.waitForTimeout(100);
@@ -130,6 +140,8 @@ try{for(const entry of entries)for(const viewport of viewports){
     assert.equal(await page.locator('#fingerTutPreset').inputValue(),'down');
     await page.evaluate(()=>window.__fingerTutTest.redo());
     assert.equal(await page.locator('#fingerTutPreset').inputValue(),'up');
+    assert.equal(await page.locator('.fingerTutFineTune').getAttribute('open'),null);
+    await press('.fingerTutFineTune summary');
     for(const [key,value]of [['flip','35'],['tilt','20'],['yaw','25']]){
       await page.locator('#fingerTut_'+key).fill(value);await page.locator('#fingerTut_'+key).dispatchEvent('change');
     }
@@ -158,6 +170,7 @@ try{for(const entry of entries)for(const viewport of viewports){
     const languageBefore=await page.evaluate(()=>({pose:window.__fingerTutTest.snapshotAngleState(),project:window.__fingerTutTest.snapshotTimelineData(),selected:document.getElementById('selectedLabel').textContent,custom:document.querySelector('#poseLibList .selName').textContent}));
     await page.locator('#languageSelect').selectOption('en');
     assert.equal(await page.locator('html').getAttribute('lang'),'en');
+    assert.notEqual(await page.locator('.fingerTutFineTune').getAttribute('open'),null,'language switching preserves expanded fine-tuning');
     assert.equal(await page.locator('.tabBtn[data-tab=fingers]').textContent(),'Fingers');
     assert.equal(await page.locator('#fingerTutToggle').textContent(),'Exit FingerTut');
     assert.equal(await page.locator('#selectedLabel').textContent(),'Right hand Index · Mid');

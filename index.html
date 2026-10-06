@@ -931,19 +931,38 @@
 
     <div class="tabPanel" data-tab="fingers" id="tabFingers">
       <section class="fingerTutPanel" aria-label="FingerTut 胸前編輯模式" data-i18n-aria-label="FingerTut 胸前編輯模式">
-        <div class="row"><button id="fingerTutToggle" type="button" aria-pressed="false"><span data-i18n="開啟 FingerTut">開啟 FingerTut</span></button><button id="fingerTutFocus" type="button" disabled data-i18n="雙手特寫">雙手特寫</button></div>
-        <p id="fingerTutStatus" class="small" role="status"></p>
-        <label class="fingerTutSlider" for="fingerTut_height"><span data-i18n="高度">高度</span><input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
-        <label class="fingerTutSlider" for="fingerTut_distance"><span data-i18n="前後距離">前後距離</span><input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
-        <label class="fingerTutSlider" for="fingerTut_spacing"><span data-i18n="雙手間距">雙手間距</span><input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
-        <div class="row"><label for="fingerTutSide"><span data-i18n="調整手掌">調整手掌</span></label><select id="fingerTutSide" disabled><option value="both" data-i18n="雙手">雙手</option><option value="r" data-i18n="右手">右手</option><option value="l" data-i18n="左手">左手</option></select><label for="fingerTutPreset"><span data-i18n="朝向">朝向</span></label><select id="fingerTutPreset" disabled><option value="down" data-i18n="掌心朝下">掌心朝下</option><option value="up" data-i18n="掌心朝上">掌心朝上</option><option value="in" data-i18n="掌心相對">掌心相對</option><option value="out" data-i18n="掌心朝外">掌心朝外</option><option value="camera" data-i18n="朝向鏡頭">朝向鏡頭</option><option value="mixed" disabled data-i18n="左右不同">左右不同</option></select></div>
-        <label class="fingerTutSlider" for="fingerTut_flip"><span data-i18n="掌心翻轉">掌心翻轉</span><input id="fingerTut_flip" type="range" min="-180" max="180" step="1" value="0" disabled><output id="fingerTut_flipValue">0°</output></label>
-        <label class="fingerTutSlider" for="fingerTut_tilt"><span data-i18n="指尖抬低">指尖抬低</span><input id="fingerTut_tilt" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_tiltValue">0°</output></label>
-        <label class="fingerTutSlider" for="fingerTut_yaw"><span data-i18n="左右偏轉">左右偏轉</span><input id="fingerTut_yaw" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_yawValue">0°</output></label>
-        <div class="row"><button id="fingerTutPalmReset" type="button" disabled data-i18n="重置手掌朝向">重置手掌朝向</button></div>
-        <p class="small"><span data-i18n="角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。">角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。</span></p>
-        <div class="row"><button id="fingerTutRecenter" type="button" disabled data-i18n="重新胸前擺位">重新胸前擺位</button><button id="fingerTutRestore" type="button" disabled data-i18n="還原進入前姿勢">還原進入前姿勢</button></div>
-        <p class="small"><span data-i18n="百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</span></p>
+        <header class="fingerTutHeader">
+          <div><h2>FingerTut</h2><p data-i18n="胸前手勢編輯">胸前手勢編輯</p></div>
+          <div class="fingerTutActions"><button id="fingerTutToggle" type="button" aria-pressed="false"><span data-i18n="開啟 FingerTut">開啟 FingerTut</span></button><button id="fingerTutFocus" type="button" disabled data-i18n="雙手特寫">雙手特寫</button></div>
+        </header>
+        <p id="fingerTutStatus" class="small" role="status" aria-live="polite"></p>
+        <div class="fingerTutSettings">
+          <fieldset class="fingerTutCard">
+            <legend data-i18n="胸前位置">胸前位置</legend>
+            <p class="fingerTutCardHint" data-i18n="高度、距離與間距，以角色身高為基準。">高度、距離與間距，以角色身高為基準。</p>
+            <label class="fingerTutSlider" for="fingerTut_height"><span data-i18n="高度">高度</span><input id="fingerTut_height" type="range" min="-12" max="8" step="1" value="-2" disabled><output id="fingerTut_heightValue">-2%</output></label>
+            <label class="fingerTutSlider" for="fingerTut_distance"><span data-i18n="前後距離">前後距離</span><input id="fingerTut_distance" type="range" min="14" max="28" step="1" value="22" disabled><output id="fingerTut_distanceValue">22%</output></label>
+            <label class="fingerTutSlider" for="fingerTut_spacing"><span data-i18n="雙手間距">雙手間距</span><input id="fingerTut_spacing" type="range" min="12" max="36" step="1" value="24" disabled><output id="fingerTut_spacingValue">24%</output></label>
+            <div class="fingerTutCardActions"><button id="fingerTutRecenter" type="button" disabled data-i18n="重新胸前擺位">重新胸前擺位</button></div>
+          </fieldset>
+          <fieldset class="fingerTutCard">
+            <legend data-i18n="手掌朝向">手掌朝向</legend>
+            <div class="fingerTutPalmSelectors"><label for="fingerTutSide"><span data-i18n="調整手掌">調整手掌</span></label><select id="fingerTutSide" disabled><option value="both" data-i18n="雙手">雙手</option><option value="r" data-i18n="右手">右手</option><option value="l" data-i18n="左手">左手</option></select><label for="fingerTutPreset"><span data-i18n="朝向">朝向</span></label><select id="fingerTutPreset" disabled><option value="down" data-i18n="掌心朝下">掌心朝下</option><option value="up" data-i18n="掌心朝上">掌心朝上</option><option value="in" data-i18n="掌心相對">掌心相對</option><option value="out" data-i18n="掌心朝外">掌心朝外</option><option value="camera" data-i18n="朝向鏡頭">朝向鏡頭</option><option value="mixed" disabled data-i18n="左右不同">左右不同</option></select></div>
+            <details class="fingerTutFineTune"><summary data-i18n="角度微調">角度微調</summary>
+            <label class="fingerTutSlider" for="fingerTut_flip"><span data-i18n="掌心翻轉">掌心翻轉</span><input id="fingerTut_flip" type="range" min="-180" max="180" step="1" value="0" disabled><output id="fingerTut_flipValue">0°</output></label>
+            <label class="fingerTutSlider" for="fingerTut_tilt"><span data-i18n="指尖抬低">指尖抬低</span><input id="fingerTut_tilt" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_tiltValue">0°</output></label>
+            <label class="fingerTutSlider" for="fingerTut_yaw"><span data-i18n="左右偏轉">左右偏轉</span><input id="fingerTut_yaw" type="range" min="-90" max="90" step="1" value="0" disabled><output id="fingerTut_yawValue">0°</output></label>
+            </details>
+            <div class="fingerTutCardActions"><button id="fingerTutPalmReset" type="button" disabled data-i18n="重置手掌朝向">重置手掌朝向</button></div>
+          </fieldset>
+        </div>
+        <footer class="fingerTutFooter">
+          <details class="fingerTutHelp"><summary data-i18n="操作說明與儲存">操作說明與儲存</summary>
+            <p class="small"><span data-i18n="角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。">角度以所選朝向為基準，雙手採鏡像調整。左右角度不同時顯示「不同」；移動滑桿會套用到所選手掌。「朝向鏡頭」對準按下時的鏡頭，不持續追蹤。</span></p>
+            <p class="small"><span data-i18n="百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。">百分比以角色身高為基準。進入時停止播放／Wave／律動預覽，解除手臂、手指 IK 與手掌朝向接管。要保存成果，請新增拍點或儲存手勢。</span></p>
+          </details>
+          <button id="fingerTutRestore" type="button" disabled data-i18n="還原進入前姿勢">還原進入前姿勢</button>
+        </footer>
       </section>
       <div class="panelTitle" style="display:flex; align-items:center; gap:6px;"><span data-i18n="手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。">手指 FK／IK — 按鈕選指節，旋轉環微調（根／中／末＝第1／2／3節，hover 看全名）；列尾「IK」可切換為拖曳指尖青色球自動彎曲。</span>
         <span class="kfInfoIcon" title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響" data-i18n-title="手指彎曲方向的局部軸是合理猜測、未經實機渲染驗證；若旋轉方向不是彎曲方向請自行試其他軸向，手指IK用CCD動態算軸不受此限制影響">⚠️</span>

@@ -1,4 +1,10 @@
 export const batch3English = {
+  "角度微調": "Fine-tune angles",
+  "胸前手勢編輯": "Chest-level hand editing",
+  "胸前位置": "Hand placement",
+  "手掌朝向": "Palm orientation",
+  "高度、距離與間距，以角色身高為基準。": "Height, distance and spacing are relative to character height.",
+  "操作說明與儲存": "Instructions & saving",
   "3D Tutting 模擬器 · Day61 BG-6": "3D Tutting Simulator · Day61 BG-6",
   "把軀幹4段＋腿部4段共8段膠囊體（青色）、頭部球（青色）跟手掌的碰撞球（橘色）畫出來，方便邊看邊調半徑。跟「手部-身體碰撞回彈」開關是獨立的——只想看形狀、還不想讓手真的被推開時可以只開這個。半徑滑桿在「手腳IK」分頁的「進階/阻尼設定」裡。": "Show the eight torso and leg capsules plus the head sphere in cyan, and palm collision spheres in orange, to help adjust their radii. This is independent of hand–body collision correction, so you can inspect shapes without pushing the hands away. Radius sliders are under Limb IK → Advanced / damping settings.",
   "左下角顯示：「畫面 fps」＝實際呼叫 renderer.render() 的頻率（閒置降頻時會掉到約10fps）；「主循環 fps」＝ requestAnimationFrame 被排程呼叫的頻率（通常維持~60fps不受降頻影響，兩者的落差就是降頻機制省下來的量）；單幀耗時、Draw Calls、三角形數則來自 renderer.info，可用來抓效能瓶頸。": "Rendered FPS counts actual renderer.render() calls and drops to about 10 FPS when idle. Main-loop FPS counts requestAnimationFrame callbacks, usually around 60 FPS. The difference shows the work saved by idle rendering. Frame time, draw calls and triangle counts help identify performance bottlenecks.",
