@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
+import { applyBoneWorldQuatLock } from "../math/quaternions.js";
+import { grabSurfaceNormal, grabPalmQuaternion } from "./grab-orientation.js";
 import { grabPresetPoints, grabChestFrame } from "./grab-presets.js";
 import { GRAB_SHAPE_DEFAULTS, GRAB_SHAPE_CLOSEST_POINT, buildGrabShapeGeometry } from "./grab-shapes.js";
 
@@ -27,7 +29,8 @@ function createGrabBoxCore(deps){
   let mesh = null;   // 透明箱子本體（含邊框線）
   let gizmo = null;  // 專屬於箱子的 TransformControls，跟主程式的關節/IK 控制環完全分開
   const listeners = [];
-  let preset = null, revision = 0, messageKey = null;
+  let preset = null, revision = 0, messageKey = null, palmAligned = false;
+  const palmTwist = {rArm:0,lArm:0};
   const clone = value => JSON.parse(JSON.stringify(value));
 
   function notify(){
@@ -44,7 +47,7 @@ function createGrabBoxCore(deps){
         cylinder: { ...shapeParams.cylinder },
       },
       grabbed: { ...grabbed },
-      preset, messageKey,
+      preset, messageKey, palmAligned, palmTwist:{...palmTwist},
     };
   }
 
@@ -163,6 +166,7 @@ function createGrabBoxCore(deps){
     const localPos = mesh.worldToLocal(worldPos.clone());
     grabLocal[limb] = GRAB_SHAPE_CLOSEST_POINT[shapeType](localPos, shapeParams[shapeType]);
     grabbed[limb] = true;
+    if(palmAligned)deps.preparePalm?.(limb);
     // 扶握時若該手 IK 尚未開啟，核心自動呼叫 setIKEnabled 開啟
     if (!deps.isIKEnabled(limb)) deps.setIKEnabled(limb, true);
     notify();
@@ -198,7 +202,7 @@ function createGrabBoxCore(deps){
   // the existing grab ownership unless it crosses a quick/reset command.
   function command(action){
     if (deps.isFingerTutActive?.()) {
-      messageKey = "請先退出 FingerTut，再使用扶握箱快速擺位或重設。";
+      messageKey = "請先退出 FingerTut，再調整扶握箱。";
       notify(); return false;
     }
     deps.getModel?.()?.updateWorldMatrix(true, true);
@@ -234,6 +238,43 @@ function createGrabBoxCore(deps){
       preset = next;
       Object.assign(grabLocal, grabPresetPoints(shapeType, shapeParams[shapeType], next));
     });
+  }
+
+  function setPalmAligned(on){
+    if(palmAligned===!!on)return false;
+    return command(()=>{
+      palmAligned=!!on;
+      if(palmAligned)for(const limb of ['rArm','lArm'])if(grabbed[limb])deps.preparePalm?.(limb);
+    });
+  }
+
+  function setPalmTwist(limb,value){
+    if(!["rArm","lArm"].includes(limb)||!Number.isFinite(value))return false;
+    const next=Math.max(-180,Math.min(180,value));
+    if(palmTwist[limb]===next)return false;
+    return command(()=>{palmTwist[limb]=next;});
+  }
+
+  function isPalmAligned(limb){return !!(palmAligned&&visible&&grabbed[limb]&&deps.isIKEnabled(limb));}
+
+  // Apply after arm IK, and again after collision correction, so other hand
+  // solvers cannot overwrite the final palm plane. Flags remain untouched.
+  function applyPalmOrientation(){
+    if(!mesh||!visible||!palmAligned)return false;
+    mesh.updateMatrixWorld(true);
+    const rotation=mesh.getWorldQuaternion(new THREE.Quaternion());
+    let applied=false;
+    for(const limb of ['rArm','lArm']){
+      if(!isPalmAligned(limb)||!grabLocal[limb])continue;
+      const normal=grabSurfaceNormal(shapeType,grabLocal[limb],shapeParams[shapeType]);
+      const hint=new THREE.Vector3(0,Math.abs(normal.y)>.75?0:1,Math.abs(normal.y)>.75?1:0);
+      const quaternion=grabPalmQuaternion(deps.getBones(),limb,normal.applyQuaternion(rotation),hint.applyQuaternion(rotation),palmTwist[limb]);
+      if(!quaternion)continue;
+      applyBoneWorldQuatLock(deps.getHandBone(limb),quaternion);
+      deps.syncHandPose?.(limb);
+      applied=true;
+    }
+    return applied;
   }
 
   function recenter(){
@@ -274,6 +315,8 @@ function createGrabBoxCore(deps){
       grabLocal[limb] = state.grabLocal[limb] ? new THREE.Vector3().fromArray(state.grabLocal[limb]) : null;
     }
     preset = state.preset; revision = state.revision; messageKey = null;
+    palmAligned=!!state.palmAligned;
+    Object.assign(palmTwist,{rArm:0,lArm:0},state.palmTwist);
     rebuildGeometry(); mesh.visible = visible; gizmo.setMode(mode);
     if (visible) gizmo.attach(mesh); else gizmo.detach();
     updateEachFrame();
@@ -302,6 +345,7 @@ function createGrabBoxCore(deps){
   return {
     setVisible, setMode, setShapeType, setShapeParam,
     setGrabHand, releaseHand,
+    setPalmAligned, setPalmTwist, isPalmAligned, applyPalmOrientation,
     getState, onChange, applyPreset, recenter, resetRotation, resetDimensions, snapshot, restoreSnapshot,
     buildAfterModelLoad, updateEachFrame, isDragging,
   };

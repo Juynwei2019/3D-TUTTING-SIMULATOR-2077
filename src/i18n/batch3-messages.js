@@ -1,4 +1,8 @@
 export const batch3English = {
+  "掌面貼合表面": "Align palms to surface",
+  "貼合時掌心朝向形狀，手指沿表面排列；只接管已扶握的手。": "Face the palms toward the shape and keep the fingers along the surface. Controls attached hands only.",
+  "右手手腕旋轉": "Right wrist twist",
+  "左手手腕旋轉": "Left wrist twist",
   "快速擺位": "Quick placement",
   "雙手扶兩側": "Hold both sides",
   "雙手托底": "Support from below",
@@ -7,7 +11,7 @@ export const batch3English = {
   "回到胸前": "Return to chest",
   "重設旋轉": "Reset rotation",
   "重設尺寸": "Reset dimensions",
-  "請先退出 FingerTut，再使用扶握箱快速擺位或重設。": "Exit FingerTut before using grab box quick placement or resets.",
+  "請先退出 FingerTut，再調整扶握箱。": "Exit FingerTut before adjusting the grab box.",
   "模型尚未準備完成，請稍後再試。": "The model is not ready. Please try again shortly.",
   "快速擺位與重設可使用復原／重做。大尺寸可能超出手臂可達範圍。": "Undo/Redo is available for quick placement and resets. Large shapes may exceed arm reach.",
   "扶握箱": "Grab box",

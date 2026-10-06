@@ -61,6 +61,7 @@ export function createAnimationLoop(context){
       context.solveLookAt("chest");
       context.solveLookAt("head");
       for(const name of context.HAND_AIM_NAMES)context.solveHandAim(name);
+      context.grabBoxCore?.applyPalmOrientation?.();
       context.solveFingerIKAll();
       if (context.groovePreviewEnabled){
         // 🔧 修正：這裡的律動是排在 solveIKAll()／solveSpineIK()／solveLookAt() 之後跑的，
@@ -100,6 +101,7 @@ export function createAnimationLoop(context){
     }
     if(!context.kfPlaying&&context.headFollowSource!=="free")context.solveLookAt("head");
     context.tgTick();
+    if(!context.kfPlaying&&context.grabBoxCore?.applyPalmOrientation?.())context.solveFingerIKAll();
     context.updateHandCollisionVizMeshes();
     context.updateMarkers();
     context.updateSkeletonLines();

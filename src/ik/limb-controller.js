@@ -218,6 +218,7 @@ function applyFootLock(limb){
 }
 
 function applyEffectorOrientation(limb){
+  if(context.grabBoxCore?.isPalmAligned?.(limb))return;
   if (!context.effectorOrientEnabled[limb]) return;
   const chain = IK_CHAINS[limb];
   const endBone = context.bones[chain.end];

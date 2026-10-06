@@ -4520,6 +4520,7 @@ const poleEditorController = createPoleEditor({
 });
 
 const orientationController = createOrientationController({
+  isGrabPalmAligned:name=>grabBoxCore?.isPalmAligned(name==="rHand"?"rArm":name==="lHand"?"lArm":""),
   get bones(){ return bones; },
   get handAimAxes(){ return handAimAxes; },
   get handAim(){ return handAim; },
@@ -5575,7 +5576,11 @@ const sceneBootstrapController = createSceneBootstrap({
     // World-space fingertip targets would change the gesture when the palms move.
     for(const id of FINGER_IDS)setFingerIKEnabled(id,false);
   },
-  solveGrabPose(){solveIKAll();model.updateWorldMatrix(true,true);},
+  prepareGrabPalm(limb){
+    for(const id of FINGER_IDS.filter(id=>id[0]===limb[0]))setFingerIKEnabled(id,false);
+  },
+  syncGrabHandPose(limb){syncTargetFromBone(limb==='rArm'?'rHand':'lHand');},
+  solveGrabPose(){solveIKAll();grabBoxCore?.applyPalmOrientation();model.updateWorldMatrix(true,true);},
   captureGrabRig(){
     return { model:{position:model.position.toArray(),quaternion:model.quaternion.toArray()},
       arms:Object.fromEntries(['rArm','lArm'].map(id=>[id,{

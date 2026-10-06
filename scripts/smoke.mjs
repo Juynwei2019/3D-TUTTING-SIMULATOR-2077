@@ -28,7 +28,7 @@ const probe = `
 window.__smoke = {
   snapshotTimelineData, restoreTimelineData, setTarget, resetPose, mirrorPose,
   pushHistory, undo, redo, applyTimelinePreviewAtElapsed,
-  setIKEnabled, setFingerIKEnabled, solveIKAll, updateBones, deleteKeyframe,
+  setIKEnabled, setFingerIKEnabled, setEffectorOrientEnabled:(...args)=>limbController.setEffectorOrientEnabled(...args), setLookAtEnabled, solveHandAim, solveIKAll, updateBones, deleteKeyframe,
   setKfMultiSelectMode, kfMultiSelectAll, copyTimelineSelection, pasteTimelineClipboard,
   copyBeatGridRange, duplicateBeatGridRange, clearBeatGridRange,
   setRange(start, end){ beatGridRangeStart = start; beatGridRangeEnd = end; updateBeatGridRangeUI(); },
@@ -168,6 +168,8 @@ try {
       assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.snapshot()),beforeQuick);
       await page.evaluate(()=>window.__smoke.redo());
       assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.snapshot()),quick);
+      await page.evaluate(()=>window.__smoke.setEffectorOrientEnabled('rArm',true));
+      await page.locator('#grabPalmAlign').check();
       for(const shape of ['box','sphere','cylinder']){
         await page.locator(`#grabShapeBtns [data-shape="${shape}"]`).click();
         await page.locator('#grabResetDimensions').click();
@@ -183,6 +185,21 @@ try {
             }));
           });
           assert.ok(contact.rArm<.005&&contact.lArm<.005,`${shape} ${preset}: both hand bones reach the surface: ${JSON.stringify(contact)}`);
+          const scores=await page.evaluate(()=>{
+            const a=window.__smoke,s=a.grab.snapshot(),m=a.scene.getObjectByName('grabBoxMesh'),rotation=m.getWorldQuaternion(m.quaternion.clone());
+            return ['r','l'].map(side=>{
+              const point=m.position.clone().fromArray(s.grabLocal[side+'Arm']);
+              const normal=s.preset==='sides'?point.clone().set(point.x<0?-1:1,0,0):s.shapeType==='sphere'?point.clone().normalize():point.clone().set(0,-1,0);
+              normal.applyQuaternion(rotation).negate();
+              const origin=a.bones[side+'Hand'].getWorldPosition(point.clone());
+              const finger=a.bones[side+'Middle1'].getWorldPosition(point.clone()).sub(origin).normalize();
+              const across=a.bones[side+'Index1'].getWorldPosition(point.clone()).sub(a.bones[side+'Pinky1'].getWorldPosition(point.clone()));
+              const palm=across.cross(finger).normalize().multiplyScalar(side==='r'?-1:1);
+              return palm.dot(normal);
+            });
+          });
+          assert.ok(scores.every(v=>v>.999),`${shape} ${preset}: both palms align despite preexisting effector orientation: ${scores}`);
+
         }
       }
       await page.evaluate(()=>{const mesh=window.__smoke.scene.getObjectByName('grabBoxMesh');mesh.position.set(.2,1,.4);mesh.rotation.set(.2,.4,.1);});
@@ -199,6 +216,23 @@ try {
       await page.evaluate(()=>window.__smoke.undo());
       assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.25');
       await page.evaluate(()=>window.__smoke.redo());
+      const protectedAim=await page.evaluate(()=>{
+        const a=window.__smoke;a.setLookAtEnabled('rHand',true);
+        const before=a.bones.rHand.quaternion.clone();a.solveHandAim('rHand');
+        return before.angleTo(a.bones.rHand.quaternion);
+      });
+      assert.ok(protectedAim<1e-7,'existing hand aim is suspended for an aligned attached palm');
+      await page.locator('#grabPalmTwist_rArm').fill('35');
+      await page.locator('#grabPalmTwist_rArm').dispatchEvent('change');
+      assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'35°');
+      assert.equal(await page.locator('#grabPalmTwistValue_lArm').textContent(),'0°');
+      await page.evaluate(()=>window.__smoke.undo());
+      assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'0°');
+      await page.evaluate(()=>window.__smoke.redo());
+      assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'35°');
+      await page.locator('#grabPalmAlign').uncheck();
+      assert.equal(await page.evaluate(()=>window.__smoke.grab.isPalmAligned('rArm')),false);
+      await page.evaluate(()=>{window.__smoke.setLookAtEnabled('rHand',false);window.__smoke.setEffectorOrientEnabled('rArm',false);});
       await page.locator('#grabVisibleBtn').click();
       await page.evaluate(()=>{window.__smoke.setIKEnabled('rArm',false);window.__smoke.setIKEnabled('lArm',false);window.__smoke.fingerTut.enter();});
       const blocked=await page.evaluate(()=>window.__smoke.grab.snapshot());

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { grabPresetPoints, grabChestFrame } from '../src/interaction/grab-presets.js';
 import { createGrabBoxCore } from '../src/interaction/grab-core.js';
 import { GRAB_SHAPE_DEFAULTS, GRAB_SHAPE_CLOSEST_POINT } from '../src/interaction/grab-shapes.js';
+import { grabSurfaceNormal } from '../src/interaction/grab-orientation.js';
 import { createHistory } from '../src/history/history-controller.js';
 
 function fixture(){
@@ -11,6 +12,9 @@ function fixture(){
   scene.add(model);
   for (const [key, xyz] of Object.entries({spine:[0,1,0],spine2:[0,1.3,0],neck:[0,1.5,0],rArm:[-.2,1.4,0],lArm:[.2,1.4,0],rHand:[-.5,1.2,0],lHand:[.5,1.2,0]})) {
     const bone = new THREE.Bone(); bone.position.fromArray(xyz); model.add(bone); bones[key] = bone;
+  }
+  for(const side of ['r','l'])for(const [part,xyz]of Object.entries({Middle1:[0,.08,0],Index1:[.025,.07,0],Pinky1:[-.025,.07,0]})){
+    const bone=new THREE.Bone();bone.position.fromArray(xyz);bones[side+'Hand'].add(bone);bones[side+part]=bone;
   }
   const targets = {rArm:new THREE.Object3D(),lArm:new THREE.Object3D()}, enabled = {rArm:false,lArm:false};
   let blocked = false, pushes = 0, prepares = 0, handPrepares = 0, history;
@@ -109,4 +113,46 @@ test('active FingerTut and unavailable rigs refuse commands without history or p
   assert.equal(f.pushes,0);assert.equal(f.prepares,0);assert.equal(f.mesh,undefined);
   assert.match(f.core.getState().messageKey,/FingerTut/);
   const g=fixture();delete g.bones.neck;assert.equal(g.core.applyPreset('bottom'),false);assert.equal(g.pushes,0);
+});
+
+function palmDirection(bones,side){
+  const origin=bones[side+'Hand'].getWorldPosition(new THREE.Vector3());
+  const finger=bones[side+'Middle1'].getWorldPosition(new THREE.Vector3()).sub(origin).normalize();
+  const across=bones[side+'Index1'].getWorldPosition(new THREE.Vector3()).sub(bones[side+'Pinky1'].getWorldPosition(new THREE.Vector3()));
+  return new THREE.Vector3().crossVectors(across,finger).normalize().multiplyScalar(side==='r'?-1:1);
+}
+
+test('surface normals point outward on box faces, sphere curves and cylinder caps/sides',()=>{
+  const v=(x,y,z)=>new THREE.Vector3(x,y,z);
+  for(const [type,p,normal]of [['box',v(.16,0,0),v(1,0,0)],['box',v(0,-.16,0),v(0,-1,0)],['sphere',v(0,0,-.18),v(0,0,-1)],['cylinder',v(.14,0,0),v(1,0,0)],['cylinder',v(.07,-.17,0),v(0,-1,0)]]){
+    const before=p.clone();near(grabSurfaceNormal(type,p,GRAB_SHAPE_DEFAULTS[type]),normal);near(p,before);
+  }
+  const center=GRAB_SHAPE_CLOSEST_POINT.cylinder(v(0,0,0),GRAB_SHAPE_DEFAULTS.cylinder);
+  near(center,v(.14,0,0));near(grabSurfaceNormal('cylinder',center,GRAB_SHAPE_DEFAULTS.cylinder),v(1,0,0));
+});
+
+test('both palms face the surface after moving/rotating all shapes and both presets',()=>{
+  const f=fixture();f.core.setPalmAligned(true);
+  for(const type of ['box','sphere','cylinder'])for(const preset of ['sides','bottom']){
+    f.core.setShapeType(type);f.core.applyPreset(preset);f.mesh.rotation.set(.4,.7,-.3);f.mesh.position.add(new THREE.Vector3(2,3,4));
+    assert.equal(f.core.applyPalmOrientation(),true);
+    const state=f.core.snapshot(),rotation=f.mesh.getWorldQuaternion(new THREE.Quaternion());
+    for(const side of ['r','l']){
+      const normal=grabSurfaceNormal(type,new THREE.Vector3().fromArray(state.grabLocal[side+'Arm']),state.shapeParams[type]).applyQuaternion(rotation).negate();
+      near(palmDirection(f.bones,side),normal);
+    }
+  }
+});
+
+test('wrist twist changes tangent direction but retains palm contact and is independent/undoable',()=>{
+  const f=fixture();f.core.applyPreset('sides');f.core.setPalmAligned(true);f.core.applyPalmOrientation();
+  const right=f.bones.rHand.quaternion.clone(),left=f.bones.lHand.quaternion.clone(),palm=palmDirection(f.bones,'r');
+  f.core.setPalmTwist('rArm',65);f.core.applyPalmOrientation();
+  assert.ok(right.angleTo(f.bones.rHand.quaternion)>.5);assert.ok(left.angleTo(f.bones.lHand.quaternion)<1e-7);near(palmDirection(f.bones,'r'),palm);
+  f.history.undo();assert.equal(f.core.getState().palmTwist.rArm,0);
+  f.history.redo();assert.equal(f.core.getState().palmTwist.rArm,65);
+  f.core.setPalmAligned(false);const q=f.bones.rHand.quaternion.clone();assert.equal(f.core.applyPalmOrientation(),false);assert.ok(q.equals(f.bones.rHand.quaternion));
+  f.history.undo();assert.equal(f.core.getState().palmAligned,true);
+  f.core.releaseHand('rArm');assert.equal(f.core.isPalmAligned('rArm'),false);assert.equal(f.core.isPalmAligned('lArm'),true);
+  f.core.setVisible(false);assert.equal(f.core.applyPalmOrientation(),false);
 });

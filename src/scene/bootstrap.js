@@ -114,6 +114,8 @@ export function createSceneBootstrap(context){
         isFingerTutActive: () => context.isFingerTutActive(),
         preparePose: () => context.prepareGrabPose(),
         prepareHands: () => context.prepareGrabHands(),
+        preparePalm: limb => context.prepareGrabPalm(limb),
+        syncHandPose: limb => context.syncGrabHandPose(limb),
         solvePose: () => context.solveGrabPose(),
         captureRig: () => context.captureGrabRig(),
         restoreRig: state => context.restoreGrabRig(state),

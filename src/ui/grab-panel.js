@@ -57,6 +57,9 @@ function grabPanelHTML(){
           <p class="grabHint" data-i18n="先調整手掌位置，再勾選要扶握的手。">${t("先調整手掌位置，再勾選要扶握的手。")}</p>
           <label class="grabHandChoice"><input type="checkbox" id="grabHandCb_rArm">${translatedSpan("右手扶著箱子")}<span id="grabHandState_rArm" class="grabHandState"></span></label>
           <label class="grabHandChoice"><input type="checkbox" id="grabHandCb_lArm">${translatedSpan("左手扶著箱子")}<span id="grabHandState_lArm" class="grabHandState"></span></label>
+          <label class="grabHandChoice"><input type="checkbox" id="grabPalmAlign">${translatedSpan("掌面貼合表面")}</label>
+          <p class="grabHint" data-i18n="貼合時掌心朝向形狀，手指沿表面排列；只接管已扶握的手。">${t("貼合時掌心朝向形狀，手指沿表面排列；只接管已扶握的手。")}</p>
+          ${['rArm','lArm'].map(limb=>`<label class="grabSlider" for="grabPalmTwist_${limb}">${translatedSpan(limb==='rArm'?"右手手腕旋轉":"左手手腕旋轉")}<input id="grabPalmTwist_${limb}" type="range" min="-180" max="180" step="1" value="0" aria-label="${t(limb==='rArm'?"右手手腕旋轉":"左手手腕旋轉")}" data-i18n-aria-label="${limb==='rArm'?"右手手腕旋轉":"左手手腕旋轉"}"><output id="grabPalmTwistValue_${limb}" class="grabValue">0°</output></label>`).join('')}
           <p class="grabHint" data-i18n="顯示形狀時，扶握中的手會跟隨移動與旋轉。">${t("顯示形狀時，扶握中的手會跟隨移動與旋轉。")}</p>
         </fieldset>
       </div>
@@ -93,6 +96,8 @@ function mountGrabBoxUI(container, core){
     lArm: container.querySelector("#grabHandCb_lArm"),
   };
 
+  container.querySelector('#grabPalmAlign').onchange = e => core.setPalmAligned(e.target.checked);
+  for(const limb of ['rArm','lArm'])container.querySelector('#grabPalmTwist_'+limb).onchange = e => core.setPalmTwist(limb,Number(e.target.value));
   container.querySelector('#grabPresetSides').onclick = () => core.applyPreset('sides');
   container.querySelector('#grabPresetBottom').onclick = () => core.applyPreset('bottom');
   container.querySelector('#grabRecenter').onclick = () => core.recenter();
@@ -127,6 +132,14 @@ function mountGrabBoxUI(container, core){
   }
 
   function render(state){
+    container.querySelector('#grabPalmAlign').checked=!!state.palmAligned;
+    for(const limb of ['rArm','lArm']){
+      const input=container.querySelector('#grabPalmTwist_'+limb);
+      input.disabled=!state.palmAligned;
+      input.value=state.palmTwist[limb];
+      container.querySelector('#grabPalmTwistValue_'+limb).textContent=state.palmTwist[limb]+'°';
+    }
+
     for (const [id, preset] of [['grabPresetSides','sides'],['grabPresetBottom','bottom']]) {
       const active = state.preset === preset && state.grabbed.rArm && state.grabbed.lArm;
       container.querySelector('#'+id).setAttribute('aria-pressed', String(!!active));

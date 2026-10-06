@@ -47,7 +47,7 @@ try{
     }
     await press('#grabVisibleBtn');await press('#grabShapeBtns [data-shape="cylinder"]');
     await page.locator('#grabParam_cylinder_r').fill('0.23');await press('#grabModeBtn');
-    await press('#grabPresetBottom');
+    await press('#grabPresetBottom');await page.locator('#grabPalmAlign').check();
     assert.equal(await page.locator('#grabVisibleBtn').getAttribute('aria-pressed'),'true');
     assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
     assert.equal(await page.locator('#grabModeBtn').textContent(),'操作：旋轉');
@@ -60,9 +60,12 @@ try{
     if(mobile){
       await page.locator('#grabShapeBtns').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-dimensions');
       await page.locator('.grabContactCard').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-contact');
+      await page.locator('#grabPalmTwist_rArm').fill('35');await page.locator('#grabPalmTwist_rArm').dispatchEvent('change');
+      await page.locator('#grabPalmTwist_lArm').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-palms');
+      assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'35°');
     }
     await press('#grabVisibleBtn');assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),false);
     await context.close();
   }
-  assert.deepEqual(errors,[]);console.log('PASS: 4 Grab box screenshots; one-click bottom support, visibility, dimensions, rotation, both hand contacts and hide/release.');
+  assert.deepEqual(errors,[]);console.log('PASS: 5 Grab box screenshots; palm alignment and independent wrist twist; one-click bottom support, visibility, dimensions, rotation, both hand contacts and hide/release.');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

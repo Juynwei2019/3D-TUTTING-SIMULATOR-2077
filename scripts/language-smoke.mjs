@@ -187,10 +187,17 @@ try{for(const entry of entries)for(const viewport of viewports){
    assert.equal(await page.locator('#grabPresetSides').getAttribute('aria-pressed'),'true');
    assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
    assert.equal(await page.locator('#grabHandCb_lArm').isChecked(),true);
+   await page.locator('#grabPalmAlign').check();
+   assert.equal(await page.locator('#grabPalmAlign').isChecked(),true);
+   await page.locator('#grabPalmTwist_rArm').fill('35');await page.locator('#grabPalmTwist_rArm').dispatchEvent('change');
+   assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'35°');
+   assert.equal(await page.locator('#grabPalmTwistValue_lArm').textContent(),'0°');
+   assert.ok((await page.locator('#grabPalmTwist_rArm').boundingBox()).height>=(mobile?44:32));
    const quickGrab=await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.snapshot()));
    await page.evaluate(()=>window.__switchAndCompare('zh-Hant'));
    assert.equal(await page.locator('#grabPresetSides').textContent(),'雙手扶兩側');
    assert.equal(await page.locator('#grabRecenter').textContent(),'回到胸前');
+   assert.match(await page.locator('#grabPalmAlign').locator('..').textContent(),/掌面貼合表面/);
    assert.equal(await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.snapshot())),quickGrab);
    await page.evaluate(()=>window.__switchAndCompare('en'));
    await press('#grabPresetBottom');
@@ -202,6 +209,7 @@ try{for(const entry of entries)for(const viewport of viewports){
    await page.evaluate(()=>window.__languageTest.redo());
    assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.14');
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+   await page.locator('#grabPalmAlign').uncheck();
    await press('#grabVisibleBtn');
    await page.evaluate(()=>window.__languageTest.setIKEnabled('lArm',false));
    await page.evaluate(()=>window.__languageTest.setIKEnabled('rArm',false));

@@ -56,7 +56,8 @@ function grabClosestPointCylinder(p, params){
     const distToSide = r - radial;
     const distToCap = hh - Math.abs(p.y);
     if (distToSide <= distToCap){
-      const scale = radial > 1e-6 ? r / radial : 1;
+      if(radial<1e-6)return new THREE.Vector3(r,p.y,0);
+      const scale = r / radial;
       return new THREE.Vector3(p.x * scale, p.y, p.z * scale);
     }
     return new THREE.Vector3(p.x, (p.y < 0 ? -1 : 1) * hh, p.z);

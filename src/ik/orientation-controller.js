@@ -230,6 +230,7 @@ function tickLAPath(now){
 }
 
 function solveLAPath(name){
+  if(context.isGrabPalmAligned?.(name))return true;
   const r=context.laPathRun;if(!r||r.name!==name)return false;
   const b=context.bones[LOOKAT_CONFIG[name].key],center=b.getWorldPosition(new THREE.Vector3());
   const forward=r.local.clone().applyQuaternion(r.ref).normalize();
@@ -264,6 +265,7 @@ function bindLAPath(){
 }
 
 function solveHandAim(name){
+  if(context.isGrabPalmAligned?.(name))return true;
   if(solveLAPath(name))return;
   if(!context.lookAtEnabled[name]||!context.handAimAxes[name])return;
   const b=context.bones[name],state=context.handAim[name],pos=b.getWorldPosition(new THREE.Vector3());
@@ -537,6 +539,7 @@ function updateLookAtButtons(){
 }
 
 function solveLookAt(name){
+  if(context.isGrabPalmAligned?.(name))return true;
   if(solveLAPath(name))return;
   if (!context.lookAtEnabled[name]) return;
   if(name==="head")updateHeadFollowTarget();
