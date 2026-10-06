@@ -266,12 +266,16 @@ try {
       const reloadedGrab=await page.evaluate(()=>window.__smoke.grab.snapshot());
       for(const key of ['position','shapeParams','grabbed','palmAligned','palmTwist'])assert.deepEqual(reloadedGrab[key],storedGrab.grabBox[key],key+' survives autosave reload');
       // Older v1 projects clear live grabs without overriding their timeline body.
-      const legacyPosition=await page.evaluate(()=>{
+      const legacyPositions=await page.evaluate(()=>{
         const a=window.__smoke,data=a.snapshotTimelineData();delete data.grabBox;
+        const footPlant=data.footPlant;delete data.footPlant;
         data.keyframes=[{angles:structuredClone(a.target),body:{position:[.2,0,.1],quaternion:[0,0,0,1]}}];
-        a.restoreTimelineData(data);return a.model.position.toArray();
+        a.restoreTimelineData(data);const timeline=a.model.position.toArray();
+        a.restoreTimelineData({...data,footPlant});
+        return {timeline,footWorkspace:a.model.position.toArray(),savedFoot:footPlant.body.position};
       });
-      assert.deepEqual(legacyPosition,[.2,0,.1],'legacy body transform is preserved');
+      assert.deepEqual(legacyPositions.timeline,[.2,0,.1],'legacy timeline body without foot workspace is preserved');
+      assert.deepEqual(legacyPositions.footWorkspace,legacyPositions.savedFoot,'legacy foot workspace body is preserved');
       assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),false);
       assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.getState().grabbed),{rArm:false,lArm:false});
       await page.evaluate(data=>window.__smoke.restoreTimelineData(data),storedGrab);
