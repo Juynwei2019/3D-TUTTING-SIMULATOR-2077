@@ -177,6 +177,32 @@ try{for(const entry of entries)for(const viewport of viewports){
    assert.equal(await page.locator('#grabVisibleBtn').textContent(),'Show grab box');
    assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),false);
    assert.equal(await page.locator('#grabHandCb_lArm').isChecked(),false);
+   // Presets and independent resets are usable by touch and keep localized state.
+   assert.equal(await page.locator('#grabPresetSides').textContent(),'Hold both sides');
+   assert.equal(await page.locator('#grabPresetBottom').textContent(),'Support from below');
+   for(const id of ['grabPresetSides','grabPresetBottom','grabRecenter','grabResetRotation','grabResetDimensions']){
+     assert.ok((await page.locator('#'+id).boundingBox()).height>=44,'quick/reset touch target');
+   }
+   await press('#grabPresetSides');
+   assert.equal(await page.locator('#grabPresetSides').getAttribute('aria-pressed'),'true');
+   assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
+   assert.equal(await page.locator('#grabHandCb_lArm').isChecked(),true);
+   const quickGrab=await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.snapshot()));
+   await page.evaluate(()=>window.__switchAndCompare('zh-Hant'));
+   assert.equal(await page.locator('#grabPresetSides').textContent(),'雙手扶兩側');
+   assert.equal(await page.locator('#grabRecenter').textContent(),'回到胸前');
+   assert.equal(await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.snapshot())),quickGrab);
+   await page.evaluate(()=>window.__switchAndCompare('en'));
+   await press('#grabPresetBottom');
+   assert.equal(await page.locator('#grabPresetBottom').getAttribute('aria-pressed'),'true');
+   await press('#grabRecenter');await press('#grabResetRotation');await press('#grabResetDimensions');
+   assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.14');
+   await page.evaluate(()=>window.__languageTest.undo());
+   assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
+   await page.evaluate(()=>window.__languageTest.redo());
+   assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.14');
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+   await press('#grabVisibleBtn');
    await page.evaluate(()=>window.__languageTest.setIKEnabled('lArm',false));
    await page.evaluate(()=>window.__languageTest.setIKEnabled('rArm',false));
    // Trajectory configuration and point controls survive language updates.

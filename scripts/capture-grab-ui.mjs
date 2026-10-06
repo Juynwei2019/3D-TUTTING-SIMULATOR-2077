@@ -43,21 +43,26 @@ try{
     if(!mobile){
       const h=await page.locator('#uiResizeHandle').boundingBox();
       await page.mouse.move(h.x+h.width/2,h.y+h.height/2);await page.mouse.down();
-      await page.mouse.move(h.x+h.width/2,h.y+h.height/2-80,{steps:6});await page.mouse.up();
+      await page.mouse.move(h.x+h.width/2,h.y+h.height/2-210,{steps:6});await page.mouse.up();
     }
     await press('#grabVisibleBtn');await press('#grabShapeBtns [data-shape="cylinder"]');
     await page.locator('#grabParam_cylinder_r').fill('0.23');await press('#grabModeBtn');
-    await page.locator('#grabHandCb_rArm').check();
+    await press('#grabPresetBottom');
     assert.equal(await page.locator('#grabVisibleBtn').getAttribute('aria-pressed'),'true');
     assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
     assert.equal(await page.locator('#grabModeBtn').textContent(),'操作：旋轉');
     assert.equal(await page.locator('#grabHandState_rArm').textContent(),'已啟用');
+    assert.equal(await page.locator('#grabHandState_lArm').textContent(),'已啟用');
+    assert.equal(await page.locator('#grabPresetBottom').getAttribute('aria-pressed'),'true');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await page.locator('#uiTabBody').evaluate(el=>el.scrollTop=0);
     await shot(mobile?'grab-ui-mobile':'grab-ui-desktop');
-    if(mobile){await page.locator('.grabContactCard').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-contact');}
+    if(mobile){
+      await page.locator('#grabShapeBtns').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-dimensions');
+      await page.locator('.grabContactCard').scrollIntoViewIfNeeded();await shot('grab-ui-mobile-contact');
+    }
     await press('#grabVisibleBtn');assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),false);
     await context.close();
   }
-  assert.deepEqual(errors,[]);console.log('PASS: 3 Grab box screenshots; visibility, dimensions, rotation, hand contact and hide/release.');
+  assert.deepEqual(errors,[]);console.log('PASS: 4 Grab box screenshots; one-click bottom support, visibility, dimensions, rotation, both hand contacts and hide/release.');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

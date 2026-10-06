@@ -28,11 +28,12 @@ const probe = `
 window.__smoke = {
   snapshotTimelineData, restoreTimelineData, setTarget, resetPose, mirrorPose,
   pushHistory, undo, redo, applyTimelinePreviewAtElapsed,
-  setIKEnabled, solveIKAll, updateBones, deleteKeyframe,
+  setIKEnabled, setFingerIKEnabled, solveIKAll, updateBones, deleteKeyframe,
   setKfMultiSelectMode, kfMultiSelectAll, copyTimelineSelection, pasteTimelineClipboard,
   copyBeatGridRange, duplicateBeatGridRange, clearBeatGridRange,
   setRange(start, end){ beatGridRangeStart = start; beatGridRangeEnd = end; updateBeatGridRangeUI(); },
-  get bones() { return bones; }, get model() { return model; },
+  get bones() { return bones; }, get model() { return model; }, get scene(){return scene;},
+  get fingerTut(){return fingerTutController;},
   get camera() { return camera; }, get controls() { return controls; },
   get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
   get current() { return typeof poseController === "undefined" ? current : poseController.snapshotState().current; },
@@ -148,6 +149,65 @@ try {
       assert.equal(await page.locator('#grabHandCb_rArm').isChecked(), false);
       await page.locator('.tabBtn[data-tab="ik"]').evaluate(el => el.click());
       await page.locator('#ikBtn_rArm').click();
+      // New commands use the real UI and preserve the preexisting arm IK workspace.
+      await page.locator('.tabBtn[data-tab="grabBox"]').evaluate(el=>el.click());
+      await page.evaluate(()=>window.__smoke.setFingerIKEnabled('rIndex',true));
+      await page.waitForTimeout(150);
+      const beforeQuick=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      const gestureBefore=await page.evaluate(()=>Object.fromEntries(Object.entries(window.__smoke.target).filter(([key])=>/^(r|l)(Thumb|Index|Middle|Ring|Pinky)/.test(key))));
+      await page.locator('#grabPresetSides').click();
+      assert.deepEqual(await page.evaluate(()=>Object.fromEntries(Object.entries(window.__smoke.target).filter(([key])=>/^(r|l)(Thumb|Index|Middle|Ring|Pinky)/.test(key)))),gestureBefore);
+      const quick=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      assert.equal(quick.visible,true);assert.equal(quick.preset,'sides');
+      assert.equal(beforeQuick.rig.fingers.rIndex.enabled,true);
+      assert.equal(quick.rig.fingers.rIndex.enabled,false);
+      assert.deepEqual(quick.grabbed,{rArm:true,lArm:true});
+      assert.equal(quick.rig.arms.rArm.enabled,true);assert.equal(quick.rig.arms.lArm.enabled,true);
+      assert.equal(await page.locator('#grabPresetSides').getAttribute('aria-pressed'),'true');
+      await page.evaluate(()=>window.__smoke.undo());
+      assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.snapshot()),beforeQuick);
+      await page.evaluate(()=>window.__smoke.redo());
+      assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.snapshot()),quick);
+      for(const shape of ['box','sphere','cylinder']){
+        await page.locator(`#grabShapeBtns [data-shape="${shape}"]`).click();
+        await page.locator('#grabResetDimensions').click();
+        for(const preset of ['Sides','Bottom']){
+          await page.locator('#grabPreset'+preset).click();
+          await page.waitForTimeout(200);
+          const contact=await page.evaluate(()=>{
+            const app=window.__smoke,s=app.grab.snapshot(),mesh=app.scene.getObjectByName('grabBoxMesh');
+            return Object.fromEntries(['rArm','lArm'].map(limb=>{
+              const expected=mesh.position.clone().fromArray(s.grabLocal[limb]).applyMatrix4(mesh.matrixWorld);
+              const actual=app.bones[limb==='rArm'?'rHand':'lHand'].getWorldPosition(mesh.position.clone());
+              return [limb,actual.distanceTo(expected)];
+            }));
+          });
+          assert.ok(contact.rArm<.005&&contact.lArm<.005,`${shape} ${preset}: both hand bones reach the surface: ${JSON.stringify(contact)}`);
+        }
+      }
+      await page.evaluate(()=>{const mesh=window.__smoke.scene.getObjectByName('grabBoxMesh');mesh.position.set(.2,1,.4);mesh.rotation.set(.2,.4,.1);});
+      const moved=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      await page.locator('#grabRecenter').click();
+      const centered=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      assert.deepEqual(centered.quaternion,moved.quaternion);assert.notDeepEqual(centered.position,moved.position);
+      await page.locator('#grabResetRotation').click();
+      const rotated=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      assert.deepEqual(rotated.position,centered.position);assert.notDeepEqual(rotated.quaternion,centered.quaternion);
+      await page.locator('#grabParam_cylinder_r').fill('0.25');
+      await page.locator('#grabResetDimensions').click();
+      assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.14');
+      await page.evaluate(()=>window.__smoke.undo());
+      assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.25');
+      await page.evaluate(()=>window.__smoke.redo());
+      await page.locator('#grabVisibleBtn').click();
+      await page.evaluate(()=>{window.__smoke.setIKEnabled('rArm',false);window.__smoke.setIKEnabled('lArm',false);window.__smoke.fingerTut.enter();});
+      const blocked=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      await page.locator('#grabPresetSides').click();
+      const denied=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      assert.match(denied.messageKey,/FingerTut/);
+      assert.deepEqual({...denied,messageKey:null},{...blocked,messageKey:null});
+      await page.evaluate(()=>window.__smoke.fingerTut.restore());
+      await page.locator('.tabBtn[data-tab="ik"]').evaluate(el=>el.click());
       // Exercise the pose adapters shared by JSON, mirror, generation and Wave.
       await page.locator('.tabBtn[data-tab="json"]').evaluate(el => el.click());
       await page.locator('#jsonArea').fill(JSON.stringify({ rForeArm: [10, 20, 30], rThumb1: [5, 10, 15] }));

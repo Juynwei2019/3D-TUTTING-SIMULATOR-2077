@@ -2157,9 +2157,10 @@ function symmetrizePose(){
 // ---- Undo / Redo（角度層級：關節角度＋拍點時間軸資料＋律動序列）----
 // 姿勢／時間軸快照另包含 FingerTut 工作區狀態：雙臂與手指 IK、手掌朝向、
 // 模式參數、進入前姿勢與鏡頭，讓胸前擺位及還原可以 Undo／Redo。
+// 扶握箱快速擺位／重設另記錄形狀變換與雙臂／手指 IK，僅跨越這些指令時還原。
 // 其餘 IK 與即時身體位置仍依各領域的既有快照契約處理。
 function snapshotAngleState(){
-  return {...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot()};
+  return {...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot(), grabBox:grabBoxCore?.snapshot()};
 }
 
 function pushHistory(){
@@ -2177,6 +2178,11 @@ function restoreSnapshot(snap){
   restoreHandAim(snap.handAim);
   restoreTorsoLookAt(snap.torsoLookAt);
   fingerTutController.restoreSnapshot(snap.fingerTut);
+  if(grabBoxCore?.restoreSnapshot(snap.grabBox)){
+    // IK may have produced angles outside FK limits; preserve the captured pose.
+    poseController.restoreTarget(snap.target,{clamp:false});
+    poseController.applyTargetsToBones();model.updateWorldMatrix(true,true);
+  }
   keyframes = JSON.parse(JSON.stringify(snap.keyframes));
   grooveSequence = JSON.parse(JSON.stringify(snap.grooveSequence || [])); // 舊快照(修正前存的)沒有這個欄位時，退回空序列，不影響復原其他狀態
   kfEditingIndex = snap.kfEditingIndex;
@@ -5556,6 +5562,43 @@ const sceneBootstrapController = createSceneBootstrap({
   get ikTargetMeshes(){ return ikTargetMeshes; },
   get ikEnabled(){ return ikEnabled; },
   get setIKEnabled(){ return setIKEnabled; },
+  isFingerTutActive: () => fingerTutController.active,
+  prepareGrabPose(){
+    if(kfPlaying)stopKeyframePlayback();
+    if(waveRun)stopWave();
+    tgCancelPreview();
+    if(groovePreviewEnabled)document.getElementById('groovePreviewBtn').click();
+    deselectJoint();
+    poseController.applyTargetsToBones();model.updateWorldMatrix(true,true);
+  },
+  prepareGrabHands(){
+    // World-space fingertip targets would change the gesture when the palms move.
+    for(const id of FINGER_IDS)setFingerIKEnabled(id,false);
+  },
+  solveGrabPose(){solveIKAll();model.updateWorldMatrix(true,true);},
+  captureGrabRig(){
+    return { model:{position:model.position.toArray(),quaternion:model.quaternion.toArray()},
+      arms:Object.fromEntries(['rArm','lArm'].map(id=>[id,{
+        enabled:ikEnabled[id], target:ikTargetMeshes[id]?.position.toArray(),
+        quaternion:ikTargetMeshes[id]?.quaternion.toArray(), pole:ikPoleMeshes[id]?.position.toArray(),
+      }])),
+      fingers:Object.fromEntries(FINGER_IDS.map(id=>[id,{enabled:fingerIKEnabled[id],target:fingerIKTargetMeshes[id]?.position.toArray()}])) };
+  },
+  restoreGrabRig(state){
+    if(!state)return;
+    model.position.fromArray(state.model.position);model.quaternion.fromArray(state.model.quaternion);
+    model.updateWorldMatrix(true,true);
+    for(const [id,s]of Object.entries(state.arms)){
+      setIKEnabled(id,s.enabled);
+      if(s.target)ikTargetMeshes[id].position.fromArray(s.target);
+      if(s.quaternion)ikTargetMeshes[id].quaternion.fromArray(s.quaternion);
+      if(s.pole)ikPoleMeshes[id].position.fromArray(s.pole);
+    }
+    for(const [id,s]of Object.entries(state.fingers)){
+      setFingerIKEnabled(id,s.enabled);
+      if(s.target)fingerIKTargetMeshes[id].position.fromArray(s.target);
+    }
+  },
   get goToCameraPreset(){ return goToCameraPreset; },
   get resetPose(){ return resetPose; },
   get bindTopUI(){ return bindTopUI; },

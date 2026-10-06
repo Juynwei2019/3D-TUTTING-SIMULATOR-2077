@@ -34,6 +34,17 @@ function grabPanelHTML(){
         <div class="grabActions"><button id="grabVisibleBtn" type="button"></button><button id="grabModeBtn" type="button"></button></div>
       </header>
       <p id="grabStatus" class="grabStatus" role="status" aria-live="polite"></p>
+      <div class="grabQuickActions" role="group" aria-label="${t("快速擺位")}" data-i18n-aria-label="快速擺位">
+        <button id="grabPresetSides" type="button" data-i18n="雙手扶兩側">${t("雙手扶兩側")}</button>
+        <button id="grabPresetBottom" type="button" data-i18n="雙手托底">${t("雙手托底")}</button>
+      </div>
+      <p class="grabHint" data-i18n="一鍵放回胸前並安排雙手接觸；保留目前形狀、尺寸與手勢。">${t("一鍵放回胸前並安排雙手接觸；保留目前形狀、尺寸與手勢。")}</p>
+      <div class="grabResetActions" role="group" aria-label="${t("位置與尺寸重設")}" data-i18n-aria-label="位置與尺寸重設">
+        <button id="grabRecenter" type="button" data-i18n="回到胸前">${t("回到胸前")}</button>
+        <button id="grabResetRotation" type="button" data-i18n="重設旋轉">${t("重設旋轉")}</button>
+        <button id="grabResetDimensions" type="button" data-i18n="重設尺寸">${t("重設尺寸")}</button>
+      </div>
+      <p id="grabCommandStatus" class="grabHint" role="status" aria-live="polite"></p>
       <div class="grabSettings">
         <fieldset class="grabCard">
           <legend data-i18n="形狀與尺寸">${t("形狀與尺寸")}</legend>
@@ -82,6 +93,11 @@ function mountGrabBoxUI(container, core){
     lArm: container.querySelector("#grabHandCb_lArm"),
   };
 
+  container.querySelector('#grabPresetSides').onclick = () => core.applyPreset('sides');
+  container.querySelector('#grabPresetBottom').onclick = () => core.applyPreset('bottom');
+  container.querySelector('#grabRecenter').onclick = () => core.recenter();
+  container.querySelector('#grabResetRotation').onclick = () => core.resetRotation();
+  container.querySelector('#grabResetDimensions').onclick = () => core.resetDimensions();
   visibleBtn.onclick = () => core.setVisible(!core.getState().visible);
   modeBtn.onclick = () => {
     const cur = core.getState().mode;
@@ -111,6 +127,12 @@ function mountGrabBoxUI(container, core){
   }
 
   function render(state){
+    for (const [id, preset] of [['grabPresetSides','sides'],['grabPresetBottom','bottom']]) {
+      const active = state.preset === preset && state.grabbed.rArm && state.grabbed.lArm;
+      container.querySelector('#'+id).setAttribute('aria-pressed', String(!!active));
+    }
+    liveText(container.querySelector('#grabCommandStatus'),()=>state.messageKey?t(state.messageKey):t('快速擺位與重設可使用復原／重做。大尺寸可能超出手臂可達範圍。'));
+
     visibleBtn.classList.toggle("active", state.visible);
     visibleBtn.setAttribute("aria-pressed",String(state.visible));
     liveText(visibleBtn,()=>t(state.visible?"隱藏扶握箱":"顯示扶握箱"));

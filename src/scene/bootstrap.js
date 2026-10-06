@@ -111,6 +111,13 @@ export function createSceneBootstrap(context){
         getIKTargetMesh: (limb) => context.ikTargetMeshes[limb],
         isIKEnabled: (limb) => context.ikEnabled[limb],
         setIKEnabled: (limb, on) => context.setIKEnabled(limb, on),
+        isFingerTutActive: () => context.isFingerTutActive(),
+        preparePose: () => context.prepareGrabPose(),
+        prepareHands: () => context.prepareGrabHands(),
+        solvePose: () => context.solveGrabPose(),
+        captureRig: () => context.captureGrabRig(),
+        restoreRig: state => context.restoreGrabRig(state),
+        pushHistory: () => context.pushHistory(),
       });
       context.grabBoxCore.buildAfterModelLoad();
 
