@@ -261,7 +261,11 @@ try {
       for(const key of ['position','shapeParams','grabbed','palmAligned','palmTwist'])assert.deepEqual(restoredGrab[key],storedGrab.grabBox[key],key+' survives import');
       await page.evaluate(()=>window.__smoke.undo());assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),false);
       await page.evaluate(()=>window.__smoke.redo());assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),true);
-      await page.waitForFunction(()=>JSON.parse(localStorage.getItem('tuttingAutosave_v1')||'null')?.grabBox?.visible===true);
+      // Wait for this edit, not an earlier visible workspace still in storage.
+      await page.waitForFunction(expected=>{
+        const saved=JSON.parse(localStorage.getItem('tuttingAutosave_v1')||'null')?.grabBox;
+        return saved&&['position','quaternion','shapeType','shapeParams','grabbed','palmAligned','palmTwist'].every(key=>JSON.stringify(saved[key])===JSON.stringify(expected[key]));
+      },restoredGrab);
       await page.reload();await page.waitForFunction(()=>document.getElementById('loading').style.display==='none');
       const reloadedGrab=await page.evaluate(()=>window.__smoke.grab.snapshot());
       for(const key of ['position','shapeParams','grabbed','palmAligned','palmTwist'])assert.deepEqual(reloadedGrab[key],storedGrab.grabBox[key],key+' survives autosave reload');
