@@ -2,6 +2,10 @@
 
 Three.js 人體姿勢與編舞工具。開發版本使用原生 ES Modules，保留既有介面、骨骼求解順序和存檔格式。
 
+## 使用手冊
+
+第一次使用請從 [基礎圖文操作手冊](docs/basic-user-manual.md) 開始，內含實際介面截圖、FingerTut、手掌／手指編輯、三姿勢播放練習、備份與手機操作。
+
 ## 語言切換
 
 主面板頂部可切換繁體中文／English，偏好會自動記憶。已涵蓋分頁、共用操作、FingerTut，以及時間軸、資料庫、IK／朝向、Wave、律動、生成器、JSON、扶握、軌跡、關節總覽／限制與 Easing 圖鑑，包含工具提示與程式錯誤訊息。詳見 [語言切換與驗證](docs/language-switching.md)。
