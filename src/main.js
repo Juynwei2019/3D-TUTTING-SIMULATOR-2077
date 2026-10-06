@@ -1,3 +1,4 @@
+import { cleanGrabProject } from "./storage/grab-project.js";
 import { jointLabel, jointSearchText, jointCountLabel } from "./i18n/joint-labels.js";
 import { bindLanguageUI, onLanguageChange, t, liveText, liveAttribute, liveHTML } from "./i18n/index.js";
 import { createFingerTut } from "./fingertut/controller.js";
@@ -2157,7 +2158,7 @@ function symmetrizePose(){
 // ---- Undo / Redo（角度層級：關節角度＋拍點時間軸資料＋律動序列）----
 // 姿勢／時間軸快照另包含 FingerTut 工作區狀態：雙臂與手指 IK、手掌朝向、
 // 模式參數、進入前姿勢與鏡頭，讓胸前擺位及還原可以 Undo／Redo。
-// 扶握箱快速擺位／重設另記錄形狀變換與雙臂／手指 IK，僅跨越這些指令時還原。
+// 扶握箱操作另記錄形狀變換、接觸點與雙臂／手指 IK，跨越扶握箱編輯時還原。
 // 其餘 IK 與即時身體位置仍依各領域的既有快照契約處理。
 function snapshotAngleState(){
   return {...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot(), grabBox:grabBoxCore?.snapshot()};
@@ -2373,6 +2374,19 @@ function restoreTimelineData(data){
   restorePoleEditor(data.poleEditor);
   restoreHandAim(data.handAim);
   restoreTorsoLookAt(data.torsoLookAt);
+  if(grabBoxCore){
+    const current=grabBoxCore.snapshot();
+    const state=cleanGrabProject(data.grabBox,{...current,target:poseController.snapshotTarget()});
+    if(state){
+      if(state.visible){poseController.restoreTarget(state.target,{clamp:false});poseController.applyTargetsToBones();}
+      state.revision=current.revision+1;
+      grabBoxCore.restoreSnapshot(state,{force:true});
+      model.updateWorldMatrix(true,true);
+    }else{
+      // Legacy projects must not inherit live bindings from the previous workspace.
+      grabBoxCore.restoreSnapshot({...current,revision:current.revision+1,rig:null,visible:false,grabbed:{rArm:false,lArm:false},grabLocal:{rArm:null,lArm:null},preset:null,palmAligned:false,palmTwist:{rArm:0,lArm:0}},{force:true});
+    }
+  }
   const bpmSlider = document.getElementById("bpmSlider");
   if (bpmSlider) bpmSlider.value = String(bpm);
   const bpmVal = document.getElementById("bpmVal");
@@ -2393,7 +2407,7 @@ function tryLoadAutosave(){
     ? `${savedDate.getMonth()+1}/${savedDate.getDate()} ${String(savedDate.getHours()).padStart(2,"0")}:${String(savedDate.getMinutes()).padStart(2,"0")}`
     : "";
   const ok = confirm(
-    t("偵測到自動存檔（{count} 個拍點{time}），要還原上次的編輯進度嗎？\n按「取消」會保留目前的空白畫布，並清除這份自動存檔。",{count:data.keyframes.length,time:timeStr ? " · "+timeStr : ""})
+    t("偵測到自動存檔（{count} 個拍點{time}），要還原上次的編輯進度（含扶握箱）嗎？\n按「取消」會保留目前的空白畫布，並清除這份自動存檔。",{count:data.keyframes.length,time:timeStr ? " · "+timeStr : ""})
   );
   if (!ok){
     autosave.clear();
@@ -4164,6 +4178,12 @@ const waveformView = createWaveformView(waveform, {
 });
 
 const snapshots = createSnapshots({
+  snapshotGrabProject(){
+    const snapshot=grabBoxCore?.snapshot();
+    if(!snapshot || snapshot.revision===0)return undefined;
+    const {revision,messageKey,...state}=snapshot;
+    return {...state,version:1,target:poseController.snapshotTarget()};
+  },
   get poseController(){ return poseController; },
   get snapshotTG(){ return snapshotTG; },
   get snapshotGenerationRules(){ return snapshotGenerationRules; },
@@ -5610,6 +5630,7 @@ const sceneBootstrapController = createSceneBootstrap({
   get tryLoadAutosave(){ return tryLoadAutosave; },
   get renderKeyframeChips(){ return renderKeyframeChips; },
   get pushHistory(){ return pushHistory; },
+  get scheduleAutoSave(){ return scheduleAutoSave; },
 });
 
 const rigVisualsController = createRigVisuals({

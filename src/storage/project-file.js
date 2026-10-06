@@ -1,13 +1,14 @@
 import { t as tr } from "../i18n/index.js";
+import { isGrabProject } from "./grab-project.js";
 import { PROJECT_SCHEMA_VERSION } from "./project-format.js";
 
 export function createProjectFiles({ getKeyframes, snapshotTimelineData, downloadJSON, readJSONFile, restoreTimelineData, pushHistory, scheduleAutoSave, alert, confirm }){
   function exportTimeline(){
-    if (getKeyframes().length === 0){
+    const data = snapshotTimelineData();
+    if (getKeyframes().length === 0 && !isGrabProject(data.grabBox)){
       alert(tr("目前時間軸是空的，沒有可匯出的拍點。"));
       return;
     }
-    const data = snapshotTimelineData();
     downloadJSON(data, "tutting編舞_" + Date.now() + ".json");
   }
   function importTimelineFromFile(file){
@@ -20,14 +21,15 @@ export function createProjectFiles({ getKeyframes, snapshotTimelineData, downloa
         alert(tr("匯入失敗：檔案版本（schemaVersion）不符，可能是舊版或不相容的檔案。"));
         return;
       }
-      if (data.keyframes.length === 0){
+      if (data.keyframes.length === 0 && !isGrabProject(data.grabBox)){
         alert(tr("這個檔案裡的時間軸是空的，沒有可匯入的拍點。"));
         return;
       }
       const ok = confirm(
-        tr("即將匯入 {p0} 個拍點，這會覆蓋目前時間軸上的全部內容（含拍點與軌跡控制點），此動作無法復原（可用 Ctrl+Z 復原）。確定要匯入嗎？", {p0:data.keyframes.length})
+        tr("即將匯入 {p0} 個拍點與扶握箱工作區，並覆蓋目前時間軸與扶握箱設定。可使用復原／重做還原。確定要匯入嗎？", {p0:data.keyframes.length})
       );
       if (!ok) return;
+      pushHistory();
       restoreTimelineData(data);
       pushHistory();
       scheduleAutoSave();

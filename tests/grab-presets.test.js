@@ -17,7 +17,7 @@ function fixture(){
     const bone=new THREE.Bone();bone.position.fromArray(xyz);bones[side+'Hand'].add(bone);bones[side+part]=bone;
   }
   const targets = {rArm:new THREE.Object3D(),lArm:new THREE.Object3D()}, enabled = {rArm:false,lArm:false};
-  let blocked = false, pushes = 0, prepares = 0, handPrepares = 0, history;
+  let blocked = false, pushes = 0, prepares = 0, handPrepares = 0, saves = 0, history;
   const core = createGrabBoxCore({ scene, camera:new THREE.PerspectiveCamera(),
     renderer:{domElement:{style:{},addEventListener(){},removeEventListener(){}}},
     getModel:()=>model, getBones:()=>bones, getHandBone:limb=>bones[limb==='rArm'?'rHand':'lHand'],
@@ -26,11 +26,12 @@ function fixture(){
     isFingerTutActive:()=>blocked, preparePose(){prepares++;},
     prepareHands(){handPrepares++;},
     pushHistory(){pushes++;history?.push();},
+    scheduleSave(){saves++;},
     captureRig:()=>Object.fromEntries(Object.keys(targets).map(limb=>[limb,{enabled:enabled[limb],target:targets[limb].position.toArray()}])),
     restoreRig(state){for(const [limb,s] of Object.entries(state)){enabled[limb]=s.enabled;if(!s.enabled)core.releaseHand(limb);targets[limb].position.fromArray(s.target);}},
   });
   history=createHistory({capture:()=>core.snapshot(),restore:s=>core.restoreSnapshot(s)});
-  return {core,model,bones,targets,enabled,history,scene,block:()=>{blocked=true;},get pushes(){return pushes;},get prepares(){return prepares;},get handPrepares(){return handPrepares;},get mesh(){return scene.getObjectByName('grabBoxMesh');}};
+  return {core,model,bones,targets,enabled,history,scene,block:()=>{blocked=true;},get saves(){return saves;},get pushes(){return pushes;},get prepares(){return prepares;},get handPrepares(){return handPrepares;},get mesh(){return scene.getObjectByName('grabBoxMesh');}};
 }
 const near=(a,b)=>assert.ok(a.distanceTo(b)<1e-8,`${a.toArray()} != ${b.toArray()}`);
 
@@ -61,9 +62,9 @@ test('one click shows the chosen shape, enables both arms and preserves custom d
   assert.equal(f.core.applyPreset('bottom'),true);
   assert.equal(f.core.getState().visible,true);assert.equal(f.core.getState().shapeType,'sphere');
   assert.equal(f.core.getState().shapeParams.sphere.r,.23);
-  assert.deepEqual(f.enabled,{rArm:true,lArm:true});assert.equal(f.pushes,2);assert.equal(f.handPrepares,1);
+  assert.deepEqual(f.enabled,{rArm:true,lArm:true});assert.equal(f.pushes,6);assert.equal(f.handPrepares,1);
   for(const limb of ['rArm','lArm'])near(f.targets[limb].position,grabPresetPoints('sphere',{r:.23},'bottom')[limb].applyMatrix4(f.mesh.matrixWorld));
-  assert.equal(f.core.applyPreset('bad'),false);assert.equal(f.pushes,2);
+  assert.equal(f.core.applyPreset('bad'),false);assert.equal(f.pushes,6);
 });
 
 test('hands follow translated/rotated shapes and keep preset placement when resizing or switching shape',()=>{
@@ -102,9 +103,10 @@ test('undo/redo restores bindings, custom dimensions, transform and preexisting 
   assert.equal(f.history.redo(),true);assert.equal(f.core.getState().shapeParams.box.w,.32);
 });
 
-test('ordinary pose history does not restore grab ownership when no quick/reset command was crossed',()=>{
-  const f=fixture();f.core.setVisible(true);const before=f.core.snapshot();f.core.setGrabHand('rArm',true);
-  f.core.restoreSnapshot(before);assert.equal(f.core.getState().grabbed.rArm,true);
+test('ordinary pose history with the same grab revision preserves ownership',()=>{
+  const f=fixture();f.core.setVisible(true);f.core.setGrabHand('rArm',true);const before=f.core.snapshot();
+  f.targets.rArm.position.set(1,2,3);
+  f.core.restoreSnapshot(before);assert.equal(f.core.getState().grabbed.rArm,true);near(f.targets.rArm.position,new THREE.Vector3(1,2,3));
 });
 
 test('active FingerTut and unavailable rigs refuse commands without history or pose changes',()=>{
@@ -155,4 +157,31 @@ test('wrist twist changes tangent direction but retains palm contact and is inde
   f.history.undo();assert.equal(f.core.getState().palmAligned,true);
   f.core.releaseHand('rArm');assert.equal(f.core.isPalmAligned('rArm'),false);assert.equal(f.core.isPalmAligned('lArm'),true);
   f.core.setVisible(false);assert.equal(f.core.applyPalmOrientation(),false);
+});
+
+
+test('shape, visibility and hand choices undo/redo and schedule persistence',()=>{
+  const f=fixture();f.core.applyPreset('sides');
+  f.core.setGrabHand('rArm',false);assert.equal(f.core.getState().grabbed.rArm,false);
+  f.history.undo();assert.equal(f.core.getState().grabbed.rArm,true);
+  f.history.redo();assert.equal(f.core.getState().grabbed.rArm,false);
+  f.core.setShapeType('sphere');f.history.undo();assert.equal(f.core.getState().shapeType,'box');
+  f.history.redo();assert.equal(f.core.getState().shapeType,'sphere');
+  f.core.setVisible(false);f.history.undo();assert.equal(f.core.getState().visible,true);assert.equal(f.core.getState().grabbed.lArm,true);
+  f.history.redo();assert.equal(f.core.getState().visible,false);assert.equal(f.core.getState().grabbed.lArm,false);
+  assert.equal(f.saves,4);
+});
+test('many slider inputs and gizmo movements each commit once and restore in one step',()=>{
+  const f=fixture();f.core.applyPreset('bottom');const count=f.saves;
+  f.core.beginEdit();for(const w of [.4,.5,.6])f.core.setShapeParam('box','w',w);f.core.endEdit();
+  assert.equal(f.saves,count+1);f.history.undo();assert.equal(f.core.getState().shapeParams.box.w,.32);
+  f.history.redo();assert.equal(f.core.getState().shapeParams.box.w,.6);
+  const before=f.core.snapshot(),gizmo=f.scene.children.find(x=>x.isTransformControls);
+  gizmo.dispatchEvent({type:'dragging-changed',value:true});
+  f.mesh.position.add(new THREE.Vector3(.2,.3,.1));f.mesh.rotation.set(.2,.4,.1);
+  gizmo.dispatchEvent({type:'dragging-changed',value:false});const moved=f.core.snapshot();
+  assert.equal(f.saves,count+2);f.history.undo();assert.deepEqual(f.core.snapshot(),before);
+  f.history.redo();assert.deepEqual(f.core.snapshot(),moved);
+  f.core.beginEdit();assert.equal(f.core.endEdit(),false);assert.equal(f.saves,count+2);
+  assert.equal(f.core.setShapeParam('box','w',NaN),false);assert.equal(f.core.setShapeType('constructor'),false);
 });

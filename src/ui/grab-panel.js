@@ -122,7 +122,10 @@ function mountGrabBoxUI(container, core){
     for (const def of defs){
       const input = paramsWrap.querySelector("#grabParam_" + shapeType + "_" + def.key);
       if (!input) continue;
+      input.onchange = () => core.endEdit();
+      input.onblur = () => core.endEdit();
       input.oninput = (e) => {
+        core.beginEdit();
         const val = parseFloat(e.target.value);
         const label = paramsWrap.querySelector("#grabParamVal_" + shapeType + "_" + def.key);
         if (label) label.textContent = val.toFixed(2);
@@ -144,7 +147,7 @@ function mountGrabBoxUI(container, core){
       const active = state.preset === preset && state.grabbed.rArm && state.grabbed.lArm;
       container.querySelector('#'+id).setAttribute('aria-pressed', String(!!active));
     }
-    liveText(container.querySelector('#grabCommandStatus'),()=>state.messageKey?t(state.messageKey):t('快速擺位與重設可使用復原／重做。大尺寸可能超出手臂可達範圍。'));
+    liveText(container.querySelector('#grabCommandStatus'),()=>state.messageKey?t(state.messageKey):t('扶握箱調整可使用復原／重做，並隨專案與自動存檔保存。大尺寸可能超出手臂可達範圍。'));
 
     visibleBtn.classList.toggle("active", state.visible);
     visibleBtn.setAttribute("aria-pressed",String(state.visible));
@@ -170,7 +173,7 @@ function mountGrabBoxUI(container, core){
         const input = paramsWrap.querySelector("#grabParam_" + state.shapeType + "_" + def.key);
         const label = paramsWrap.querySelector("#grabParamVal_" + state.shapeType + "_" + def.key);
         const val = state.shapeParams[state.shapeType][def.key];
-        if (input && document.activeElement !== input) input.value = String(val);
+        if (input) input.value = String(val);
         if (label) label.textContent = val.toFixed(2);
       }
     }

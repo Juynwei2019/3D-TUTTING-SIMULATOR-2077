@@ -5,6 +5,7 @@ export function createHistory({ capture, restore, isBlocked = () => false, onCha
   function push(){
     if (restoring) return false;
     const snapshot = clone(capture());
+    if(index>=0 && JSON.stringify(stack[index])===JSON.stringify(snapshot))return false;
     stack = stack.slice(0, index + 1);
     stack.push(snapshot);
     if (stack.length > limit) stack.shift();

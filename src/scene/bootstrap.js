@@ -120,6 +120,7 @@ export function createSceneBootstrap(context){
         captureRig: () => context.captureGrabRig(),
         restoreRig: state => context.restoreGrabRig(state),
         pushHistory: () => context.pushHistory(),
+        scheduleSave: () => context.scheduleAutoSave(),
       });
       context.grabBoxCore.buildAfterModelLoad();
 

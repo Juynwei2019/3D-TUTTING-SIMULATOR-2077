@@ -230,6 +230,52 @@ try {
       assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'0°');
       await page.evaluate(()=>window.__smoke.redo());
       assert.equal(await page.locator('#grabPalmTwistValue_rArm').textContent(),'35°');
+      // A continuous size gesture commits once, including focused-slider restoration.
+      await page.locator('#grabParam_cylinder_r').evaluate(el=>{
+        el.focus();for(const v of [.18,.21,.24]){el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      await page.evaluate(()=>window.__smoke.undo());
+      assert.equal(await page.locator('#grabParam_cylinder_r').inputValue(),'0.14');
+      await page.evaluate(()=>window.__smoke.redo());
+      assert.equal(await page.locator('#grabParam_cylinder_r').inputValue(),'0.24');
+      await page.locator('#grabHandCb_rArm').uncheck();
+      await page.evaluate(()=>window.__smoke.undo());assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),true);
+      await page.evaluate(()=>window.__smoke.redo());assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),false);
+      await page.locator('#grabHandCb_rArm').check();
+      await page.evaluate(()=>{
+        const a=window.__smoke,m=a.scene.getObjectByName('grabBoxMesh'),g=a.scene.children.find(x=>x.isTransformControls&&x.object===m);
+        g.dispatchEvent({type:'dragging-changed',value:true});m.position.x+=.04;m.rotation.y+=.2;
+        g.dispatchEvent({type:'dragging-changed',value:false});
+      });
+      const workspace=await page.evaluate(()=>window.__smoke.snapshotTimelineData());
+      assert.equal(workspace.keyframes.length,0);assert.equal(workspace.grabBox.version,1);
+      await page.locator('.tabBtn[data-tab="keyframe"]').evaluate(el=>el.click());
+      const [grabDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#kfExportBtn').evaluate(el=>el.click())]);
+      const storedGrab=JSON.parse((await readFile(await grabDownload.path())).toString());
+      assert.equal(storedGrab.keyframes.length,0);assert.deepEqual(storedGrab.grabBox.position,workspace.grabBox.position);
+      await page.evaluate(()=>{const a=window.__smoke;a.grab.setVisible(false);a.grab.setShapeType('box');});
+      await page.locator('#kfImportFile').setInputFiles({name:'grab-workspace.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(storedGrab))});
+      await page.waitForFunction(()=>window.__smoke.grab.getState().visible&&window.__smoke.grab.getState().shapeType==='cylinder');
+      const restoredGrab=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      for(const key of ['position','shapeParams','grabbed','palmAligned','palmTwist'])assert.deepEqual(restoredGrab[key],storedGrab.grabBox[key],key+' survives import');
+      await page.evaluate(()=>window.__smoke.undo());assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),false);
+      await page.evaluate(()=>window.__smoke.redo());assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),true);
+      await page.waitForFunction(()=>JSON.parse(localStorage.getItem('tuttingAutosave_v1')||'null')?.grabBox?.visible===true);
+      await page.reload();await page.waitForFunction(()=>document.getElementById('loading').style.display==='none');
+      const reloadedGrab=await page.evaluate(()=>window.__smoke.grab.snapshot());
+      for(const key of ['position','shapeParams','grabbed','palmAligned','palmTwist'])assert.deepEqual(reloadedGrab[key],storedGrab.grabBox[key],key+' survives autosave reload');
+      // Older v1 projects clear live grabs without overriding their timeline body.
+      const legacyPosition=await page.evaluate(()=>{
+        const a=window.__smoke,data=a.snapshotTimelineData();delete data.grabBox;
+        data.keyframes=[{angles:structuredClone(a.target),body:{position:[.2,0,.1],quaternion:[0,0,0,1]}}];
+        a.restoreTimelineData(data);return a.model.position.toArray();
+      });
+      assert.deepEqual(legacyPosition,[.2,0,.1],'legacy body transform is preserved');
+      assert.equal(await page.evaluate(()=>window.__smoke.grab.getState().visible),false);
+      assert.deepEqual(await page.evaluate(()=>window.__smoke.grab.getState().grabbed),{rArm:false,lArm:false});
+      await page.evaluate(data=>window.__smoke.restoreTimelineData(data),storedGrab);
+      await page.locator('.tabBtn[data-tab="grabBox"]').evaluate(el=>el.click());
       await page.locator('#grabPalmAlign').uncheck();
       assert.equal(await page.evaluate(()=>window.__smoke.grab.isPalmAligned('rArm')),false);
       await page.evaluate(()=>{window.__smoke.setLookAtEnabled('rHand',false);window.__smoke.setEffectorOrientEnabled('rArm',false);});
@@ -393,7 +439,7 @@ try {
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
       results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
-      console.log(`PASS ${entry}: model, all tabs, IK, grab, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clipboard/range editing, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
+      console.log(`PASS ${entry}: model, all tabs, IK, grab workspace Undo/Redo and zero-pose JSON/autosave, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clipboard/range editing, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
       const directory = resolve('test-results', entry.replace(/^\//, '').replace(/[^a-zA-Z0-9_.-]/g, '_'));
       await mkdir(directory, { recursive: true });

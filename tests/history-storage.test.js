@@ -67,7 +67,7 @@ test('project import validates and confirms before restore, then records history
     downloadJSON: (data, name) => { events.push('download'); assert.match(name, /^tutting編舞_\d+\.json$/); assert.equal(data.schemaVersion, 1); } });
   files.importFile({ schemaVersion: 2, keyframes: [{}] }); assert.deepEqual(events, ['alert']);
   events.length = 0; accepted = false; files.importFile({ schemaVersion: 1, keyframes: [{}] }); assert.deepEqual(events, ['confirm']);
-  events.length = 0; accepted = true; files.importFile({ schemaVersion: 1, keyframes: [{}] }); assert.deepEqual(events, ['confirm', 'restore', 'history', 'save']);
+  events.length = 0; accepted = true; files.importFile({ schemaVersion: 1, keyframes: [{}] }); assert.deepEqual(events, ['confirm', 'history', 'restore', 'history', 'save']);
   events.length = 0; files.exportFile(); frames = []; files.exportFile(); assert.deepEqual(events, ['download', 'alert']);
 });
 test('history and project snapshots preserve their distinct contracts and independent project data', () => {
@@ -85,4 +85,34 @@ test('history and project snapshots preserve their distinct contracts and indepe
   assert.deepEqual(project.grooveJoints, ['arm']); assert.equal('target' in project, false);
   project.keyframes[0].angles.arm[0] = 99; assert.equal(c.keyframes[0].angles.arm[0], 1);
   c.bpm = 90; assert.equal(snapshots.captureProject().bpm, 90);
+});
+
+
+test('grab workspace accepts empty timelines and sanitizes file state against the current rig', async()=>{
+  const {cleanGrabProject,isGrabProject}=await import('../src/storage/grab-project.js');
+  const state={version:1,visible:true,shapeType:'sphere',mode:'rotate',shapeParams:{box:{w:.32,h:.32,d:.24},sphere:{r:.23},cylinder:{r:.14,h:.34}},
+    position:[.1,1,.3],quaternion:[0,0,0,2],grabbed:{rArm:true,lArm:true},grabLocal:{rArm:[-.23,0,0],lArm:[.23,0,0]},palmAligned:true,palmTwist:{rArm:35,lArm:-20},
+    rig:{model:{position:[0,0,0],quaternion:[0,0,0,1]},arms:{rArm:{enabled:true,target:[0,1,0]}}},target:{rHand:[0,30,0]}};
+  const project={schemaVersion:1,keyframes:[],grabBox:state};
+  assert.equal(validateProject(project),null);assert.equal(validateProject(project,{autosave:true}),null);
+  const clean=cleanGrabProject(state,state);assert.deepEqual(clean.quaternion,[0,0,0,1]);assert.equal(clean.shapeParams.sphere.r,.23);
+  assert.equal(clean.palmTwist.rArm,35);assert.equal(clean.grabbed.rArm,true);
+  const bad=structuredClone(state);bad.position[0]=NaN;assert.equal(isGrabProject(bad),false);assert.equal(cleanGrabProject(bad,state),null);
+  bad.position[0]=0;bad.shapeParams.sphere.r=-1;assert.equal(isGrabProject(bad),false);
+  const optional=structuredClone(state);optional.grabLocal.rArm=[Infinity,0,0];optional.rig.arms.rArm.target=[NaN,0,0];optional.palmTwist.lArm=999;
+  const repaired=cleanGrabProject(optional,state);assert.equal(repaired.grabbed.rArm,false);assert.equal(repaired.palmTwist.lArm,180);
+  assert.deepEqual(repaired.rig.arms.rArm.target,state.rig.arms.rArm.target);
+  const h=storageHarness();h.state=project;h.autosave.save();assert.deepEqual(h.autosave.read(),project);
+  const events=[];const files=createProjectFiles({getKeyframes:()=>[],snapshotTimelineData:()=>project,downloadJSON:data=>events.push(data),
+    readJSONFile:(data,cb)=>cb(data),restoreTimelineData:data=>events.push(data),pushHistory:()=>{},scheduleAutoSave:()=>{},alert:()=>assert.fail('workspace rejected'),confirm:()=>true});
+  files.exportFile();files.importFile(project);assert.deepEqual(events,[project,project]);
+});
+
+
+test('identical history boundaries do not consume an extra undo or erase redo',()=>{
+  let value=0;const history=createHistory({capture:()=>({value}),restore:s=>{value=s.value;}});
+  history.push();assert.equal(history.push(),false);assert.equal(history.canUndo,false);
+  value=1;history.push();value=2;history.push();history.undo();assert.equal(value,1);
+  assert.equal(history.push(),false);assert.equal(history.canRedo,true);
+  history.undo();assert.equal(value,0);history.redo();assert.equal(value,1);
 });

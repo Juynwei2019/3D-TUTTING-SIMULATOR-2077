@@ -30,6 +30,7 @@ function createGrabBoxCore(deps){
   let gizmo = null;  // 專屬於箱子的 TransformControls，跟主程式的關節/IK 控制環完全分開
   const listeners = [];
   let preset = null, revision = 0, messageKey = null, palmAligned = false;
+  let editing = false, editStart = null;
   const palmTwist = {rArm:0,lArm:0};
   const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -113,6 +114,7 @@ function createGrabBoxCore(deps){
     gizmo.setSize(0.6);
     gizmo.addEventListener("dragging-changed", (e) => {
       if (deps.orbitControls) deps.orbitControls.enabled = !e.value;
+      if (e.value) beginEdit(); else endEdit();
     });
     deps.scene.add(gizmo);
   }
@@ -198,8 +200,29 @@ function createGrabBoxCore(deps){
     }
   }
 
-  // Only these new commands create history entries. Ordinary pose undo keeps
-  // the existing grab ownership unless it crosses a quick/reset command.
+  // A slider or gizmo gesture records one transaction, rather than every frame.
+  function editSignature(){
+    return JSON.stringify({...getState(),messageKey:null,position:mesh?.position.toArray(),quaternion:mesh?.quaternion.toArray()});
+  }
+  function beginEdit(){
+    if(editing)return true;
+    if(deps.isFingerTutActive?.())return false;
+    buildAfterModelLoad();
+    deps.preparePose?.();
+    deps.pushHistory?.();
+    editStart=editSignature();editing=true;
+    return true;
+  }
+  function endEdit(){
+    if(!editing)return false;
+    editing=false;
+    if(editStart===editSignature())return false;
+    revision++;
+    updateEachFrame();deps.solvePose?.();
+    deps.pushHistory?.();deps.scheduleSave?.();notify();
+    return true;
+  }
+
   function command(action){
     if (deps.isFingerTutActive?.()) {
       messageKey = "請先退出 FingerTut，再調整扶握箱。";
@@ -212,13 +235,15 @@ function createGrabBoxCore(deps){
     }
     deps.preparePose?.();
     buildAfterModelLoad();
-    deps.pushHistory?.();
+    if(!editing)deps.pushHistory?.();
+    const before=JSON.stringify(snapshot());
     messageKey = null;
     action();
-    revision++;
+    if(before===JSON.stringify(snapshot())){notify();return false;}
+    if(!editing)revision++;
     updateEachFrame();
     deps.solvePose?.();
-    deps.pushHistory?.();
+    if(!editing){deps.pushHistory?.();deps.scheduleSave?.();}
     notify();
     return true;
   }
@@ -301,8 +326,9 @@ function createGrabBoxCore(deps){
     });
   }
 
-  function restoreSnapshot(state){
-    if (!state || state.revision === revision) return;
+  function restoreSnapshot(state, {force=false}={}){
+    if (!state || (!force && state.revision === revision)) return;
+    editing=false;
     buildAfterModelLoad();
     // Disabling IK calls releaseHand; restore bindings after the rig is restored.
     deps.restoreRig?.(state.rig);
@@ -317,6 +343,10 @@ function createGrabBoxCore(deps){
     preset = state.preset; revision = state.revision; messageKey = null;
     palmAligned=!!state.palmAligned;
     Object.assign(palmTwist,{rArm:0,lArm:0},state.palmTwist);
+    if(force){
+      reprojectGrabbedHands();
+      for(const limb of ["rArm","lArm"])if(grabbed[limb]&&!deps.isIKEnabled(limb))deps.setIKEnabled(limb,true);
+    }
     rebuildGeometry(); mesh.visible = visible; gizmo.setMode(mode);
     if (visible) gizmo.attach(mesh); else gizmo.detach();
     updateEachFrame();
@@ -343,8 +373,16 @@ function createGrabBoxCore(deps){
   function isDragging(){ return !!(gizmo && gizmo.dragging); }
 
   return {
-    setVisible, setMode, setShapeType, setShapeParam,
-    setGrabHand, releaseHand,
+    setVisible: on => visible===!!on ? false : command(()=>setVisible(!!on)),
+    setMode: value => !['translate','rotate'].includes(value)||mode===value ? false : command(()=>setMode(value)),
+    setShapeType: value => !Object.hasOwn(shapeParams,value)||shapeType===value ? false : command(()=>setShapeType(value)),
+    setShapeParam(shape,key,value){
+      if(!Object.hasOwn(shapeParams,shape)||!Object.hasOwn(shapeParams[shape],key)||!Number.isFinite(value))return false;
+      const next=Math.max(key==='r'?.05:.1,Math.min(key==='r'?.8:1.6,value));
+      return shapeParams[shape][key]===next ? false : command(()=>setShapeParam(shape,key,next));
+    },
+    setGrabHand: (limb,on) => !['rArm','lArm'].includes(limb)||grabbed[limb]===!!on ? false : command(()=>setGrabHand(limb,!!on)),
+    releaseHand, beginEdit, endEdit,
     setPalmAligned, setPalmTwist, isPalmAligned, applyPalmOrientation,
     getState, onChange, applyPreset, recenter, resetRotation, resetDimensions, snapshot, restoreSnapshot,
     buildAfterModelLoad, updateEachFrame, isDragging,

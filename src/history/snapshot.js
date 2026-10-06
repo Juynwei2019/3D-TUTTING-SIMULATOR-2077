@@ -53,6 +53,7 @@ export function createSnapshots(context){
       handAim: snapshotHandAim(),
       poleEditor: snapshotPoleEditor(),
       footPlant: snapshotFootPlant(),
+      ...(context.snapshotGrabProject ? {grabBox:context.snapshotGrabProject()} : {}),
       savedAt: Date.now(),
       keyframes,
       trajPoints: {},
