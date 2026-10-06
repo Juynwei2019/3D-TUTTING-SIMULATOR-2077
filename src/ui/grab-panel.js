@@ -1,4 +1,4 @@
-import { t, liveText, translateDOM } from "../i18n/index.js";
+import { t, liveText, liveAttribute, translateDOM } from "../i18n/index.js";
 const translatedSpan=key=>`<span data-i18n="${key}">${t(key)}</span>`;
 
 // ======================================================================
@@ -28,30 +28,43 @@ function grabPanelHTML(){
   const shapeBtns = Object.keys(GRAB_SHAPE_LABELS)
     .map(type => `<button data-shape="${type}" data-i18n="${GRAB_SHAPE_LABELS[type]}">${t(GRAB_SHAPE_LABELS[type])}</button>`).join("");
   return `
-    <div class="panelTitle">${translatedSpan("扶握箱 — 胸前放一個透明形狀，調整雙手到位後勾選「扶著箱子」即可貼合表面；移動/旋轉箱子時扶著的手會跟著動（未開 IK 的手會自動開啟）。")}</div>
-    <div class="row">
-      <button id="grabVisibleBtn">${translatedSpan("顯示扶握箱")}</button>
-      <button id="grabModeBtn">${translatedSpan("切換：位置")}</button>
-    </div>
-    <div class="row" id="grabShapeBtns" style="align-items:center;">
-      <label style="margin-right:2px;">${translatedSpan("形狀")}</label>${shapeBtns}
-    </div>
-    <div id="grabShapeParams"></div>
-    <div class="row">
-      <label><input type="checkbox" id="grabHandCb_rArm"> ${translatedSpan("右手扶著箱子")}</label>
-      <label><input type="checkbox" id="grabHandCb_lArm"> ${translatedSpan("左手扶著箱子")}</label>
-    </div>
+    <section class="grabPanel" aria-label="${t("扶握箱設定")}" data-i18n-aria-label="扶握箱設定">
+      <header class="grabHeader">
+        <div><h2 data-i18n="扶握箱">${t("扶握箱")}</h2><p data-i18n="用透明形狀引導雙手接觸與移動。">${t("用透明形狀引導雙手接觸與移動。")}</p></div>
+        <div class="grabActions"><button id="grabVisibleBtn" type="button"></button><button id="grabModeBtn" type="button"></button></div>
+      </header>
+      <p id="grabStatus" class="grabStatus" role="status" aria-live="polite"></p>
+      <div class="grabSettings">
+        <fieldset class="grabCard">
+          <legend data-i18n="形狀與尺寸">${t("形狀與尺寸")}</legend>
+          <div id="grabShapeBtns" class="grabShapeButtons" role="group" aria-label="${t("形狀")}" data-i18n-aria-label="形狀">${shapeBtns}</div>
+          <p class="grabHint" data-i18n="尺寸單位：公尺（m）">${t("尺寸單位：公尺（m）")}</p>
+          <div id="grabShapeParams"></div>
+        </fieldset>
+        <fieldset class="grabCard grabContactCard">
+          <legend data-i18n="雙手接觸">${t("雙手接觸")}</legend>
+          <p class="grabHint" data-i18n="先調整手掌位置，再勾選要扶握的手。">${t("先調整手掌位置，再勾選要扶握的手。")}</p>
+          <label class="grabHandChoice"><input type="checkbox" id="grabHandCb_rArm">${translatedSpan("右手扶著箱子")}<span id="grabHandState_rArm" class="grabHandState"></span></label>
+          <label class="grabHandChoice"><input type="checkbox" id="grabHandCb_lArm">${translatedSpan("左手扶著箱子")}<span id="grabHandState_lArm" class="grabHandState"></span></label>
+          <p class="grabHint" data-i18n="顯示形狀時，扶握中的手會跟隨移動與旋轉。">${t("顯示形狀時，扶握中的手會跟隨移動與旋轉。")}</p>
+        </fieldset>
+      </div>
+      <details class="grabHelp"><summary data-i18n="扶握操作說明">${t("扶握操作說明")}</summary>
+        <p>${translatedSpan("扶握箱 — 胸前放一個透明形狀，調整雙手到位後勾選「扶著箱子」即可貼合表面；移動/旋轉箱子時扶著的手會跟著動（未開 IK 的手會自動開啟）。")}</p>
+        <p data-i18n="顯示後拖曳三維操作軸；按操作模式按鈕切換移動或旋轉。隱藏扶握箱會解除雙手扶握，但不會關閉手臂 IK。">${t("顯示後拖曳三維操作軸；按操作模式按鈕切換移動或旋轉。隱藏扶握箱會解除雙手扶握，但不會關閉手臂 IK。")}</p>
+      </details>
+    </section>
   `;
 }
 
 function grabShapeParamsHTML(shapeType, params){
   const defs = GRAB_SHAPE_PARAM_INPUTS[shapeType];
   return defs.map(def => `
-    <div class="row">
-      <label style="min-width:90px;">${translatedSpan(def.label)}</label>
+    <label class="grabSlider" for="grabParam_${shapeType}_${def.key}">
+      ${translatedSpan(def.label)}
       <input type="range" id="grabParam_${shapeType}_${def.key}" aria-label="${t(def.label)}" data-i18n-aria-label="${def.label}" min="${def.min}" max="${def.max}" step="${def.step}" value="${params[def.key]}">
-      <span id="grabParamVal_${shapeType}_${def.key}">${params[def.key].toFixed(2)}</span>
-    </div>
+      <output class="grabValue" for="grabParam_${shapeType}_${def.key}"><span id="grabParamVal_${shapeType}_${def.key}">${params[def.key].toFixed(2)}</span><span aria-hidden="true"> m</span></output>
+    </label>
   `).join("");
 }
 
@@ -99,8 +112,13 @@ function mountGrabBoxUI(container, core){
 
   function render(state){
     visibleBtn.classList.toggle("active", state.visible);
-    liveText(modeBtn,()=>t(state.mode === "translate" ? "切換：位置" : "切換：旋轉"));
+    visibleBtn.setAttribute("aria-pressed",String(state.visible));
+    liveText(visibleBtn,()=>t(state.visible?"隱藏扶握箱":"顯示扶握箱"));
+    liveText(container.querySelector('#grabStatus'),()=>t(state.visible?"形狀已顯示 · {count} 隻手已勾選":"形狀已隱藏 · {count} 隻手已勾選",{count:Number(!!state.grabbed.rArm)+Number(!!state.grabbed.lArm)}));
+    liveText(modeBtn,()=>t(state.mode === "translate" ? "操作：移動" : "操作：旋轉"));
+    liveAttribute(modeBtn,"title",()=>t(state.mode==="translate"?"切換為旋轉操作":"切換為移動操作"));
     shapeBtnsWrap.querySelectorAll("button[data-shape]").forEach(btn => {
+      btn.setAttribute("aria-pressed",String(btn.dataset.shape===state.shapeType));
       btn.classList.toggle("active", btn.dataset.shape === state.shapeType);
     });
 
@@ -124,6 +142,10 @@ function mountGrabBoxUI(container, core){
 
     handCbs.rArm.checked = !!state.grabbed.rArm;
     handCbs.lArm.checked = !!state.grabbed.lArm;
+    for(const limb of ['rArm','lArm']){
+      handCbs[limb].closest('.grabHandChoice').classList.toggle('active',!!state.grabbed[limb]);
+      liveText(container.querySelector('#grabHandState_'+limb),()=>t(state.grabbed[limb]?"已啟用":"未啟用"));
+    }
   }
 
   core.onChange(render);

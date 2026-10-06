@@ -138,7 +138,7 @@ python3 -m http.server 8000
 | 改姿勢卻沒有改到拍點 | 選取原拍點，再按「↻ 更新姿勢」 |
 | 找不到昨天的資料庫 | 確認是否換了網站網址、瀏覽器或裝置，再從 JSON 備份匯入 |
 
-進階說明：[FingerTut 模式](fingertut-mode.md) · [語言切換](language-switching.md) · [手機功能評估](mobile-readiness.md)。
+進階說明：[FingerTut 模式](fingertut-mode.md) · [扶握箱模式](grab-box-mode.md) · [語言切換](language-switching.md) · [手機功能評估](mobile-readiness.md)。
 
 ## 手冊畫面更新
 

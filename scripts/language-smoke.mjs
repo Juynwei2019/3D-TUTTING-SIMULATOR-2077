@@ -138,17 +138,46 @@ try{for(const entry of entries)for(const viewport of viewports){
    await tooltip.focus();await page.evaluate(()=>window.__switchAndCompare('en'));
    assert.equal(await tooltip.getAttribute('title'),null);
    // Grab shape sliders and hand contacts keep their DOM and core state.
-   await press('.tabBtn[data-tab="grabBox"]');await press('#grabShapeBtns [data-shape="cylinder"]');
+   await press('.tabBtn[data-tab="grabBox"]');
+   if(!mobile){
+     const h=await page.locator('#uiResizeHandle').boundingBox();
+     await page.mouse.move(h.x+h.width/2,h.y+h.height/2);await page.mouse.down();
+     await page.mouse.move(h.x+h.width/2,h.y+h.height/2-70,{steps:6});await page.mouse.up();
+   }
+   for(const [shape,count]of [['box',3],['sphere',1],['cylinder',2]]){
+     await press(`#grabShapeBtns [data-shape="${shape}"]`);
+     assert.equal(await page.locator('#grabShapeParams input').count(),count);
+     assert.equal(await page.locator(`#grabShapeBtns [data-shape="${shape}"]`).getAttribute('aria-pressed'),'true');
+   }
+   await press('#grabVisibleBtn');assert.equal(await page.locator('#grabVisibleBtn').getAttribute('aria-pressed'),'true');
+   assert.equal(await page.locator('#grabVisibleBtn').textContent(),'Hide grab box');
+   await press('#grabModeBtn');assert.equal(await page.locator('#grabModeBtn').textContent(),'Mode: Rotate');
+   assert.equal(await page.evaluate(()=>window.__languageTest.grabBoxCore.getState().mode),'rotate');
+   const grabCards=await page.locator('.grabCard').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y};}));
+   assert.equal(grabCards.length,2);
+   assert.ok(mobile?grabCards[1].y>grabCards[0].y:grabCards[1].x>grabCards[0].x,'responsive grab settings cards');
+   assert.equal(await page.locator('.grabHelp').getAttribute('open'),null);
+   await press('.grabHelp summary');await press('.grabHelp summary');
    await page.locator('#grabParam_cylinder_r').fill('0.23');
    await page.locator('#grabHandCb_rArm').check();
+   assert.equal(await page.locator('#grabHandState_rArm').textContent(),'Enabled');
+   assert.equal(await page.locator('#grabParamVal_cylinder_r').textContent(),'0.23');
+   assert.ok((await page.locator('#grabParam_cylinder_r').boundingBox()).height>=(mobile?44:32));
    const grab=await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.getState()));
    await page.evaluate(()=>{window.__grabSlider=document.getElementById('grabParam_cylinder_r');});
    assert.equal((await page.evaluate(()=>window.__switchAndCompare('zh-Hant'))).same,true);
    assert.equal(await page.evaluate(()=>window.__grabSlider===document.getElementById('grabParam_cylinder_r')),true);
    assert.equal(await page.evaluate(()=>JSON.stringify(window.__languageTest.grabBoxCore.getState())),grab);
    await page.evaluate(()=>window.__switchAndCompare('en'));
+   await page.locator('#uiTabBody').evaluate(el=>el.scrollTop=0);
    await page.screenshot({path:`test-results/language/${label}-grab-en.png`});
-   await page.locator('#grabHandCb_rArm').uncheck();
+   await page.locator('#grabHandCb_lArm').check();
+   assert.equal(await page.evaluate(()=>window.__languageTest.grabBoxCore.getState().grabbed.lArm),true);
+   await press('#grabVisibleBtn');
+   assert.equal(await page.locator('#grabVisibleBtn').textContent(),'Show grab box');
+   assert.equal(await page.locator('#grabHandCb_rArm').isChecked(),false);
+   assert.equal(await page.locator('#grabHandCb_lArm').isChecked(),false);
+   await page.evaluate(()=>window.__languageTest.setIKEnabled('lArm',false));
    await page.evaluate(()=>window.__languageTest.setIKEnabled('rArm',false));
    // Trajectory configuration and point controls survive language updates.
    await press('.tabBtn[data-tab="traj"]');await page.locator('#trajShapeTypeSelect').selectOption('ellipse');

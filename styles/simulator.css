@@ -777,3 +777,49 @@ html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 48p
 @media (max-width:640px), (pointer:coarse) and (max-width:960px) and (max-height:500px) {
   html[lang="en"] .fingerTutSlider { grid-template-columns:90px minmax(0,1fr) 44px; }
 }
+
+/* Grab box: keep state and dimensions next to the controls they describe. */
+.grabPanel { padding:14px; border:1px solid #345063; border-radius:12px; background:#101a28; }
+.grabHeader { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+.grabHeader h2 { margin:0; font-size:18px; color:#e5f8ff; }
+.grabHeader p { margin:4px 0 0; font-size:12px; color:#9cb9ca; line-height:1.5; }
+.grabActions { display:flex; flex-wrap:wrap; gap:8px; }
+#grabVisibleBtn { border-color:#36b8bf; background:#123540; color:#c5fbff; font-weight:600; }
+#grabVisibleBtn[aria-pressed=true] { background:#00c7bd; color:#07151a; }
+.grabStatus { color:#b7cad6; margin:8px 0 12px; font-size:12px; line-height:1.5; }
+.grabSettings { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:14px; }
+.grabCard { min-width:0; margin:0; padding:10px 12px; border:1px solid #2c465a; border-radius:9px; background:#0d1723; }
+.grabCard legend { padding:0 6px; color:#7de5ed; font-size:13px; font-weight:600; }
+.grabShapeButtons { display:flex; flex-wrap:wrap; gap:6px; }
+.grabShapeButtons button { flex:1; min-width:0; }
+.grabShapeButtons button[aria-pressed=true] { border-color:#70e2ed; background:#174550; color:#c5fbff; }
+.grabHint { margin:8px 0; color:#92a8bd; font-size:11px; line-height:1.6; }
+.grabSlider { display:grid; grid-template-columns:76px minmax(0,1fr) 72px; gap:8px; align-items:center; margin:4px 0; font-size:12px; color:#b7cad6; }
+.grabSlider > span { min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
+.grabSlider input { min-width:0; width:100%; height:32px; padding:0; border:0; background:transparent; cursor:pointer; }
+.grabSlider input::-webkit-slider-runnable-track { height:6px; border-radius:999px; background:#345063; }
+.grabSlider input::-webkit-slider-thumb { width:18px; height:18px; margin-top:-6px; border-radius:50%; background:#70e2ed; }
+.grabSlider input::-moz-range-track { height:6px; border-radius:999px; background:#345063; }
+.grabSlider input::-moz-range-thumb { width:18px; height:18px; border:0; border-radius:50%; background:#70e2ed; }
+.grabValue { padding:5px 4px; border:1px solid #2d465a; border-radius:5px; background:#152737; color:#d3f5ff; text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.grabHandChoice { display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:8px; align-items:center; min-height:44px; padding:6px 10px; margin:8px 0; border:1px solid #2c465a; border-radius:7px; cursor:pointer; color:#b7cad6; }
+.grabHandChoice > span { white-space:normal; overflow-wrap:anywhere; }
+.grabHandChoice input { margin:0; width:18px; height:18px; accent-color:#00c7bd; }
+.grabHandChoice.active { border-color:#36b8bf; background:#123540; }
+.grabHandState { font-size:11px; color:#92a8bd; }
+.grabHandChoice.active .grabHandState { color:#7de5ed; }
+.grabHelp { margin-top:10px; color:#9db2c4; }
+.grabHelp summary { cursor:pointer; padding:8px 0; color:#98c5d7; font-size:12px; }
+.grabHelp p { font-size:12px; line-height:1.7; }
+@media (max-width:640px), (pointer:coarse) and (max-width:960px) and (max-height:500px) {
+  .grabPanel { padding:10px; }
+  .grabSettings { grid-template-columns:1fr; gap:12px; }
+  .grabCard { padding:8px; }
+  .grabActions { width:100%; }
+  .grabActions button { flex:1; }
+  .grabSlider { grid-template-columns:68px minmax(0,1fr) 64px; gap:6px; }
+  .grabSlider input { height:44px; }
+  .grabSlider input::-webkit-slider-thumb { width:24px; height:24px; margin-top:-9px; }
+  .grabSlider input::-moz-range-thumb { width:24px; height:24px; }
+  .grabHelp summary { min-height:44px; box-sizing:border-box; padding:12px 0; }
+}
