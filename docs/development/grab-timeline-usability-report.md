@@ -53,7 +53,8 @@ UI 不直接修改箱子 mesh 或 keyframes；快捷記錄透過共用編輯與�
 | 打包 | 通過 | `npm run build` 產生獨立 `dist/index.html` |
 | 第二批瀏覽器 | 8／8 通過 | 下方矩陣，每組執行完整快捷記錄、編輯、存檔流程 |
 | 既有一般瀏覽器回歸 | 原始／打包版通過 | 角色載入、共用介面與既有編輯流程，結果以測試輸出為準 |
-| 第一批扶握時間軸 | 本機原始桌面通過 | 接觸 IK、插值、放手邊界、停止、存檔；完整四組納入 Verify |
+| 第一批扶握時間軸 | 4／4 通過 | 原始／打包版 × 桌面／手機；接觸 IK、插值、放手邊界、停止、存檔 |
+| 既有語言回歸 | 本機原始版 1280／390px 通過 | 17 分頁、草稿、歷史、扶握設定、生成器、重新載入；完整八組納入 Verify |
 | 程式差異與文件 | 通過 | `git diff --check`，新增文件與圖片相對連結檢查 |
 
 | 入口 | 1280×900 桌面 | 320×568 直向 | 390×844 直向 | 844×390 橫向 |
@@ -89,6 +90,8 @@ npm run test:grab-usability
 本機 Node 24 若受工作區隔離限制，可用 `node --test --test-isolation=none tests/*.test.js`；CI 在 Node 22 使用 `npm test`。已有 Chromium 時可設定 `CHROMIUM_PATH`。新測試截圖輸出 `test-results/grab-usability/`，選用代表圖片保存於本文件。
 
 既有語言測試原本以 `.grabCard` 計數兩張形狀／手部設定卡；本批新增第三張快捷卡後，調整選擇器為 `.grabSettings .grabCard`，保留兩張設定卡的數量與排列斷言，另外驗證快捷卡仍有一張。這項修正不更改產品布局，也不移除語言或排列驗證。
+
+第一批停止保持測試也補上明確的停止狀態斷言：短片可能在 Playwright 第二次點擊前自然結束，無條件再次切換會重啟播放。現在於同一瀏覽器操作中確認仍在播放才點停止，再驗證箱子位置與手掌朝向保持；原姿勢保持斷言與容差保留。
 
 GitHub [Verify](https://github.com/Juynwei2019/3D-TUTTING-SIMULATOR-2077/actions/workflows/verify.yml) 已加入第二批測試，保留一般、浮動面板、第一批扶握、手機、FingerTut 與語言回歸；失敗時上傳 `test-results/` 診斷。CI 的實際執行狀態請查看對應提交的 workflow。
 

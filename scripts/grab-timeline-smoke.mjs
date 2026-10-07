@@ -78,8 +78,11 @@ try{
    await page.locator('#kfImportFile').setInputFiles({name:'grab-timeline.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(downloaded))});
    await page.waitForFunction(()=>window.__grabTimeline.frames.length===3);
    assert.deepEqual(await page.evaluate(()=>window.__grabTimeline.frames.map(f=>f.grabBox)),downloaded.keyframes.map(f=>f.grabBox));
-   await page.locator('#kfPlayBtn').click();await page.waitForTimeout(220);await page.locator('#kfPlayBtn').click();
-   const paused=await page.evaluate(()=>window.__grabTimeline.inspect());await page.waitForTimeout(140);
+   await page.locator('#kfPlayBtn').click();await page.waitForTimeout(220);
+   // The short clip can finish during Playwright actionability checks. A blind
+   // second toggle would start playback again instead of stopping it.
+   const paused=await page.evaluate(()=>{if(window.__grabTimeline.playing)document.getElementById('kfPlayBtn').click();return {playing:window.__grabTimeline.playing,...window.__grabTimeline.inspect()};});
+   assert.equal(paused.playing,false,'playback is stopped before hold samples');await page.waitForTimeout(140);
    const held=await page.evaluate(()=>window.__grabTimeline.inspect());assert.ok(close(paused.position,held.position));
    assert.ok(paused.hands.every((h,i)=>close(h.quaternion,held.hands[i].quaternion,.003)),'stop holds hand orientation');
    await page.locator('#kfPlayBtn').click();await page.waitForFunction(()=>!window.__grabTimeline.playing);
