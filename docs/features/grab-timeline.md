@@ -42,3 +42,7 @@
 ![桌面扶握箱時間軸預覽](../images/grab-timeline-desktop.png)
 
 ![手機扶握箱時間軸預覽](../images/grab-timeline-mobile.png)
+
+## 第二批規劃
+
+快捷操作、拍點標記、扶握／放手提示與複製／範圍編輯的詳細規格見 [第二批：操作便利](../planning/grab-timeline-usability.md)。目前為規劃文件，尚未實作。

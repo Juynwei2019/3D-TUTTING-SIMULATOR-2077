@@ -28,6 +28,7 @@
 
 | 文章 | 內容 |
 | --- | --- |
+| [扶握箱時間軸第二批：操作便利](planning/grab-timeline-usability.md) | 快捷操作、拍點狀態、扶握／放手提示、複製與範圍編輯規格及驗收條件 |
 | [後續拆分順序](planning/refactor-roadmap.md) | 模組拆分批次、完成進度與後續邊界 |
 | [手機使用評估](planning/mobile-readiness.md) | 手機布局、觸控操作、已完成驗證與待處理項目 |
 | [Tutting 姿勢生成器 Roadmap](planning/Tutting_Pose_Generator_Roadmap.md) | 幾何約束、空間固定、IK 與多步 Combo 規劃 |
