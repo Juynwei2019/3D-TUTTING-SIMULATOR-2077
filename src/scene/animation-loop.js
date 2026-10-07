@@ -40,6 +40,7 @@ export function createAnimationLoop(context){
 
   function animate(now){
     requestAnimationFrame(animate);
+    context.updateGrabTimelineUI?.(now);
     context.tickLAPath(now);
     context.updateLACustomVisual();
     context.updatePoleRange();

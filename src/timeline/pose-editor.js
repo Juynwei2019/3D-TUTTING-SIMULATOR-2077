@@ -10,6 +10,7 @@ export function createPoseEditor(context){
     context.kfEditingIndex = insertKeyframe(context.keyframes, newKf, context.kfEditingIndex);
     context.renderKeyframeChips();
     context.scheduleAutoSave();
+    context.onPoseRecorded?.();
   }
 
   function duplicateKeyframe(i){
@@ -48,6 +49,7 @@ export function createPoseEditor(context){
     else delete context.keyframes[context.kfEditingIndex].grabBox;
     context.renderKeyframeChips();
     context.scheduleAutoSave();
+    context.onPoseRecorded?.();
   }
 
   function setKeyframeEasing(name){
@@ -104,6 +106,7 @@ export function createPoseEditor(context){
     context.setActiveBtn(-1);
     context.syncEasingControlsFromSelection();
     context.updateOnionSkins();
+    context.onPoseSelected?.();
   }
 
   function selectKeyframe(i){

@@ -12,7 +12,8 @@
     "test:fingertut": "node scripts/fingertut-smoke.mjs",
     "test:language": "node scripts/language-smoke.mjs",
     "test:floating": "node scripts/floating-smoke.mjs",
-    "test:grab-timeline": "node scripts/grab-timeline-smoke.mjs"
+    "test:grab-timeline": "node scripts/grab-timeline-smoke.mjs",
+    "test:grab-usability": "node scripts/grab-usability-smoke.mjs"
   },
   "devDependencies": {
     "three": "0.160.0",

@@ -1,3 +1,4 @@
+import { countGrabFrames } from './grab-summary.js';
 import { t as tr, liveText, liveAttribute } from "../i18n/index.js";
 import { clampNum } from "../math/angles.js";
 
@@ -82,7 +83,7 @@ export function createRangeEditor(context, doc = document){
     const parts=[];
     if (hit.poseTransitions.length) parts.push(`${hit.poseTransitions.length} POSE transition`);
     if (hit.grooveIndices.length) parts.push(`${hit.grooveIndices.length} GROOVE`);
-    showRangeEditHud(()=>tr("已複製 Range：{p0}", {p0:parts.join(" + ")}));
+    showRangeEditHud(()=>tr("已複製 Range：{p0}", {p0:parts.join(" + ")})+tr("；{poses} 個 POSE，{count} 個含扶握資料",{poses:poseItems.length,count:countGrabFrames(poseItems)}));
     return true;
   }
 

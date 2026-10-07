@@ -1,7 +1,8 @@
+import { grabTimelineEnglish } from './grab-timeline-messages.js';
 import { english as firstBatchEnglish } from './messages.js';
 import { batch2English } from './batch2-messages.js';
 import { batch3English } from './batch3-messages.js';
-export const english = {...firstBatchEnglish,...batch2English,...batch3English};
+export const english = {...firstBatchEnglish,...batch2English,...batch3English,...grabTimelineEnglish};
 export const LANGUAGE_STORAGE_KEY = 'tuttingLanguage';
 export function createI18n(storage){
   let language='zh-Hant';

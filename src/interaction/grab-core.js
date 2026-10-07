@@ -416,7 +416,7 @@ function createGrabBoxCore(deps){
     releaseHand, beginEdit, endEdit,
     setPalmAligned, setPalmTwist, isPalmAligned, applyPalmOrientation,
     getState, onChange, applyPreset, recenter, resetRotation, resetDimensions, snapshot, restoreSnapshot,
-    buildAfterModelLoad, updateEachFrame, isDragging, applyTimelineState, setPlaybackActive,
+    buildAfterModelLoad, updateEachFrame, isDragging, isEditing:()=>editing||isDragging(), applyTimelineState, setPlaybackActive,
   };
 }
 

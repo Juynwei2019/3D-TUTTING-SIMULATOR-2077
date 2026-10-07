@@ -73,6 +73,7 @@ export function createTimelineTransport(context){
   }
 
   function stopKeyframePlayback(){
+    const wasPlaying=context.kfPlaying;
     if(context.waveClips.length){for(const k of ALL_JOINT_KEYS)if(context.bones[k])context.syncWaveTrackTarget(k);}
     context.waveTrackActive=false;
     context.kfPlaying = false;
@@ -84,9 +85,11 @@ export function createTimelineTransport(context){
     liveText(document.getElementById("kfPlayBtn"), ()=>tr("▶ 播放"));
     context.renderKeyframeChips();
     context.resetBeatGridPlaybackUI();
+    if(wasPlaying)context.onStopped?.();
   }
 
   function applyTimelinePreviewAtElapsed(elapsedMs){
+    context.onPreview?.();
     if(context.waveClips.length){
       if(context.waveRun)context.stopWave();
       const oldIndex=context.kfIndex,beat=Math.max(0,elapsedMs*context.bpm/60000);

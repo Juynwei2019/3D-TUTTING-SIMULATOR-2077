@@ -22,6 +22,7 @@
 | 文章 | 內容 |
 | --- | --- |
 | [模組拆分與使用契約](development/modules.md) | 模組責任、共享狀態、控制器及各領域的使用契約 |
+| [扶握箱時間軸第二批實作與驗測報告](development/grab-timeline-usability-report.md) | 完整成果、模組分工、測試矩陣、實測圖片及限制 |
 | [浮動面板排版修正](development/floating-panel-layout.md) | 問題原因、修正行為、操作說明與前後測試圖片 |
 
 ## 規劃與進度 · `planning/`

@@ -1,3 +1,5 @@
+import { countGrabFrames } from '../timeline/grab-summary.js';
+import { formatGrabFrame } from './grab-timeline.js';
 import { t as tr, liveText, liveAttribute, liveHTML } from "../i18n/index.js";
 import { buildEasingSVG } from "./easing-gallery.js";
 
@@ -80,6 +82,13 @@ export function createTimelineEditor(context, doc = document){
       dup.onclick = (ev) => { ev.stopPropagation(); context.duplicateKeyframe(i); context.pushHistory(); };
 
 
+      liveAttribute(sel,"aria-label",()=>`F${i+1} · ${formatGrabFrame(kf,context.keyframes[i-1],i)}`);
+      if(countGrabFrames([kf])){
+        chip.classList.add("hasGrabData");
+        const badge=doc.createElement("span");badge.className="kfGrabTag";badge.setAttribute("aria-hidden","true");
+        liveText(badge,()=>tr("扶握"));chip.appendChild(badge);
+        liveAttribute(sel,"data-tooltip",()=>formatGrabFrame(kf,context.keyframes[i-1],i));
+      }
       chip.appendChild(sel);
       chip.appendChild(labelBtn);
 

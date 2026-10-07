@@ -16,7 +16,7 @@ jobs:
   verify:
     name: Tests, build and browser regression
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -47,6 +47,9 @@ jobs:
 
       - name: Run grab timeline regression
         run: npm run test:grab-timeline
+
+      - name: Run grab usability regression
+        run: npm run test:grab-usability
 
       - name: Run mobile layout regression
         run: npm run test:mobile

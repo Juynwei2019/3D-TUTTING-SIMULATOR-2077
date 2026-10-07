@@ -1,3 +1,4 @@
+import { createGrabTimelineUI } from './ui/grab-timeline.js';
 import { cleanGrabFrame } from './timeline/grab-state.js';
 import { createGrabTimeline } from './timeline/grab-controller.js';
 import { cleanGrabProject } from "./storage/grab-project.js";
@@ -1633,7 +1634,7 @@ function updateIKButtons(...args){
 
 function bindGrabBoxUI(){
   if (!grabBoxCore) return;
-  mountGrabBoxUI(document.getElementById("tabGrabBox"), grabBoxCore);
+  mountGrabBoxUI(document.getElementById("tabGrabBox"), grabBoxCore, grabTimelineUI);
 }
 
 function bindIKUI(...args){
@@ -2171,6 +2172,7 @@ function pushHistory(){
 }
 
 function restoreSnapshot(snap){
+  grabTimelineUI.reset();
   if(kfPlaying)stopKeyframePlayback();
   grabTimelineController.reset();
   tgCancelPreview();restoreGenerationRules(snap.generationRules);restoreTG(snap.tuttingGenerator);
@@ -2286,6 +2288,7 @@ function showAutosaveIndicator(){
 // 手動匯入檔案共用同一套邏輯，只有「資料從哪裡來、要不要跳確認框」不一樣。
 // 呼叫前務必先確認 data 已通過基本驗證（見 tryLoadAutosave / importTimelineFromFile）。
 function restoreTimelineData(data){
+  grabTimelineUI.reset();
   fingerTutController.clear();
   tgCancelPreview();restoreGenerationRules(data.generationRules);restoreTG(data.tuttingGenerator);
   waveClips=cleanWaveClips(data.waveClips);waveClipSelected=null;waveTrackActive=false;
@@ -2467,6 +2470,7 @@ function applyBodyTransform(bodyData){
 // 依序連續新增時，每次新增後 kfEditingIndex 都會指向剛新增的那個（也就是最後一個），
 // 所以下一次新增仍然等同「加到最尾端」，原本的操作習慣不會被打斷。
 function addKeyframe(...args){
+  if(kfPlaying)return false;
   return poseEditorController.addKeyframe(...args);
 }
 
@@ -2550,6 +2554,7 @@ function pasteTimelineClipboard(){
 }
 
 function updateKeyframe(...args){
+  if(kfPlaying||kfMultiSelectMode||grabTimelineUI.preview||grabBoxCore?.isEditing())return false;
   return poseEditorController.updateKeyframe(...args);
 }
 
@@ -2779,7 +2784,8 @@ function bindTimelineReorderHost(...args){
 }
 
 function renderKeyframeChips(...args){
-  return beatGridController.renderKeyframeChips(...args);
+  const result=beatGridController.renderKeyframeChips(...args);
+  grabTimelineUI.refresh();return result;
 }
 
 // 播放時每幀呼叫：只切換既有 chip 節點的 "playing" class，不重建 DOM、不重新產生 SVG。
@@ -4168,6 +4174,19 @@ const timelineAudio = createTimelineAudio({
   getOffset: getKfMusicOffsetSec,
   getBpm: () => bpm,
 });
+const grabTimelineUI = createGrabTimelineUI({
+  get frames(){return keyframes;},get index(){return kfEditingIndex;},
+  get ready(){return !!model&&!!bones.hips;},get playing(){return kfPlaying;},get multi(){return kfMultiSelectMode;},
+  get editing(){return !!(grabBoxCore?.isEditing()||transformControls?.dragging||transformControlsIK?.dragging||draggingKey!==null);},
+  capture:()=>({angles:snapshotCurrentAngles(),body:snapshotBodyTransform(),grabBox:captureGrabFrame()}),
+  currentGrab:()=>({...grabBoxCore.snapshot(),version:1}),
+  add:addKeyframe,update:updateKeyframe,pushHistory,
+  showTimeline(){
+    document.querySelector('.tabBtn[data-tab="keyframe"]').click();
+    if(kfEditingIndex>=0)requestAnimationFrame(()=>scrollKfChipIntoView(kfEditingIndex));
+  },
+});
+
 const timelineEditor = createTimelineEditor({
   renderWaveTrack,
   updateMoveLibRangeHint,
@@ -5120,6 +5139,8 @@ const onionSkinController = createOnionSkin({
 
 const poseEditorController = createPoseEditor({
   captureGrabFrame, applyGrabKeyframe, applyBodyTransform,
+  onPoseSelected:()=>grabTimelineUI.selected(),
+  onPoseRecorded:()=>grabTimelineUI.selected(),
 
   get snapshotCurrentAngles(){ return snapshotCurrentAngles; },
   get snapshotBodyTransform(){ return snapshotBodyTransform; },
@@ -5287,6 +5308,8 @@ const beatGridController = createBeatGrid({
 });
 
 const timelineTransportController = createTimelineTransport({
+  onPreview:()=>grabTimelineUI.previewed(),
+  onStopped:()=>grabTimelineUI.previewed(),
   applyGrabKeyframe, finishGrabPlayback,
   setGrabPlaybackActive:active=>grabBoxCore?.setPlaybackActive(active),
 
@@ -5710,6 +5733,7 @@ const performancePanelController = createPerformancePanel({
 });
 
 const animationLoopController = createAnimationLoop({
+  updateGrabTimelineUI:now=>grabTimelineUI.tick(now),
   solveTimelineGrabHands,
   get camera(){ return camera; },
   get controls(){ return controls; },

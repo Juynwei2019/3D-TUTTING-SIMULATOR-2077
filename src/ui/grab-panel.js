@@ -1,3 +1,4 @@
+import { grabTimelineHTML } from './grab-timeline.js';
 import { t, liveText, liveAttribute, translateDOM } from "../i18n/index.js";
 const translatedSpan=key=>`<span data-i18n="${key}">${t(key)}</span>`;
 
@@ -45,6 +46,7 @@ function grabPanelHTML(){
         <button id="grabResetDimensions" type="button" data-i18n="重設尺寸">${t("重設尺寸")}</button>
       </div>
       <p id="grabCommandStatus" class="grabHint" role="status" aria-live="polite"></p>
+      ${grabTimelineHTML()}
       <div class="grabSettings">
         <fieldset class="grabCard">
           <legend data-i18n="形狀與尺寸">${t("形狀與尺寸")}</legend>
@@ -82,7 +84,7 @@ function grabShapeParamsHTML(shapeType, params){
   `).join("");
 }
 
-function mountGrabBoxUI(container, core){
+function mountGrabBoxUI(container, core, timeline){
   if (!container) return;
   container.innerHTML = grabPanelHTML();
   translateDOM(container);
@@ -188,6 +190,7 @@ function mountGrabBoxUI(container, core){
 
   core.onChange(render);
   render(core.getState());
+  timeline?.mount();
 }
 
 

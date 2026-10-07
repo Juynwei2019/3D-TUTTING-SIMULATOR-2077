@@ -836,3 +836,15 @@ html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 48p
 @media (max-width:640px) {
   .grabQuickActions button { min-width:110px; }
 }
+
+/* Grab timeline quick recording and readable pose metadata. */
+.grabTimelineCard { margin:12px 0; min-width:0; }
+.grabTimelineActions { display:flex; flex-wrap:wrap; gap:8px; }
+.grabTimelineActions button { flex:1 1 100px; min-height:44px; white-space:normal; }
+.grabTimelineCard p, .grabTimelineSummary { overflow-wrap:anywhere; }
+.grabDraft { color:#ffdf91; }
+.grabTimelineSummary { margin:6px 0; color:#b4e7f0; font-size:12px; }
+#kfList .kfChip { position:absolute; }
+.kfGrabTag { position:absolute; right:3px; top:1px; font-size:8px; color:#9bf5d4; pointer-events:none; line-height:10px; }
+#kfList .kfChip.hasGrabData .sel { padding-top:10px; }
+#kfList .kfChip.beatGridCompact .kfGrabTag { font-size:0; width:5px; height:5px; border-radius:50%; background:#9bf5d4; top:2px; }

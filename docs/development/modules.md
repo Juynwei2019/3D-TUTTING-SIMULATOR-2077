@@ -247,3 +247,12 @@ controller 透過 host getter／setter 讀取共用角色、目標與模式狀�
 ## 語言切換
 
 `i18n/index.js` 提供偏好容錯、翻譯與即時訂閱，`i18n/messages.js` 、`i18n/batch2-messages.js` 與 `i18n/batch3-messages.js` 管理前三批對照，`i18n/joint-labels.js` 產生顯示用名稱。DOM 只更新有標記的文字與屬性；FingerTut、選取提示、手機與浮動面板更新動態文字；時間軸、資料庫、IK／朝向、Wave、律動、生成器、JSON、扶握、軌跡、關節面板及 Easing 圖鑑使用 `liveText`／`liveAttribute` 保存既有節點的純文字更新函式。斷開的節點以 WeakMap 管理，不在語言切換時重建輸入與事件，領域資料與專案 schema 保持不變。`jointSearchText` 提供與目前語言無關的雙語名稱搜尋；已遷移的 Tooltip 只更新文字與可讀名稱，不重新加入原生 title。範圍與驗證見 [language-switching.md](../features/language-switching.md)。
+
+## 扶握箱時間軸第二批
+
+- `src/timeline/grab-summary.js`：純函式計算有效資料數、六種狀態、相鄰扶握事件、姿勢比較簽章與記錄保護條件。
+- `src/ui/grab-timeline.js`：快捷區、編輯目標、草稿提示與預覽狀態；透過 adapter 呼叫共用姿勢編輯與歷史，不直接修改 mesh 或 keyframes。
+- `src/i18n/grab-timeline-messages.js`：新增介面的英文訊息；沿用既有節點翻譯機制。
+- `scripts/grab-usability-smoke.mjs`：原始／打包版八組操作回歸；測試 probe 僅由測試伺服器注入，不進入產品。
+
+操作與驗證見 [第二批報告](grab-timeline-usability-report.md)。

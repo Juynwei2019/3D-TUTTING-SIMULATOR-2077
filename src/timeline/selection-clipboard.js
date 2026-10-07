@@ -1,3 +1,4 @@
+import { countGrabFrames } from './grab-summary.js';
 import { t as tr, liveText } from "../i18n/index.js";
 // Host adapter provides live state and owns rendering/history/persistence effects.
 export function createTimelineSelection(context, doc = document){
@@ -102,7 +103,7 @@ export function createTimelineSelection(context, doc = document){
       const parts=[];
       if (context.timelineClipboard.poseItems.length) parts.push(`${context.timelineClipboard.poseItems.length} POSE`);
       if (context.timelineClipboard.grooveItems.length) parts.push(`${context.timelineClipboard.grooveItems.length} GROOVE`);
-      liveText(hud, ()=>tr("已複製 {p0}", {p0:parts.join(" + ")}));
+      liveText(hud, ()=>tr("已複製 {p0}", {p0:parts.join(" + ")})+tr("；{count} 個含扶握資料",{count:countGrabFrames(context.timelineClipboard.poseItems)}));
       hud.style.left = "50%"; hud.style.top = "16px"; hud.style.transform = "translateX(-50%)"; hud.style.display="block";
       clearTimeout(copyTimelineSelection._t); copyTimelineSelection._t=setTimeout(()=>{hud.style.display="none"; hud.style.transform="";},900);
     }
