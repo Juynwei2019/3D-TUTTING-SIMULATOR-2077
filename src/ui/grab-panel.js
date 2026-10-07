@@ -47,6 +47,8 @@ function grabPanelHTML(){
       </div>
       <p id="grabCommandStatus" class="grabHint" role="status" aria-live="polite"></p>
       ${grabTimelineHTML()}
+      <label class="grabHandChoice"><input type="checkbox" id="grabSizeTween">${translatedSpan("平順改變尺寸（至下一拍）")}</label>
+      <p class="grabHint" data-i18n="先勾選再新增或更新起始拍點；僅同形狀生效，沿用該段 Easing。">${t("先勾選再新增或更新起始拍點；僅同形狀生效，沿用該段 Easing。")}</p>
       <div class="grabSettings">
         <fieldset class="grabCard">
           <legend data-i18n="形狀與尺寸">${t("形狀與尺寸")}</legend>
@@ -98,6 +100,7 @@ function mountGrabBoxUI(container, core, timeline){
     lArm: container.querySelector("#grabHandCb_lArm"),
   };
 
+  container.querySelector('#grabSizeTween').onchange = e => core.setSizeTween(e.target.checked);
   container.querySelector('#grabPalmAlign').onchange = e => core.setPalmAligned(e.target.checked);
   for(const limb of ['rArm','lArm'])container.querySelector('#grabPalmTwist_'+limb).onchange = e => core.setPalmTwist(limb,Number(e.target.value));
   container.querySelector('#grabPresetSides').onclick = () => core.applyPreset('sides');
@@ -137,6 +140,7 @@ function mountGrabBoxUI(container, core, timeline){
   }
 
   function render(state){
+    container.querySelector('#grabSizeTween').checked=!!state.sizeTween;
     container.querySelector('#grabPalmAlign').checked=!!state.palmAligned;
     for(const limb of ['rArm','lArm']){
       const input=container.querySelector('#grabPalmTwist_'+limb);

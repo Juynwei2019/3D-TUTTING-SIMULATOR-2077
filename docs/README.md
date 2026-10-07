@@ -15,12 +15,14 @@
 | [FingerTut 胸前編輯模式](features/fingertut-mode.md) | 胸前擺位、手掌朝向、介面與測試紀錄 |
 | [扶握箱模式](features/grab-box-mode.md) | 形狀尺寸、雙手接觸、一鍵擺位、掌面貼合與儲存 |
 | [扶握箱時間軸](features/grab-timeline.md) | 逐拍記錄、移動與旋轉、扶握與放手、播放規則及驗證 |
+| [尺寸連續變化（第三批 3A）](features/grab-size-animation.md) | 同形狀尺寸動畫、接觸規則、舊資料相容與操作 |
 | [語言切換](features/language-switching.md) | 繁中／英文切換範圍、翻譯模組與三批驗證紀錄 |
 
 ## 開發與修正 · `development/`
 
 | 文章 | 內容 |
 | --- | --- |
+| [尺寸動畫實作與驗測報告](development/grab-size-animation-report.md) | 第三批 3A 成果、117 項模組、八組尺寸矩陣與截圖 |
 | [模組拆分與使用契約](development/modules.md) | 模組責任、共享狀態、控制器及各領域的使用契約 |
 | [扶握箱時間軸第二批實作與驗測報告](development/grab-timeline-usability-report.md) | 完整成果、模組分工、測試矩陣、實測圖片及限制 |
 | [浮動面板排版修正](development/floating-panel-layout.md) | 問題原因、修正行為、操作說明與前後測試圖片 |

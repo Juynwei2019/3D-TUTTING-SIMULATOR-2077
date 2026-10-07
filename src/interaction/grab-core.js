@@ -3,7 +3,7 @@ import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { applyBoneWorldQuatLock } from "../math/quaternions.js";
 import { grabSurfaceNormal, grabPalmQuaternion } from "./grab-orientation.js";
 import { grabPresetPoints, grabChestFrame } from "./grab-presets.js";
-import { GRAB_SHAPE_DEFAULTS, GRAB_SHAPE_CLOSEST_POINT, buildGrabShapeGeometry } from "./grab-shapes.js";
+import { GRAB_SHAPE_DEFAULTS, GRAB_SHAPE_CLOSEST_POINT, buildGrabShapeGeometry, resizeGrabShapeGeometry } from "./grab-shapes.js";
 
 
 // ======================================================================
@@ -31,7 +31,8 @@ function createGrabBoxCore(deps){
   const listeners = [];
   let preset = null, revision = 0, messageKey = null, palmAligned = false;
   let editing = false, editStart = null;
-  let timelineDriven=false;
+  let timelineDriven=false, playbackActive=false;
+  let sizeTween=false, geometryShape=null, geometryBase=null;
   const palmTwist = {rArm:0,lArm:0};
   const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -49,7 +50,7 @@ function createGrabBoxCore(deps){
         cylinder: { ...shapeParams.cylinder },
       },
       grabbed: { ...grabbed },
-      preset, messageKey, palmAligned, palmTwist:{...palmTwist},
+      preset, sizeTween, messageKey, palmAligned, palmTwist:{...palmTwist},
     };
   }
 
@@ -63,6 +64,12 @@ function createGrabBoxCore(deps){
 
   function rebuildGeometry(){
     if (!mesh) return;
+    if(geometryShape===shapeType){
+      resizeGrabShapeGeometry(mesh.geometry,shapeType,geometryBase,shapeParams[shapeType]);
+      if(mesh.children[0])resizeGrabShapeGeometry(mesh.children[0].geometry,shapeType,geometryBase,shapeParams[shapeType]);
+      return;
+    }
+    geometryShape=shapeType;geometryBase={...shapeParams[shapeType]};
     const newGeo = buildGrabShapeGeometry(shapeType, shapeParams[shapeType]);
     mesh.geometry.dispose();
     mesh.geometry = newGeo;
@@ -96,6 +103,7 @@ function createGrabBoxCore(deps){
       color: 0x7cffb2, transparent: true, opacity: 0.22,
       depthWrite: false, side: THREE.DoubleSide,
     });
+    geometryShape=shapeType;geometryBase={...shapeParams[shapeType]};
     mesh = new THREE.Mesh(geometry, material);
     mesh.name = "grabBoxMesh";
     const edges = new THREE.LineSegments(
@@ -344,7 +352,7 @@ function createGrabBoxCore(deps){
       grabLocal[limb] = state.grabLocal[limb] ? new THREE.Vector3().fromArray(state.grabLocal[limb]) : null;
     }
     preset = state.preset; revision = state.revision; messageKey = null;
-    palmAligned=!!state.palmAligned;
+    palmAligned=!!state.palmAligned;sizeTween=state.sizeTween===true;
     Object.assign(palmTwist,{rArm:0,lArm:0},state.palmTwist);
     if(force){
       reprojectGrabbedHands();
@@ -374,7 +382,7 @@ function createGrabBoxCore(deps){
       grabLocal[limb]=grabbed[limb]?new THREE.Vector3().fromArray(state.grabLocal[limb]):null;
       palmTwist[limb]=state?.palmTwist[limb]||0;
     }
-    preset=state?.preset||null;palmAligned=!!state?.palmAligned;messageKey=null;
+    sizeTween=state?.sizeTween===true;preset=state?.preset||null;palmAligned=!!state?.palmAligned;messageKey=null;
     if(geometryChanged)rebuildGeometry();
     mesh.visible=visible;
     if(visible){if(gizmo.object!==mesh)gizmo.attach(mesh);}else gizmo.detach();
@@ -383,7 +391,7 @@ function createGrabBoxCore(deps){
     if(previous!==JSON.stringify(getState()))notify();
   }
 
-  function setPlaybackActive(active){if(gizmo)gizmo.enabled=!active;}
+  function setPlaybackActive(active){playbackActive=!!active;if(gizmo)gizmo.enabled=!active;}
 
   // 每幀呼叫：在 solveIKAll() 之前，把扶著箱子的手的 IK 目標位置更新好，
   // 交給既有的兩節解析解 IK 求解——完全重用原本的手臂 IK 管線。
@@ -414,6 +422,7 @@ function createGrabBoxCore(deps){
     },
     setGrabHand: (limb,on) => !['rArm','lArm'].includes(limb)||grabbed[limb]===!!on ? false : command(()=>setGrabHand(limb,!!on)),
     releaseHand, beginEdit, endEdit,
+    setSizeTween: value => playbackActive||sizeTween===!!value ? false : command(()=>{sizeTween=!!value;}),
     setPalmAligned, setPalmTwist, isPalmAligned, applyPalmOrientation,
     getState, onChange, applyPreset, recenter, resetRotation, resetDimensions, snapshot, restoreSnapshot,
     buildAfterModelLoad, updateEachFrame, isDragging, isEditing:()=>editing||isDragging(), applyTimelineState, setPlaybackActive,

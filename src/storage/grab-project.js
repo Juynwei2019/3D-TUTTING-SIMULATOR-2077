@@ -23,7 +23,7 @@ export function cleanGrabProject(data,defaults){
   if(!isGrabProject(data))return null;
   const next={...defaults,visible:data.visible===true,mode:data.mode==='rotate'?'rotate':'translate',shapeType:data.shapeType,
     shapeParams:cleanRig(data.shapeParams,defaults.shapeParams),position:data.position.slice(),quaternion:data.quaternion.slice(),
-    preset:['sides','bottom'].includes(data.preset)?data.preset:null,palmAligned:data.palmAligned===true,
+    sizeTween:data.sizeTween===true,preset:['sides','bottom'].includes(data.preset)?data.preset:null,palmAligned:data.palmAligned===true,
     grabbed:{},grabLocal:{},palmTwist:{},rig:cleanRig(data.rig,defaults.rig),target:cleanRig(data.target,defaults.target)};
   const norm=Math.hypot(...next.quaternion);next.quaternion=next.quaternion.map(x=>x/norm);
   for(const limb of ['rArm','lArm']){

@@ -45,6 +45,7 @@ export function createGrabTimelineUI(context,doc=document){
   function refresh(){
     const index=selection(),frame=context.frames[index]||null;
     if(frame!==knownFrame||index!==knownIndex){knownFrame=frame;knownIndex=index;baseline=context.ready&&frame?savedBaseline(frame):null;announcement=null;}
+    const tween=doc.getElementById('grabSizeTween');if(tween)tween.disabled=!context.ready||context.playing||context.editing;
     const state=view(),addReason=grabRecordGuard(state),updateReason=grabRecordGuard(state,true);
     const add=doc.getElementById('grabTimelineAdd'),update=doc.getElementById('grabTimelineUpdate');
     if(add){add.disabled=!!addReason;liveText(add,()=>t('＋新增拍點'));}

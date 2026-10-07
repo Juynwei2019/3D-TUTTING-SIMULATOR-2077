@@ -185,3 +185,12 @@ test('many slider inputs and gizmo movements each commit once and restore in one
   f.core.beginEdit();assert.equal(f.core.endEdit(),false);assert.equal(f.saves,count+2);
   assert.equal(f.core.setShapeParam('box','w',NaN),false);assert.equal(f.core.setShapeType('constructor'),false);
 });
+
+test('size tween workspace option supports one-step undo and snapshot restoration',()=>{
+ const f=fixture();f.core.applyPreset('sides');
+ assert.equal(f.core.getState().sizeTween,false);
+ f.core.setPlaybackActive(true);assert.equal(f.core.setSizeTween(true),false);assert.equal(f.core.getState().sizeTween,false);f.core.setPlaybackActive(false);
+ f.core.setSizeTween(true);assert.equal(f.core.snapshot().sizeTween,true);
+ f.history.undo();assert.equal(f.core.getState().sizeTween,false);
+ f.history.redo();assert.equal(f.core.getState().sizeTween,true);
+});

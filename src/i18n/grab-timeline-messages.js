@@ -38,4 +38,6 @@ export const grabTimelineEnglish={
  '扶握':'Grab',
  '；{count} 個含扶握資料':'; {count} with grab data',
  '；{poses} 個 POSE，{count} 個含扶握資料':'; {poses} poses, {count} with grab data',
+ '平順改變尺寸（至下一拍）':'Smooth size change (to next pose)',
+ '先勾選再新增或更新起始拍點；僅同形狀生效，沿用該段 Easing。':'Enable before adding or updating the starting pose. Applies to the same shape using the transition easing.',
 };

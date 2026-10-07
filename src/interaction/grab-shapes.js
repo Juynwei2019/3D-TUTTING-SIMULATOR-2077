@@ -74,3 +74,16 @@ const GRAB_SHAPE_CLOSEST_POINT = {
 };
 
 export { GRAB_SHAPE_DEFAULTS, GRAB_SHAPE_CLOSEST_POINT, buildGrabShapeGeometry };
+
+// Keep one immutable vertex baseline per geometry; repeated seeking cannot accumulate scale error.
+const resizeBaselines=new WeakMap();
+export function resizeGrabShapeGeometry(geometry,type,base,next){
+  const position=geometry.getAttribute('position');
+  if(!resizeBaselines.has(geometry))resizeBaselines.set(geometry,position.array.slice());
+  const original=resizeBaselines.get(geometry);
+  const scale=type==='box'?[next.w/base.w,next.h/base.h,next.d/base.d]:type==='sphere'?[next.r/base.r,next.r/base.r,next.r/base.r]:[next.r/base.r,next.h/base.h,next.r/base.r];
+  for(let i=0;i<position.array.length;i++)position.array[i]=original[i]*scale[i%3];
+  position.needsUpdate=true;
+  // Axis-aligned box, round cylinder and uniformly scaled sphere keep their normals.
+  geometry.computeBoundingBox();geometry.computeBoundingSphere();
+}
