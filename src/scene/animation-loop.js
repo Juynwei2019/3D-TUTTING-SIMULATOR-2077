@@ -102,6 +102,7 @@ export function createAnimationLoop(context){
     if(!context.kfPlaying&&context.headFollowSource!=="free")context.solveLookAt("head");
     context.tgTick();
     if(!context.kfPlaying&&context.grabBoxCore?.applyPalmOrientation?.())context.solveFingerIKAll();
+    context.solveTimelineGrabHands?.();
     context.updateHandCollisionVizMeshes();
     context.updateMarkers();
     context.updateSkeletonLines();

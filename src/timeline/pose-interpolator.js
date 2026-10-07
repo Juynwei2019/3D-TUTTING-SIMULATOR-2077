@@ -18,7 +18,7 @@ export function createPoseInterpolator(context){
 
   const _kfBodyQB = new THREE.Quaternion();
 
-  function applyKeyframeFramePose(frameA, frameB, et){
+  function applyKeyframeFramePose(frameA, frameB, et, progress=et){
     // 這兩個limb的root/mid骨骼改由軌跡即時IK接管，下面的一般角度slerp迴圈要跳過它們
     const { overrideLimbs, overrideKeys } = context.collectTrajOverrideKeys(frameA, frameB);
 
@@ -55,7 +55,11 @@ export function createPoseInterpolator(context){
       context.applyTrajOverridesDuringPlayback(overrideLimbs, frameA, frameB, et);
     }
 
-    if(frameA.waveBake){context.applyBakedWaveFeet(frameA);return new Set(ALL_JOINT_KEYS);}
+    if(frameA.waveBake)context.applyBakedWaveFeet(frameA);
+    const grabKeys=context.applyGrabTimelineFrame?.(frameA,frameB,et,progress);
+    for(const key of grabKeys||[])overrideKeys.add(key);
+
+    if(frameA.waveBake)return new Set(ALL_JOINT_KEYS);
     return overrideKeys; // 供呼叫端疊加律動時避開這幾個被軌跡IK接管的關節（見 applyGroove）
   }
   return { applyKeyframeFramePose };

@@ -140,7 +140,7 @@ function mountGrabBoxUI(container, core){
       const input=container.querySelector('#grabPalmTwist_'+limb);
       input.disabled=!state.palmAligned;
       input.value=state.palmTwist[limb];
-      container.querySelector('#grabPalmTwistValue_'+limb).textContent=state.palmTwist[limb]+'°';
+      container.querySelector('#grabPalmTwistValue_'+limb).textContent=Math.round(state.palmTwist[limb])+'°';
     }
 
     for (const [id, preset] of [['grabPresetSides','sides'],['grabPresetBottom','bottom']]) {

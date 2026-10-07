@@ -5,6 +5,8 @@ import { insertKeyframe, duplicateKeyframeData, reorderKeyframeData } from "../t
 export function createPoseEditor(context){
   function addKeyframe(){
     const newKf = { angles: context.snapshotCurrentAngles(), body: context.snapshotBodyTransform(), easing: context.kfPendingEasing, beats: context.kfPendingBeats };
+    const grabBox=context.captureGrabFrame?.();
+    if(grabBox)newKf.grabBox=grabBox;
     context.kfEditingIndex = insertKeyframe(context.keyframes, newKf, context.kfEditingIndex);
     context.renderKeyframeChips();
     context.scheduleAutoSave();
@@ -41,6 +43,9 @@ export function createPoseEditor(context){
     if (context.kfEditingIndex < 0 || !context.keyframes[context.kfEditingIndex]) return;
     context.keyframes[context.kfEditingIndex].angles = context.snapshotCurrentAngles();
     context.keyframes[context.kfEditingIndex].body = context.snapshotBodyTransform();
+    const grabBox=context.captureGrabFrame?.();
+    if(grabBox)context.keyframes[context.kfEditingIndex].grabBox=grabBox;
+    else delete context.keyframes[context.kfEditingIndex].grabBox;
     context.renderKeyframeChips();
     context.scheduleAutoSave();
   }
@@ -94,6 +99,8 @@ export function createPoseEditor(context){
       if (el) el.classList.toggle("active", !context.kfMultiSelectMode && n === i);
     }
     context.applyPose(context.keyframes[i].angles);
+    context.applyBodyTransform?.(context.keyframes[i].body);
+    context.applyGrabKeyframe?.(context.keyframes[i]);
     context.setActiveBtn(-1);
     context.syncEasingControlsFromSelection();
     context.updateOnionSkins();

@@ -40,6 +40,7 @@ export function createTimelineTransport(context){
     // (預設循環功能已移除，原本這裡用來避免跟拍點播放同時搶骨骼的判斷已不再需要)
     context.deselectJoint();
     context.transformControls.enabled = false;
+    context.setGrabPlaybackActive?.(true);
     context.kfPlaying = true;
     const playStartBeat = context.beatGridRangeLoop && context.hasBeatGridRange() ? context.beatGridRangeStart : 0;
     const playStartNow = performance.now();
@@ -75,6 +76,8 @@ export function createTimelineTransport(context){
     if(context.waveClips.length){for(const k of ALL_JOINT_KEYS)if(context.bones[k])context.syncWaveTrackTarget(k);}
     context.waveTrackActive=false;
     context.kfPlaying = false;
+    context.finishGrabPlayback?.();
+    context.setGrabPlaybackActive?.(false);
     context.transformControls.enabled = true;
     context.pauseKfMusic();
     document.getElementById("kfPlayBtn").classList.remove("playing");
@@ -96,6 +99,7 @@ export function createTimelineTransport(context){
     if (context.keyframes.length === 1 || elapsedMs <= 0){
       context.applyPose(context.keyframes[0].angles);
       context.applyBodyTransform(context.keyframes[0].body);
+      context.applyGrabKeyframe?.(context.keyframes[0]);
       return;
     }
     let acc = 0;
@@ -107,7 +111,7 @@ export function createTimelineTransport(context){
         const rawT = segMs > 0 ? (elapsedMs - acc) / segMs : 1;
         const t = clampNum(rawT, 0, 1);
         const easeFn = EASINGS[context.keyframes[i].easing] || EASINGS.linear;
-        context.applyKeyframeFramePose(context.keyframes[i], context.keyframes[i + 1], easeFn(t));
+        context.applyKeyframeFramePose(context.keyframes[i], context.keyframes[i + 1], easeFn(t),t);
         if(context.keyframes[i].waveBake){for(const k of ALL_JOINT_KEYS)context.syncWaveTrackTarget(k);}
         return;
       }

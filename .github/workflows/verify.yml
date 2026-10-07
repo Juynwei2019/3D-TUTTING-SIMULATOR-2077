@@ -45,6 +45,9 @@ jobs:
       - name: Run floating panel regression
         run: npm run test:floating
 
+      - name: Run grab timeline regression
+        run: npm run test:grab-timeline
+
       - name: Run mobile layout regression
         run: npm run test:mobile
 

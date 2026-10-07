@@ -1,3 +1,5 @@
+import { cleanGrabFrame } from './timeline/grab-state.js';
+import { createGrabTimeline } from './timeline/grab-controller.js';
 import { cleanGrabProject } from "./storage/grab-project.js";
 import { jointLabel, jointSearchText, jointCountLabel } from "./i18n/joint-labels.js";
 import { bindLanguageUI, onLanguageChange, t, liveText, liveAttribute, liveHTML } from "./i18n/index.js";
@@ -2169,6 +2171,8 @@ function pushHistory(){
 }
 
 function restoreSnapshot(snap){
+  if(kfPlaying)stopKeyframePlayback();
+  grabTimelineController.reset();
   tgCancelPreview();restoreGenerationRules(snap.generationRules);restoreTG(snap.tuttingGenerator);
   waveClips=cleanWaveClips(snap.waveClips);waveClipSelected=null;waveTrackActive=false;
   restoreWave(snap.waving);
@@ -2287,7 +2291,12 @@ function restoreTimelineData(data){
   waveClips=cleanWaveClips(data.waveClips);waveClipSelected=null;waveTrackActive=false;
   restoreWave(data.waving);
   restoreLAPath(data.lookAtPath);
-  keyframes = data.keyframes;
+  grabTimelineController.reset();
+  keyframes = data.keyframes.map(frame=>{
+    const next={...frame},grab=cleanGrabFrame(frame.grabBox);
+    if(grab)next.grabBox=grab;else delete next.grabBox;
+    return next;
+  });
   kfMultiSelected.clear(); grooveMultiSelected.clear();
   grooveSeqSelectedIndex = -1;
   kfEditingIndex = keyframes.length > 0 ? 0 : -1;
@@ -2386,6 +2395,11 @@ function restoreTimelineData(data){
       // Legacy projects must not inherit live bindings from the previous workspace.
       grabBoxCore.restoreSnapshot({...current,revision:current.revision+1,rig:null,visible:false,grabbed:{rArm:false,lArm:false},grabLocal:{rArm:null,lArm:null},preset:null,palmAligned:false,palmTwist:{rArm:0,lArm:0}},{force:true});
     }
+  }
+  if(keyframes.length&&hasGrabTimeline()){
+    applyPose(keyframes[0].angles);applyBodyTransform(keyframes[0].body);
+    poseController.applyTargetsToBones();
+    applyGrabTimelineFrame(keyframes[0],keyframes[0],0,0);
   }
   const bpmSlider = document.getElementById("bpmSlider");
   if (bpmSlider) bpmSlider.value = String(bpm);
@@ -3021,6 +3035,17 @@ function applyTrajOverridesDuringPlayback(...args){
 // 純套用函式：把 frameA→frameB 之間、進度 et（已套過 easing）的內插姿勢套到骨架上。
 // 不碰 kfIndex/kfStartTime 這些「播放狀態」，所以拍點播放（updateKeyframePlayback）跟
 // 拖曳波形游標預覽（applyTimelinePreviewAtElapsed）可以共用同一套內插邏輯，不用寫兩次。
+function captureGrabFrame(){return grabTimelineController.capture();}
+function hasGrabTimeline(){return grabTimelineController.hasData();}
+function solveTimelineGrabHands(){return grabTimelineController.solve();}
+function applyGrabTimelineFrame(...args){return grabTimelineController.apply(...args);}
+function applyGrabKeyframe(frame){
+  if(!hasGrabTimeline())return;
+  poseController.applyTargetsToBones();
+  applyGrabTimelineFrame(frame,frame,0,0);
+}
+function finishGrabPlayback(){return grabTimelineController.finish();}
+
 function applyKeyframeFramePose(...args){
   return poseInterpolatorController.applyKeyframeFramePose(...args);
 }
@@ -4097,7 +4122,18 @@ function animate(...args){
 }
 
 // All declarations are initialized before startup. Model loading remains asynchronous.
+const grabTimelineController = createGrabTimeline({
+  get core(){return grabBoxCore;},get frames(){return keyframes;},
+  get model(){return model;},get bones(){return bones;},get playing(){return kfPlaying;},
+  get pose(){return poseController;},get enabled(){return ikEnabled;},
+  get poles(){return ikPoleMeshes;},get targets(){return ikTargetMeshes;},
+  get fingerEnabled(){return fingerIKEnabled;},fingerIds:FINGER_IDS,
+  setIKEnabled,setFingerIKEnabled,
+});
+
 const timelinePlayback = createTimelinePlayback({
+  applyGrabKeyframe,
+
   get waveClips(){ return waveClips; },
   updateWaveTrackPlayback,
   get beatGridRangeLoop(){ return beatGridRangeLoop; },
@@ -4788,6 +4824,8 @@ const waveController = createWaveController({
 });
 
 const waveTrackController = createWaveTrack({
+  applyGrabTimelineFrame, solveTimelineGrabHands,
+
   get poseController(){ return poseController; },
   get waveClips(){ return waveClips; },
   set waveClips(value){ waveClips = value; },
@@ -5081,6 +5119,8 @@ const onionSkinController = createOnionSkin({
 });
 
 const poseEditorController = createPoseEditor({
+  captureGrabFrame, applyGrabKeyframe, applyBodyTransform,
+
   get snapshotCurrentAngles(){ return snapshotCurrentAngles; },
   get snapshotBodyTransform(){ return snapshotBodyTransform; },
   get kfPendingEasing(){ return kfPendingEasing; },
@@ -5247,6 +5287,9 @@ const beatGridController = createBeatGrid({
 });
 
 const timelineTransportController = createTimelineTransport({
+  applyGrabKeyframe, finishGrabPlayback,
+  setGrabPlaybackActive:active=>grabBoxCore?.setPlaybackActive(active),
+
   get keyframes(){ return keyframes; },
   get waveClips(){ return waveClips; },
   get wavePlaybackEnd(){ return wavePlaybackEnd; },
@@ -5306,6 +5349,8 @@ const timelineTransportController = createTimelineTransport({
 });
 
 const poseInterpolatorController = createPoseInterpolator({
+  applyGrabTimelineFrame,
+
   get collectTrajOverrideKeys(){ return collectTrajOverrideKeys; },
   get bones(){ return bones; },
   get restQuat(){ return restQuat; },
@@ -5586,6 +5631,7 @@ const sceneBootstrapController = createSceneBootstrap({
   isFingerTutActive: () => fingerTutController.active,
   prepareGrabPose(){
     if(kfPlaying)stopKeyframePlayback();
+    grabTimelineController.reset();
     if(waveRun)stopWave();
     tgCancelPreview();
     if(groovePreviewEnabled)document.getElementById('groovePreviewBtn').click();
@@ -5664,6 +5710,7 @@ const performancePanelController = createPerformancePanel({
 });
 
 const animationLoopController = createAnimationLoop({
+  solveTimelineGrabHands,
   get camera(){ return camera; },
   get controls(){ return controls; },
   get IDLE_CAMERA_CONVERGE_EPS_SQ(){ return IDLE_CAMERA_CONVERGE_EPS_SQ; },

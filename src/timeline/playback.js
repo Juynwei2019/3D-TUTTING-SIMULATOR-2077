@@ -41,6 +41,7 @@ export function createTimelinePlayback(context){
           // 播放到最後一段結尾，直接把姿勢定格在最後一個拍點（不含律動殘留），再停止播放。
           context.applyPose(frameB.angles);
           context.applyBodyTransform(frameB.body);
+          context.applyGrabKeyframe?.(frameB);
           context.stopKeyframePlayback();
           return;
         }
@@ -59,7 +60,7 @@ export function createTimelinePlayback(context){
     const easeFn = EASINGS[frameA.easing] || EASINGS.linear;
     const et = easeFn(t); // 緩動後的進度餵給 slerp；Back/Elastic 允許超出 [0,1]，做出甩過頭再回彈的效果
 
-    const overrideKeysThisFrame = context.applyKeyframeFramePose(frameA, frameB, et);
+    const overrideKeysThisFrame = context.applyKeyframeFramePose(frameA, frameB, et, t);
     context.applyGroove(now, overrideKeysThisFrame);
     context.applySquatGroove(now, context.grooveStartTime, false, overrideKeysThisFrame);
 

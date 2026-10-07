@@ -31,6 +31,7 @@ function createGrabBoxCore(deps){
   const listeners = [];
   let preset = null, revision = 0, messageKey = null, palmAligned = false;
   let editing = false, editStart = null;
+  let timelineDriven=false;
   const palmTwist = {rArm:0,lArm:0};
   const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -209,6 +210,7 @@ function createGrabBoxCore(deps){
     if(deps.isFingerTutActive?.())return false;
     buildAfterModelLoad();
     deps.preparePose?.();
+    timelineDriven=false;
     deps.pushHistory?.();
     editStart=editSignature();editing=true;
     return true;
@@ -280,7 +282,7 @@ function createGrabBoxCore(deps){
     return command(()=>{palmTwist[limb]=next;});
   }
 
-  function isPalmAligned(limb){return !!(palmAligned&&visible&&grabbed[limb]&&deps.isIKEnabled(limb));}
+  function isPalmAligned(limb){return !!(palmAligned&&visible&&grabbed[limb]&&(timelineDriven||deps.isIKEnabled(limb)));}
 
   // Apply after arm IK, and again after collision correction, so other hand
   // solvers cannot overwrite the final palm plane. Flags remain untouched.
@@ -329,6 +331,7 @@ function createGrabBoxCore(deps){
   function restoreSnapshot(state, {force=false}={}){
     if (!state || (!force && state.revision === revision)) return;
     editing=false;
+    timelineDriven=false;
     buildAfterModelLoad();
     // Disabling IK calls releaseHand; restore bindings after the rig is restored.
     deps.restoreRig?.(state.rig);
@@ -353,6 +356,34 @@ function createGrabBoxCore(deps){
     notify();
     return true;
   }
+
+  // Playback must never restore the workspace rig, push history or schedule save.
+  function applyTimelineState(state){
+    buildAfterModelLoad();
+    const previous=JSON.stringify(getState()),previousEdit=editSignature();
+    const geometryChanged=state&&(shapeType!==state.shapeType||JSON.stringify(shapeParams)!==JSON.stringify(state.shapeParams));
+    timelineDriven=true;
+    visible=!!state?.visible;
+    if(state){
+      shapeType=state.shapeType;
+      for(const type of Object.keys(shapeParams))shapeParams[type]={...state.shapeParams[type]};
+      mesh.position.fromArray(state.position);mesh.quaternion.fromArray(state.quaternion);
+    }
+    for(const limb of ['rArm','lArm']){
+      grabbed[limb]=!!(visible&&state?.grabbed[limb]);
+      grabLocal[limb]=grabbed[limb]?new THREE.Vector3().fromArray(state.grabLocal[limb]):null;
+      palmTwist[limb]=state?.palmTwist[limb]||0;
+    }
+    preset=state?.preset||null;palmAligned=!!state?.palmAligned;messageKey=null;
+    if(geometryChanged)rebuildGeometry();
+    mesh.visible=visible;
+    if(visible){if(gizmo.object!==mesh)gizmo.attach(mesh);}else gizmo.detach();
+    if(previousEdit!==editSignature())revision++;
+    updateEachFrame();
+    if(previous!==JSON.stringify(getState()))notify();
+  }
+
+  function setPlaybackActive(active){if(gizmo)gizmo.enabled=!active;}
 
   // 每幀呼叫：在 solveIKAll() 之前，把扶著箱子的手的 IK 目標位置更新好，
   // 交給既有的兩節解析解 IK 求解——完全重用原本的手臂 IK 管線。
@@ -385,7 +416,7 @@ function createGrabBoxCore(deps){
     releaseHand, beginEdit, endEdit,
     setPalmAligned, setPalmTwist, isPalmAligned, applyPalmOrientation,
     getState, onChange, applyPreset, recenter, resetRotation, resetDimensions, snapshot, restoreSnapshot,
-    buildAfterModelLoad, updateEachFrame, isDragging,
+    buildAfterModelLoad, updateEachFrame, isDragging, applyTimelineState, setPlaybackActive,
   };
 }
 

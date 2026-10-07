@@ -55,11 +55,11 @@ export function createWaveTrack(context){
     if(context.keyframes.length===1){
       const f=context.keyframes[0];context.applyBodyTransform(f.body);
       for(const k of ALL_JOINT_KEYS)if(context.bones[k]&&context.restQuat[k])context.bones[k].quaternion.copy(context.restQuat[k]).multiply(eulerToQuat(f.angles[k]||[0,0,0]));
-      context.model.updateMatrixWorld(true);return new Set();
+      context.model.updateMatrixWorld(true);return context.applyGrabTimelineFrame?.(f,f,0,0)||new Set();
     }
     const a=context.keyframes[loc.index],b=context.keyframes[loc.index+1];
     const t=Math.min(1,loc.localBeat/Math.max(.0001,a.beats||1));
-    return context.applyKeyframeFramePose(a,b,(EASINGS[a.easing]||EASINGS.linear)(t));
+    return context.applyKeyframeFramePose(a,b,(EASINGS[a.easing]||EASINGS.linear)(t),t);
   }
 
   function applyWaveTrackAtBeat(beat){
@@ -90,6 +90,7 @@ export function createWaveTrack(context){
     for(const k of keys)if(base[k])context.bones[k].quaternion.copy(base[k].slerp(context.bones[k].quaternion,weight));
     if(body){context.model.position.lerpVectors(basePos,context.model.position.clone(),weight);context.model.quaternion.copy(baseQuat.slerp(context.model.quaternion,weight));}
     context.model.updateMatrixWorld(true);
+    context.solveTimelineGrabHands?.();
   }
 
   function updateWaveTrackPlayback(now){
