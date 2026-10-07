@@ -40,6 +40,7 @@
 | 項目 | 結果 | 驗證內容 |
 | --- | --- | --- |
 | 模組測試 | 117／117 通過 | 既有 111 項，加上 5 項尺寸／幾何與 1 項選項歷史測試 |
+| 完整 GitHub Verify | 全部通過 | [程式提交 ced5011 的執行結果](https://github.com/Juynwei2019/3D-TUTTING-SIMULATOR-2077/actions/runs/37597945103)：一般、浮動、兩批扶握、尺寸、手機、FingerTut、語言回歸 |
 | 打包 | 通過 | `npm run build` |
 | 新尺寸瀏覽器測試 | 8／8 通過 | 每組驗證三種形狀、表面接觸、掌面朝向與資料流程 |
 | 既有扶握時間軸 | 4／4 通過 | 位置、接觸、朝向、身體、放手、尋位、停止、Undo／Redo、存檔與舊資料 |
@@ -81,9 +82,12 @@ npm ci
 npm test
 npm run build
 node node_modules/playwright-core/cli.js install --with-deps chromium
+npm run test:browser
 npm run test:grab-size
 npm run test:grab-timeline
 ```
+
+`test:browser` 會在快取缺少時下載官方 r160 Xbot 並驗證 SHA-256，準備 `.cache/Xbot.glb`；尺寸與扶握測試使用該快取。
 
 本機 Node 24 可用 `node --test --test-isolation=none tests/*.test.js`；已有 Chromium 時設定 `CHROMIUM_PATH`。CI 在 Node 22 執行 `npm test`。截圖輸出 `test-results/grab-size/`。
 
