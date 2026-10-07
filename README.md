@@ -4,13 +4,15 @@ Three.js 人體姿勢與編舞工具。開發版本使用原生 ES Modules，保
 
 ## 使用手冊
 
-第一次使用請從 [基礎圖文操作手冊](docs/basic-user-manual.md) 開始，內含實際介面截圖、FingerTut、手掌／手指編輯、三姿勢播放練習、備份與手機操作。
+完整文章已按主題整理，請見 [文件分類總覽](docs/README.md)。
 
-扶握箱的形狀尺寸、雙手接觸與移動／旋轉操作見 [扶握箱模式](docs/grab-box-mode.md)。
+第一次使用請從 [基礎圖文操作手冊](docs/guides/basic-user-manual.md) 開始，內含實際介面截圖、FingerTut、手掌／手指編輯、三姿勢播放練習、備份與手機操作。
+
+扶握箱的形狀尺寸、雙手接觸與移動／旋轉操作見 [扶握箱模式](docs/features/grab-box-mode.md)。
 
 ## 語言切換
 
-主面板頂部可切換繁體中文／English，偏好會自動記憶。已涵蓋分頁、共用操作、FingerTut，以及時間軸、資料庫、IK／朝向、Wave、律動、生成器、JSON、扶握、軌跡、關節總覽／限制與 Easing 圖鑑，包含工具提示與程式錯誤訊息。詳見 [語言切換與驗證](docs/language-switching.md)。
+主面板頂部可切換繁體中文／English，偏好會自動記憶。已涵蓋分頁、共用操作、FingerTut，以及時間軸、資料庫、IK／朝向、Wave、律動、生成器、JSON、扶握、軌跡、關節總覽／限制與 Easing 圖鑑，包含工具提示與程式錯誤訊息。詳見 [語言切換與驗證](docs/features/language-switching.md)。
 
 ## 開發
 
@@ -50,7 +52,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:mobile
 
 測試涵蓋模組版及單檔輸出的模型載入、分頁、手臂 IK、扶握、JSON 姿勢套用、鏡像／對稱、Tutting 預覽／提交、Wave 還原、Undo／Redo、姿勢／手勢庫儲存／套用／重載、時間軸多選貼上／Range 重複／Undo、拍點複製／刪除、播放、音訊匯入／波形解碼／試聽／暫停／移除、JSON 匯出／匯入、分割視窗與自動存檔重載。若有重構前的原版 HTML，可指定 `BASELINE_HTML`，一併比對初始姿勢、姿勢操作結果、關鍵影格與固定時間點的骨骼旋轉。
 
-模組責任與後續拆分順序見 [docs/modules.md](docs/modules.md)。
+模組責任與後續拆分順序見 [模組拆分與使用契約](docs/development/modules.md)。
 
 ## GitHub 自動驗證
 
@@ -76,6 +78,6 @@ node node_modules/playwright-core/cli.js show-trace path/to/trace.zip
 
 自動驗證不會部署或合併程式碼。若要阻止未通過檢查的 Pull Request 合併，可另設定 `main` 的分支保護，要求 **Tests, build and browser regression** 檢查通過。
 
-手機布局測試沿用桌面瀏覽器測試下載的 `.cache/Xbot.glb`，請先執行 `test:browser`。目前支援手機可收合底部／橫向側面板；已提供 POSE／GROOVE 前移／後移與拖曳編輯開關；實機音訊／效能仍待後續驗證，詳見 [手機評估](docs/mobile-readiness.md)。
+手機布局測試沿用桌面瀏覽器測試下載的 `.cache/Xbot.glb`，請先執行 `test:browser`。目前支援手機可收合底部／橫向側面板；已提供 POSE／GROOVE 前移／後移與拖曳編輯開關；實機音訊／效能仍待後續驗證，詳見 [手機評估](docs/planning/mobile-readiness.md)。
 
-FingerTut：到「手指」分頁按「開啟 FingerTut」，自動將雙手擺到胸前、掌心朝下並切換雙手特寫。支援高度／距離／間距調整、左右手朝向預設與角度微調、Undo／Redo 與還原進入前姿勢。使用方式與測試截圖見 [FingerTut 模式](docs/fingertut-mode.md)。
+FingerTut：到「手指」分頁按「開啟 FingerTut」，自動將雙手擺到胸前、掌心朝下並切換雙手特寫。支援高度／距離／間距調整、左右手朝向預設與角度微調、Undo／Redo 與還原進入前姿勢。使用方式與測試截圖見 [FingerTut 模式](docs/features/fingertut-mode.md)。
