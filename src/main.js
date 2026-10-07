@@ -3461,7 +3461,7 @@ function initUIResize(...args){
 // 沿用跟 initUIResize() 一樣的「pointerdown 記錄起點 → pointermove 即時套用 → pointerup 存檔」模式，
 // 只是從單純調高度，擴充成同時處理 x/y 位置＋寬高。
 const UI_FLOAT_MIN_WIDTH = 300;
-const UI_FLOAT_MIN_HEIGHT = 160;
+const UI_FLOAT_MIN_HEIGHT = 220; // Keep toolbar, tabs and a usable content scroller.
 const UI_FLOAT_DEFAULT_WIDTH = 440;
 const UI_FLOAT_DEFAULT_LEFT = 24;
 const UI_FLOAT_DEFAULT_TOP = 64;

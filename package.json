@@ -10,7 +10,8 @@
     "test:browser": "node scripts/smoke.mjs",
     "test:mobile": "node scripts/mobile-smoke.mjs",
     "test:fingertut": "node scripts/fingertut-smoke.mjs",
-    "test:language": "node scripts/language-smoke.mjs"
+    "test:language": "node scripts/language-smoke.mjs",
+    "test:floating": "node scripts/floating-smoke.mjs"
   },
   "devDependencies": {
     "three": "0.160.0",

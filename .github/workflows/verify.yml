@@ -16,7 +16,7 @@ jobs:
   verify:
     name: Tests, build and browser regression
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -41,6 +41,9 @@ jobs:
 
       - name: Run browser regression
         run: npm run test:browser
+
+      - name: Run floating panel regression
+        run: npm run test:floating
 
       - name: Run mobile layout regression
         run: npm run test:mobile

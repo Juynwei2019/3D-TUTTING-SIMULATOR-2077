@@ -96,9 +96,13 @@
   #uiFloatResizeHandle::before { content:""; position:absolute; right:4px; bottom:4px; width:9px; height:9px;
     border-right:2px solid #3a3a66; border-bottom:2px solid #3a3a66; border-radius:0 0 2px 0; }
   #uiFloatResizeHandle:hover::before { border-color:#7fe0ff; }
-  #ui.uiFloating { right:auto; bottom:auto; border:1px solid #3a3a66; border-radius:9px;
+  #ui.uiFloating { z-index:10; right:auto; bottom:auto; border:1px solid #3a3a66; border-radius:9px;
     box-shadow:0 10px 34px rgba(0,0,0,.55);
     background:linear-gradient(to top, rgba(10,10,18,.98), rgba(10,10,18,.94)); }
+  /* A narrow desktop float needs the same horizontal controls as a drawer. */
+  #ui.uiFloating #selectedBar { flex-wrap:nowrap; overflow-x:auto; min-width:0; scrollbar-width:thin; }
+  #ui.uiFloating #selectedBar > * { flex-shrink:0; white-space:nowrap; }
+  #ui.uiFloating #uiDragHandle { flex-shrink:0; }
   #ui.uiFloating #uiResizeHandle { display:none; }
   #ui.uiFloating #uiDragHandle { display:flex; }
   #ui.uiFloating #uiFloatResizeHandle { display:block; }
@@ -133,8 +137,8 @@
   #uiCommon { flex:0 0 auto; }
 
   /* ---- 分頁 ---- */
-  #uiTabBar { display:flex; gap:4px; flex:0 0 auto; border-bottom:1px solid #26264a; margin-bottom:8px; }
-  .tabBtn { background:none; border:none; border-bottom:2px solid transparent; color:#7a7aa8;
+  #uiTabBar { display:flex; gap:4px; flex:0 0 auto; min-width:0; overflow-x:auto; scrollbar-width:thin; border-bottom:1px solid #26264a; margin-bottom:8px; }
+  .tabBtn { flex:0 0 auto; white-space:nowrap; background:none; border:none; border-bottom:2px solid transparent; color:#7a7aa8;
     font-size:12px; padding:6px 10px 8px; border-radius:0; cursor:pointer; letter-spacing:.5px; }
   .tabBtn:hover { color:#cfd6ff; background:none; border-color:#3a3a66; }
   .tabBtn.active { color:#7fe0ff; border-bottom-color:#7fe0ff; }

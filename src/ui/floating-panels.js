@@ -80,7 +80,7 @@ export function createFloatingPanels(context){
 
     function clampRect(left, top, width, height){
       const maxW = window.innerWidth - 8;
-      const maxH = window.innerHeight - 8;
+      const maxH = Math.max(1, window.innerHeight - UI_FLOAT_TOP_MIN - 4);
       width = Math.min(Math.max(width, context.UI_FLOAT_MIN_WIDTH), maxW);
       height = Math.min(Math.max(height, context.UI_FLOAT_MIN_HEIGHT), maxH);
       left = Math.min(Math.max(left, 4), window.innerWidth - width - 4);
@@ -109,12 +109,15 @@ export function createFloatingPanels(context){
       return clampRect(rect.left, rect.top, rect.width, rect.height);
     }
 
+    function revealActiveTab(){
+      requestAnimationFrame(()=>document.querySelector('#uiTabBar .tabBtn.active')?.scrollIntoView({block:'nearest',inline:'nearest'}));
+    }
     function syncFloatLanguage(){
       const floating=ui.classList.contains('uiFloating');
       floatBtn.textContent=t(floating?'📌 貼底面板':'🗗 浮動面板');
       liveAttribute(floatBtn,'title',()=>t(floating?'切換回貼底整版寬的面板':'切換成可拖曳移動、可縮放大小的浮動面板'));
     }
-    onLanguageChange(syncFloatLanguage);
+    onLanguageChange(()=>{syncFloatLanguage();revealActiveTab();});
     function setFloating(floating, save){
       ui.classList.toggle("uiFloating", floating);
       syncFloatLanguage();
@@ -129,6 +132,7 @@ export function createFloatingPanels(context){
         try { ratio = parseFloat(context.preferences.getItem("tuttingUIHeightRatio")) || context.UI_HEIGHT_DEFAULT_RATIO; } catch (e) {}
         ui.style.height = (window.innerHeight * ratio) + "px";
       }
+      revealActiveTab();
       if (save){
         try { context.preferences.setItem("tuttingUIFloating", floating ? "1" : "0"); } catch (e) {}
       }
@@ -182,6 +186,7 @@ export function createFloatingPanels(context){
       document.body.classList.remove("uiFloatResizing");
       const r = ui.getBoundingClientRect();
       applyRect(clampRect(r.left, r.top, r.width, r.height), true);
+      revealActiveTab();
       window.removeEventListener("pointermove", onResizeMove);
       window.removeEventListener("pointerup", onResizeUp);
     }
@@ -203,6 +208,7 @@ export function createFloatingPanels(context){
       if (!ui.classList.contains("uiFloating")) return;
       const r = ui.getBoundingClientRect();
       applyRect(clampRect(r.left, r.top, r.width, r.height), true);
+      revealActiveTab();
     });
 
     let floating = false;
