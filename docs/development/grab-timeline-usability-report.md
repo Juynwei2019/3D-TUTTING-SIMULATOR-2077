@@ -88,6 +88,8 @@ npm run test:grab-usability
 
 本機 Node 24 若受工作區隔離限制，可用 `node --test --test-isolation=none tests/*.test.js`；CI 在 Node 22 使用 `npm test`。已有 Chromium 時可設定 `CHROMIUM_PATH`。新測試截圖輸出 `test-results/grab-usability/`，選用代表圖片保存於本文件。
 
+既有語言測試原本以 `.grabCard` 計數兩張形狀／手部設定卡；本批新增第三張快捷卡後，調整選擇器為 `#grabSettings .grabCard`，保留兩張設定卡的數量與排列斷言，另外驗證快捷卡仍有一張。這項修正不更改產品布局，也不移除語言或排列驗證。
+
 GitHub [Verify](https://github.com/Juynwei2019/3D-TUTTING-SIMULATOR-2077/actions/workflows/verify.yml) 已加入第二批測試，保留一般、浮動面板、第一批扶握、手機、FingerTut 與語言回歸；失敗時上傳 `test-results/` 診斷。CI 的實際執行狀態請查看對應提交的 workflow。
 
 ## 實測圖片

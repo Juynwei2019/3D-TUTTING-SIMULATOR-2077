@@ -153,7 +153,8 @@ try{for(const entry of entries)for(const viewport of viewports){
    assert.equal(await page.locator('#grabVisibleBtn').textContent(),'Hide grab box');
    await press('#grabModeBtn');assert.equal(await page.locator('#grabModeBtn').textContent(),'Mode: Rotate');
    assert.equal(await page.evaluate(()=>window.__languageTest.grabBoxCore.getState().mode),'rotate');
-   const grabCards=await page.locator('.grabCard').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y};}));
+   assert.equal(await page.locator('.grabTimelineCard').count(),1,'timeline shortcut card remains mounted');
+   const grabCards=await page.locator('#grabSettings .grabCard').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y};}));
    assert.equal(grabCards.length,2);
    assert.ok(mobile?grabCards[1].y>grabCards[0].y:grabCards[1].x>grabCards[0].x,'responsive grab settings cards');
    assert.equal(await page.locator('.grabHelp').getAttribute('open'),null);
