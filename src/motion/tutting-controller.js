@@ -3,9 +3,18 @@ import { jointLabel } from "../i18n/joint-labels.js";
 import { ALL_JOINT_KEYS, LABEL_LOOKUP } from "../rig/definitions.js";
 import { eulerToQuat } from "../math/quaternions.js";
 import { TG_KEYS, tgCopy, cleanTGConfig, tgGenerateCandidates } from "../motion/tutting-generator.js";
+import { createTuttingGeometryEvaluator } from "./tutting-geometry.js";
+import { TG_SEGMENTS, TG_CALIBRATION_VERSION } from './tutting-geometry.js';
+import { cleanGeometryRules, hasGeometryRules, evaluateGeometryRules, TG_RULE_VERSION } from './tutting-rules.js';
 
 // Live host getters preserve shared rig and playback coordination.
 export function createTuttingController(context){
+  let geometryFailure=null;
+  const segmentLabel=id=>tr({lUpperArm:'左上臂',lForeArm:'左前臂',rUpperArm:'右上臂',rForeArm:'右前臂'}[id]||id);
+  function geometryText(rules){return rules.checks?.map(c=>tr('{p0}：{p1}，誤差 {p2}{p3}／容許 {p4}{p3} · {p5}',{
+    p0:tr({'plane-direction':'平面方向','plane-position':'平面位置',parallel:'平行',perpendicular:'垂直'}[c.type]),
+    p1:c.segments.map(segmentLabel).join(' / '),p2:c.error.toFixed(2),p3:c.unit,p4:c.tolerance,p5:tr(c.pass?'通過':'未通過')
+  })).join('\n')||tr('幾何資料無法判定');}
   function tgConflict(){
     if(!context.model)return '請等待角色載入';
     if(context.kfPlaying||context.waveRun||context.laPathRun||context.groovePreviewEnabled||context.waveTrackActive)return '請先停止時間軸、Waving、律動及軌跡預覽；若剛拖曳 WAVING 游標，請先選取一個 POSE。';
@@ -20,9 +29,10 @@ export function createTuttingController(context){
 
   function tgCancelPreview(){if(!context.tgPreview)return;const old=context.tgPreview;context.tgPreview=null;tgDrawPose(context.poseController.snapshotTarget(),old.body);tgUI();}
 
-  function tgClear(){tgCancelPreview();context.tgCandidates=[];context.tgIndex=-1;context.tgSignature='';tgUI();}
+  function tgClear(){tgCancelPreview();geometryFailure=null;context.tgCandidates=[];context.tgIndex=-1;context.tgSignature='';tgUI();}
 
-  function tgRuleSignature(){return JSON.stringify({config:context.tgConfig,limits:context.JOINT_LIMITS,base:context.tgBase});}
+  function tgRuleSignature(){return JSON.stringify({config:context.tgConfig,limits:context.JOINT_LIMITS,base:context.tgBase,version:TG_RULE_VERSION,calibration:TG_CALIBRATION_VERSION,
+    rig:Object.keys(context.bones).map(k=>[k,context.bones[k]?.position.toArray(),context.restQuat[k]?.toArray()])});}
 
   function tgCapture(){
     const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
@@ -33,10 +43,20 @@ export function createTuttingController(context){
     const conflict=tgConflict();if(conflict){tgSay(conflict);return;}
     if(!tgReadSettings())return;
     if(!context.tgBase)tgCapture();if(!context.tgBase)return;
-    tgCancelPreview();const result=tgGenerateCandidates(context.tgBase.angles,context.tgConfig,TG_KEYS.filter(k=>context.bones[k]),context.clampJointAngles);
+    tgCancelPreview();
+    let geometry,calibrationFailure;
+    try{geometry=createTuttingGeometryEvaluator({model:context.model,bones:context.bones,restQuat:context.restQuat});}
+    catch(error){calibrationFailure={ok:false,reason:'invalid-calibration',detail:error.message};}
+    const rules=context.tgConfig.geometry,active=hasGeometryRules(rules),base=geometry?.evaluate(context.tgBase.angles);
+    if(active&&(!geometry||!base?.ok)){tgClear();tgSay(()=>tr('幾何資料無法判定'));return;}
+    const assess=active?angles=>{const measured=geometry.evaluate(angles);return {geometry:measured,rules:evaluateGeometryRules(measured,base,rules)};}:undefined;
+    const result=tgGenerateCandidates(context.tgBase.angles,context.tgConfig,TG_KEYS.filter(k=>context.bones[k]),context.clampJointAngles,assess);
+    for(const candidate of result.results)if(!candidate.geometry)candidate.geometry=geometry?geometry.evaluate(candidate.angles):{...calibrationFailure};
+    geometryFailure=result.bestFailure;
     context.tgCandidates=result.results;context.tgIndex=context.tgCandidates.length?0:-1;context.tgSignature=tgRuleSignature();tgUI();
     tgSay(()=>context.tgCandidates.length?tr("產生 {p0}／6 個不重複候選；依總角度變化由小到大排列。{p1}", {p0:context.tgCandidates.length, p1:context.tgCandidates.length<6?tr("在本次搜尋上限內未找到更多結果，可換種子或放寬條件。"):''}):tr("本次搜尋未找到符合條件的變化。請檢查活動軸、角度集合、變化上限與關節限制；不會自動放寬規則。"));
     if(context.tgIndex>=0)tgShow(0);
+    if(active)tgSay(()=>tr('搜尋 {p0} 次，找到 {p1}／6 個候選；幾何淘汰 {p2} 個。不會自動放寬規則；有限搜尋失敗不代表無解。',{p0:result.attempts,p1:result.results.length,p2:result.rejectedGeometry||0}));
   }
 
   function tgValidCandidate(){
@@ -54,7 +74,14 @@ export function createTuttingController(context){
 
   function tgCommit(toTimeline=false){
     const conflict=tgConflict();if(conflict){tgSay(conflict);return false;}if(!tgValidCandidate())return false;
-    const p=context.tgCandidates[context.tgIndex];tgCancelPreview();context.pushHistory();
+    if(!tgReadSettings()||!tgValidCandidate())return false;
+    const p=context.tgCandidates[context.tgIndex];
+    if(hasGeometryRules(context.tgConfig.geometry)){
+      let checked;
+      try{const g=createTuttingGeometryEvaluator({model:context.model,bones:context.bones,restQuat:context.restQuat});checked=evaluateGeometryRules(g.evaluate(p.angles),g.evaluate(context.tgBase.angles),context.tgConfig.geometry);}catch{}
+      if(!checked?.ok){tgClear();tgSay(()=>tr('候選已失效，請重新生成。'));return false;}
+    }
+    tgCancelPreview();context.pushHistory();
     context.poseController.restoreTarget(p.angles, { clamp: false });
     tgDrawPose(p.angles,context.tgBase.body);context.setActiveBtn(-1);context.updateSelectedBar();
     if(toTimeline)context.addKeyframe();context.pushHistory();context.scheduleAutoSave();tgUI();tgSay(()=>toTimeline?tr("已加入一個 POSE 拍點，可用 Undo 復原。"):tr("已套用候選姿勢，可用 Undo 復原。"));return true;
@@ -66,7 +93,15 @@ export function createTuttingController(context){
     const axes={};for(const k of TG_KEYS)axes[k]=['x','y','z'].filter(a=>document.getElementById('tg_'+k+'_'+a).checked);
     const maxDelta=Number(document.getElementById('tgMaxDelta').value),maxJoints=Number(document.getElementById('tgMaxJoints').value),seed=Number(document.getElementById('tgSeed').value);
     if(!Number.isFinite(maxDelta)||maxDelta<1||maxDelta>180||!Number.isInteger(maxJoints)||maxJoints<1||maxJoints>8||!Number.isInteger(seed)||seed<0||seed>4294967295){tgSay(()=>tr("每軸上限需為 1～180°、最多關節數為 1～8，種子為 0～4294967295 的整數。"));return false;}
-    const next=cleanTGConfig({mode:document.getElementById('tgMode').value,values,maxDelta,maxJoints,seed,axes});
+    const field=id=>document.getElementById(id),number=id=>Number(field(id).value);
+    const geometry=cleanGeometryRules({plane:{enabled:field('tgPlaneEnabled').checked,segments:Object.keys(TG_SEGMENTS).filter(id=>field('tgPlane_'+id).checked),mode:field('tgPlaneMode').value,angleTolerance:number('tgPlaneAngle'),positionTolerance:number('tgPlanePosition')},
+      parallel:{enabled:field('tgParallelEnabled').checked,a:field('tgParallelA').value,b:field('tgParallelB').value,tolerance:number('tgParallelTolerance'),allowOpposite:field('tgAllowOpposite').checked},
+      perpendicular:{enabled:field('tgPerpendicularEnabled').checked,a:field('tgPerpendicularA').value,b:field('tgPerpendicularB').value,tolerance:number('tgPerpendicularTolerance')}});
+    const numeric=[['tgPlaneAngle',90],['tgPlanePosition',100],['tgParallelTolerance',90],['tgPerpendicularTolerance',90]];
+    if(numeric.some(([id,max])=>!Number.isFinite(number(id))||number(id)<=0||number(id)>max)||geometry.plane.enabled&&!geometry.plane.segments.length||['parallel','perpendicular'].some(k=>geometry[k].enabled&&geometry[k].a===geometry[k].b)){
+      tgSay(()=>tr('請選擇有效肢段；配對需不同肢段，容許誤差必須大於 0 且不超過欄位上限。'));return false;
+    }
+    const next=cleanTGConfig({mode:document.getElementById('tgMode').value,values,maxDelta,maxJoints,seed,axes,geometry});
     if(JSON.stringify(next)!==JSON.stringify(context.tgConfig)){tgClear();context.pushHistory();context.tgConfig=next;context.pushHistory();context.scheduleAutoSave();}
     return true;
   }
@@ -74,6 +109,7 @@ export function createTuttingController(context){
   function tgUI(){
     const el=document.getElementById('tgCandidateInfo');if(!el)return;
     const candidate=context.tgCandidates[context.tgIndex];liveText(el, ()=>candidate?tr("候選 {p0}／{p1} · 改動：{p2} · 最大每軸變化 {p3}° · TG-1 角度／部位規則符合{p4}", {p0:context.tgIndex+1, p1:context.tgCandidates.length, p2:candidate.changed.map(k=>jointLabel(k)).join('、'), p3:candidate.maxDelta.toFixed(1), p4:context.tgPreview?tr(" · 預覽中（尚未套用）"):''}):tr("尚未產生候選"));
+    const info=document.getElementById('tgGeometryInfo');if(info)liveText(info,()=>candidate?.rules?geometryText(candidate.rules):geometryFailure?tr('最佳嘗試未通過（不可套用）')+'\n'+geometryText(geometryFailure):hasGeometryRules(cleanGeometryRules(context.tgConfig.geometry))?tr('尚未產生幾何候選。'):tr('幾何規則未啟用，沿用角度搜尋。'));
     for(const id of ['tgApply','tgAddPose','tgSavePose','tgPrev','tgNext','tgPreviewBtn'])document.getElementById(id).disabled=!candidate;
     document.getElementById('tgPrev').disabled=!candidate||context.tgIndex<=0;document.getElementById('tgNext').disabled=!candidate||context.tgIndex>=context.tgCandidates.length-1;
     document.getElementById('tgCancel').disabled=!context.tgPreview;
@@ -84,6 +120,12 @@ export function createTuttingController(context){
     if(!document.getElementById('tgMode'))return;
     for(const [id,v]of Object.entries({tgMode:context.tgConfig.mode,tgValues:context.tgConfig.values.join(', '),tgMaxDelta:context.tgConfig.maxDelta,tgMaxJoints:context.tgConfig.maxJoints,tgSeed:context.tgConfig.seed}))document.getElementById(id).value=v;
     for(const k of TG_KEYS)for(const a of ['x','y','z']){const el=document.getElementById('tg_'+k+'_'+a);if(el)el.checked=context.tgConfig.axes[k].includes(a);}tgUI();
+    const g=cleanGeometryRules(context.tgConfig.geometry);
+    const set=(id,v)=>{const el=document.getElementById(id);if(el){if(el.type==='checkbox')el.checked=v;else el.value=v;}};
+    set('tgPlaneEnabled',g.plane.enabled);set('tgPlaneMode',g.plane.mode);set('tgPlaneAngle',g.plane.angleTolerance);set('tgPlanePosition',g.plane.positionTolerance);
+    for(const id of Object.keys(TG_SEGMENTS))set('tgPlane_'+id,g.plane.segments.includes(id));
+    for(const [key,prefix]of [['parallel','tgParallel'],['perpendicular','tgPerpendicular']]){set(prefix+'Enabled',g[key].enabled);set(prefix+'A',g[key].a);set(prefix+'B',g[key].b);set(prefix+'Tolerance',g[key].tolerance);}
+    set('tgAllowOpposite',g.parallel.allowOpposite);
   }
 
   function snapshotTG(){return {config:tgCopy(context.tgConfig),base:tgCopy(context.tgBase)};}
@@ -117,6 +159,7 @@ export function createTuttingController(context){
     document.getElementById('tgSavePose').onclick=()=>{if(tgCommit()){context.poseLibCtrl.saveCurrent(document.getElementById('tgPoseName').value.trim()||'Tutting 候選');tgSay(()=>tr("已套用並存入姿勢庫；姿勢庫項目沿用既有獨立保存方式。"));}};
     document.getElementById('tgNewSeed').onclick=()=>{document.getElementById('tgSeed').value=(context.tgConfig.seed+1)>>>0;if(tgReadSettings())tgGenerate();};
     for(const id of ['tgMode','tgValues','tgMaxDelta','tgMaxJoints','tgSeed'])document.getElementById(id).onchange=()=>tgReadSettings();
+    for(const el of document.querySelectorAll('#tabTuttingGen input, #tabTuttingGen select'))if(el.id!=='tgPoseName')el.onchange=()=>{tgClear();tgReadSettings();};
     // Cancel transient preview before external UI mutations; camera orbit remains available.
     document.addEventListener('pointerdown',e=>{if(context.tgPreview&&e.target.closest?.('#uiCommon, .floatablePanel'))tgCancelPreview();},true);
     for(const id of ['jlGridStepInput','jlEdgeProbInput']){const el=document.getElementById(id);el.addEventListener('focus',()=>context.pushHistory());el.addEventListener('change',()=>{context.pushHistory();context.scheduleAutoSave();});}

@@ -22,6 +22,8 @@
 
 | 文章 | 內容 |
 | --- | --- |
+| [TG-2.0 骨架座標與肢段評估](development/tutting-geometry-report.md) | 角色座標、獨立 FK 評估器、候選量測與驗測範圍 |
+| [TG-2.1 幾何規則實作與驗測報告](development/tutting-rules-report.md) | 平面、平行／垂直、候選篩選、歷史／保存與瀏覽器驗收 |
 | [尺寸動畫實作與驗測報告](development/grab-size-animation-report.md) | 第三批 3A 成果、117 項模組、八組尺寸矩陣與截圖 |
 | [模組拆分與使用契約](development/modules.md) | 模組責任、共享狀態、控制器及各領域的使用契約 |
 | [扶握箱時間軸第二批實作與驗測報告](development/grab-timeline-usability-report.md) | 完整成果、模組分工、測試矩陣、實測圖片及限制 |

@@ -25,6 +25,8 @@
 | `src/motion/trajectory.js` | 開放／封閉折線與 Catmull-Rom 路徑取樣 |
 | `src/motion/groove-wave.js` | 律動波形計算、合法波形檢查與標籤 |
 | `src/motion/tutting-generator.js` | 固定種子的姿勢候選生成、設定清理與去重；不修改應用姿勢 |
+| `src/motion/tutting-geometry.js` | TG-2.0 模型根節點座標的獨立 FK 評估；四個上臂／前臂肢段端點、長度與方向，不修改正式骨架 |
+| `src/motion/tutting-rules.js` | TG-2.1 平面、平行／垂直規則與逐條誤差；所有啟用規則必須共同通過 |
 | `src/interaction/grab-shapes.js` | 扶握形狀、幾何建構與表面投影 |
 | `src/interaction/grab-core.js` | 扶握狀態與控制環；以 `deps` 注入模型、手部骨骼和 IK 操作 |
 | `src/storage/preferences.js`、`rig-preferences.js` | 共用偏好 storage 存取與關節限制／Isolation／碰撞半徑讀寫；保留原鍵名與合併規則 |

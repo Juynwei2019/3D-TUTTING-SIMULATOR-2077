@@ -1,0 +1,95 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { chromium } from 'playwright-core';
+import { createServer } from 'node:http';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { resolve, extname } from 'node:path';
+const root=resolve('.'),out=resolve('test-results/tutting');await mkdir(out,{recursive:true});
+const model=await readFile('.cache/Xbot.glb');
+assert.equal(createHash('sha256').update(model).digest('hex'),'002f8d269de68e5dce3d25195caf390d1aa359bbfaae3fcf4c8dc78ec36c3ba5');
+const probe=`window.__tg={poseController,snapshotTimelineData,restoreTimelineData,undo,redo,get candidates(){return tgCandidates},get config(){return tgConfig},get bones(){return bones},get preview(){return tgPreview}};`;
+const server=createServer(async(req,res)=>{try{
+ const path=new URL(req.url,'http://localhost').pathname,p=resolve(root,'.'+path);if(!p.startsWith(root+'/'))throw Error('path');
+ let b=await readFile(p);
+ if(path==='/src/main.js')b=Buffer.from(b.toString()+probe);
+ if(path==='/dist/index.html'){const s=b.toString(),at=s.lastIndexOf('</script>');b=Buffer.from(s.slice(0,at)+probe+s.slice(at));}
+ res.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css'}[extname(p)]||'application/octet-stream'}).end(b);
+}catch(e){res.writeHead(404).end(String(e));}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
+const results=[];
+try{
+ browser=await chromium.launch({...process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{},args:['--no-sandbox','--enable-unsafe-swiftshader']});
+ for(const entry of ['/index.html','/dist/index.html']){
+  const page=await browser.newPage({viewport:{width:1280,height:960}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  page.on('dialog',d=>d.accept());
+  await page.route('https://unpkg.com/three@0.160.0/**',async r=>r.fulfill({body:await readFile(resolve(root,'node_modules/three',new URL(r.request().url()).pathname.slice('/three@0.160.0/'.length))),contentType:'text/javascript'}));
+  await page.route('https://threejs.org/examples/models/gltf/Xbot.glb',r=>r.fulfill({body:model,contentType:'model/gltf-binary'}));
+  await page.goto(`http://127.0.0.1:${server.address().port}${entry}`);
+  await page.waitForFunction(()=>document.getElementById('loading').style.display==='none');
+  await page.locator('.tabBtn[data-tab="tuttingGen"]').evaluate(el=>el.click());
+  await page.evaluate(()=>{const a=window.__tg;for(const [k,v]of Object.entries({lArm:0,rArm:0,lForeArm:90,rForeArm:-90,lHand:0,rHand:0}))a.poseController.setJointState(k,[0,0,v]);a.poseController.applyTargetsToBones();});
+  await page.locator('#tgCapture').evaluate(el=>el.click());
+  const change=async(id,value)=>page.locator('#'+id).evaluate((el,v)=>{if(el.type==='checkbox')el.checked=v;else el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));},value);
+  for(const side of ['l','r'])await change('tg_'+side+'ForeArm_z',false);
+  await change('tgPlaneEnabled',true);await change('tgParallelEnabled',true);await change('tgAllowOpposite',false);
+  await change('tgPerpendicularA','lUpperArm');await change('tgPerpendicularB','lForeArm');await change('tgPerpendicularEnabled',true);
+  const generate=()=>page.locator('#tgGenerate').evaluate(el=>el.click());
+  const start=Date.now();await generate();const elapsedMs=Date.now()-start;
+  const candidates=await page.evaluate(()=>structuredClone(window.__tg.candidates));
+  assert.equal(candidates.length,6);assert.ok(candidates.every(c=>c.rules.ok&&c.rules.checks.length===4&&c.rules.checks.every(r=>r.pass)));
+  await generate();assert.deepEqual(await page.evaluate(()=>window.__tg.candidates),candidates);
+  await page.locator('#tgCancel').evaluate(el=>el.click());assert.equal(await page.evaluate(()=>window.__tg.preview),null);
+  const baseTarget=await page.evaluate(()=>window.__tg.poseController.snapshotTarget());
+  await generate();await page.locator('#tgApply').evaluate(el=>el.click());
+  const applied=await page.evaluate(()=>window.__tg.poseController.snapshotTarget());assert.notDeepEqual(applied,baseTarget);
+  await page.evaluate(()=>window.__tg.undo());assert.deepEqual(await page.evaluate(()=>window.__tg.poseController.snapshotTarget()),baseTarget);
+  await page.evaluate(()=>window.__tg.redo());assert.deepEqual(await page.evaluate(()=>window.__tg.poseController.snapshotTarget()),applied);
+  await generate();await page.locator('#tgAddPose').evaluate(el=>el.click());
+  const saved=await page.evaluate(()=>window.__tg.snapshotTimelineData());
+  await change('tgPlaneMode','position');assert.equal(await page.evaluate(()=>window.__tg.candidates.length),0);
+  await page.evaluate(()=>window.__tg.undo());assert.equal(await page.evaluate(()=>window.__tg.config.geometry.plane.mode),'direction');
+  await page.evaluate(()=>window.__tg.redo());assert.equal(await page.evaluate(()=>window.__tg.config.geometry.plane.mode),'position');
+  await generate();assert.ok(await page.evaluate(()=>window.__tg.candidates.length>0&&window.__tg.candidates.every(c=>c.rules.ok)));
+  await page.locator('#kfImportFile').setInputFiles({name:'tg2-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});
+  await page.waitForFunction(()=>window.__tg.config.geometry.plane.mode==='direction');
+  assert.deepEqual(await page.evaluate(()=>window.__tg.config.geometry),saved.tuttingGenerator.config.geometry);
+  await generate();
+  await page.locator('#tabTuttingGen details').evaluateAll(ds=>ds.forEach((d,i)=>{d.open=i===3;}));
+  const handle=await page.locator('#uiResizeHandle').boundingBox();
+  await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+handle.width/2,150,{steps:4});await page.mouse.up();
+  await page.locator('#tgPlaneEnabled').scrollIntoViewIfNeeded();
+  await page.screenshot({path:resolve(out,entry.includes('dist')?'rules-standalone.png':'rules.png')});
+  await page.locator('#languageSelect').selectOption('en');assert.match(await page.locator('#tgGeometryInfo').innerText(),/Parallel/);
+  await page.locator('#languageSelect').selectOption('zh-Hant');
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#tgParallelEnabled').scrollIntoViewIfNeeded();
+  await page.screenshot({path:resolve(out,entry.includes('dist')?'mobile-standalone.png':'mobile.png')});
+  await change('tgPerpendicularA','lForeArm');await change('tgPerpendicularB','rForeArm');
+  const failureStart=Date.now();await generate();const failureElapsedMs=Date.now()-failureStart;
+  assert.equal(await page.evaluate(()=>window.__tg.candidates.length),0);
+  assert.equal(await page.locator('#tgApply').isDisabled(),true);
+  assert.match(await page.locator('#tgGeometryInfo').innerText(),/不可套用/);
+  await page.locator('#tgGeometryInfo').scrollIntoViewIfNeeded();
+  await page.screenshot({path:resolve(out,entry.includes('dist')?'failure-standalone.png':'failure.png')});
+  await change('tgParallelA','rForeArm'); // identical endpoints are invalid
+  await generate();assert.match(await page.locator('#tgStatus').innerText(),/配對需不同/);
+  await page.evaluate(data=>window.__tg.restoreTimelineData(data),saved);
+  for(const side of ['l','r']){await change('tg_'+side+'Hand_z',false);await change('tg_'+side+'Arm_z',true);}
+  await generate();
+  const armCandidates=await page.evaluate(()=>window.__tg.candidates);
+  assert.equal(armCandidates.length,2);assert.ok(armCandidates.every(c=>c.rules.ok&&c.changed.length===2&&c.changed.includes('lArm')&&c.changed.includes('rArm')));
+  await page.locator('#tgAddPose').evaluate(el=>el.click());
+  if(entry==='/index.html')await writeFile(resolve(out,'example.timeline.json'),JSON.stringify(await page.evaluate(()=>window.__tg.snapshotTimelineData()),null,2));
+  for(const side of ['l','r'])await change('tg_'+side+'Arm_z',false);
+  await generate();assert.equal(await page.evaluate(()=>window.__tg.candidates.length),0);
+  assert.match(await page.locator('#tgGeometryInfo').innerText(),/尚未產生幾何候選/);
+  await page.evaluate(data=>{delete data.tuttingGenerator.config.geometry;window.__tg.restoreTimelineData(data);},saved);
+  assert.equal(await page.evaluate(()=>window.__tg.config.geometry.parallel.enabled),false);
+  assert.deepEqual(errors,[]);
+  results.push({entry,elapsedMs,failureElapsedMs,candidateCount:candidates.length,armCandidateCount:armCandidates.length,checks:candidates[0].rules.checks,errors});
+  await page.close();console.log('PASS TG-2.1 '+entry);
+ }
+ assert.deepEqual(results[0].checks,results[1].checks);
+ await writeFile(resolve(out,'report.json'),JSON.stringify(results,null,2));
+}finally{await browser?.close();server.close();}

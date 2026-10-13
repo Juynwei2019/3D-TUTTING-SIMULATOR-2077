@@ -1,0 +1,106 @@
+[
+  {
+    "entry": "/index.html",
+    "elapsedMs": 15,
+    "failureElapsedMs": 1004,
+    "candidateCount": 6,
+    "armCandidateCount": 2,
+    "checks": [
+      {
+        "type": "plane-direction",
+        "segments": [
+          "lForeArm"
+        ],
+        "error": 0.00008206490697916733,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "plane-direction",
+        "segments": [
+          "rForeArm"
+        ],
+        "error": 0.00012160591264923293,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "parallel",
+        "segments": [
+          "lForeArm",
+          "rForeArm"
+        ],
+        "error": 0.00004859014769508764,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "perpendicular",
+        "segments": [
+          "lUpperArm",
+          "lForeArm"
+        ],
+        "error": 0.0001570840015858721,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      }
+    ],
+    "errors": []
+  },
+  {
+    "entry": "/dist/index.html",
+    "elapsedMs": 739,
+    "failureElapsedMs": 471,
+    "candidateCount": 6,
+    "armCandidateCount": 2,
+    "checks": [
+      {
+        "type": "plane-direction",
+        "segments": [
+          "lForeArm"
+        ],
+        "error": 0.00008206490697916733,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "plane-direction",
+        "segments": [
+          "rForeArm"
+        ],
+        "error": 0.00012160591264923293,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "parallel",
+        "segments": [
+          "lForeArm",
+          "rForeArm"
+        ],
+        "error": 0.00004859014769508764,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      },
+      {
+        "type": "perpendicular",
+        "segments": [
+          "lUpperArm",
+          "lForeArm"
+        ],
+        "error": 0.0001570840015858721,
+        "tolerance": 5,
+        "unit": "°",
+        "pass": true
+      }
+    ],
+    "errors": []
+  }
+]

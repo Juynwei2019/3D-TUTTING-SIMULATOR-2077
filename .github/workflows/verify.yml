@@ -42,6 +42,9 @@ jobs:
       - name: Run browser regression
         run: npm run test:browser
 
+      - name: Run Tutting geometry regression
+        run: npm run test:tutting
+
       - name: Run floating panel regression
         run: npm run test:floating
 

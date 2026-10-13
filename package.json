@@ -14,7 +14,8 @@
     "test:floating": "node scripts/floating-smoke.mjs",
     "test:grab-timeline": "node scripts/grab-timeline-smoke.mjs",
     "test:grab-size": "node scripts/grab-size-smoke.mjs",
-    "test:grab-usability": "node scripts/grab-usability-smoke.mjs"
+    "test:grab-usability": "node scripts/grab-usability-smoke.mjs",
+    "test:tutting": "node scripts/tutting-smoke.mjs"
   },
   "devDependencies": {
     "three": "0.160.0",

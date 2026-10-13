@@ -1,0 +1,2481 @@
+{
+  "schemaVersion": 1,
+  "tuttingGenerator": {
+    "config": {
+      "mode": "delta",
+      "values": [
+        -45,
+        45
+      ],
+      "maxDelta": 45,
+      "maxJoints": 2,
+      "seed": 2026,
+      "axes": {
+        "lShoulder": [],
+        "lArm": [
+          "z"
+        ],
+        "lForeArm": [],
+        "lHand": [],
+        "rShoulder": [],
+        "rArm": [
+          "z"
+        ],
+        "rForeArm": [],
+        "rHand": []
+      },
+      "geometry": {
+        "version": 1,
+        "plane": {
+          "enabled": true,
+          "segments": [
+            "lForeArm",
+            "rForeArm"
+          ],
+          "mode": "direction",
+          "angleTolerance": 5,
+          "positionTolerance": 3
+        },
+        "parallel": {
+          "enabled": true,
+          "a": "lForeArm",
+          "b": "rForeArm",
+          "tolerance": 5,
+          "allowOpposite": false
+        },
+        "perpendicular": {
+          "enabled": true,
+          "a": "lUpperArm",
+          "b": "lForeArm",
+          "tolerance": 5
+        }
+      }
+    },
+    "base": {
+      "angles": {
+        "hips": [
+          0,
+          0,
+          0
+        ],
+        "spine": [
+          0,
+          0,
+          0
+        ],
+        "spine1": [
+          0,
+          0,
+          0
+        ],
+        "spine2": [
+          0,
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          0,
+          0
+        ],
+        "head": [
+          0,
+          0,
+          0
+        ],
+        "rShoulder": [
+          0,
+          0,
+          0
+        ],
+        "rArm": [
+          0,
+          0,
+          0
+        ],
+        "rForeArm": [
+          0,
+          0,
+          -90
+        ],
+        "rHand": [
+          0,
+          0,
+          0
+        ],
+        "lShoulder": [
+          0,
+          0,
+          0
+        ],
+        "lArm": [
+          0,
+          0,
+          0
+        ],
+        "lForeArm": [
+          0,
+          0,
+          90
+        ],
+        "lHand": [
+          0,
+          0,
+          0
+        ],
+        "rUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "rLeg": [
+          0,
+          0,
+          0
+        ],
+        "rFoot": [
+          0,
+          0,
+          0
+        ],
+        "lUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "lLeg": [
+          0,
+          0,
+          0
+        ],
+        "lFoot": [
+          0,
+          0,
+          0
+        ],
+        "rThumb1": [
+          0,
+          0,
+          0
+        ],
+        "rThumb2": [
+          0,
+          0,
+          0
+        ],
+        "rThumb3": [
+          0,
+          0,
+          0
+        ],
+        "rIndex1": [
+          0,
+          0,
+          0
+        ],
+        "rIndex2": [
+          0,
+          0,
+          0
+        ],
+        "rIndex3": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "rRing1": [
+          0,
+          0,
+          0
+        ],
+        "rRing2": [
+          0,
+          0,
+          0
+        ],
+        "rRing3": [
+          0,
+          0,
+          0
+        ],
+        "rPinky1": [
+          0,
+          0,
+          0
+        ],
+        "rPinky2": [
+          0,
+          0,
+          0
+        ],
+        "rPinky3": [
+          0,
+          0,
+          0
+        ],
+        "lThumb1": [
+          0,
+          0,
+          0
+        ],
+        "lThumb2": [
+          0,
+          0,
+          0
+        ],
+        "lThumb3": [
+          0,
+          0,
+          0
+        ],
+        "lIndex1": [
+          0,
+          0,
+          0
+        ],
+        "lIndex2": [
+          0,
+          0,
+          0
+        ],
+        "lIndex3": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "lRing1": [
+          0,
+          0,
+          0
+        ],
+        "lRing2": [
+          0,
+          0,
+          0
+        ],
+        "lRing3": [
+          0,
+          0,
+          0
+        ],
+        "lPinky1": [
+          0,
+          0,
+          0
+        ],
+        "lPinky2": [
+          0,
+          0,
+          0
+        ],
+        "lPinky3": [
+          0,
+          0,
+          0
+        ]
+      },
+      "body": {
+        "position": [
+          -9.279096585546043e-08,
+          0.0031252128750632467,
+          -0.01606526077704455
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    }
+  },
+  "generationRules": {
+    "limits": {
+      "hips": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "spine": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "spine1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "spine2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "neck": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "head": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rShoulder": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rArm": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rForeArm": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rHand": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lShoulder": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lArm": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lForeArm": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lHand": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rUpLeg": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rLeg": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rFoot": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lUpLeg": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lLeg": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lFoot": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rThumb1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rThumb2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rThumb3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rIndex1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rIndex2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rIndex3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rMiddle1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rMiddle2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rMiddle3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rRing1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rRing2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rRing3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rPinky1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rPinky2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "rPinky3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lThumb1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lThumb2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lThumb3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lIndex1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lIndex2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lIndex3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lMiddle1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lMiddle2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lMiddle3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lRing1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lRing2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lRing3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lPinky1": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lPinky2": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      },
+      "lPinky3": {
+        "x": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "y": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        },
+        "z": {
+          "enabled": false,
+          "min": -180,
+          "max": 180
+        }
+      }
+    },
+    "isolation": {
+      "enabled": false,
+      "minGroups": 1,
+      "maxGroups": 2,
+      "weights": {},
+      "jointWeights": {}
+    },
+    "gridStep": 15,
+    "edgeProb": 40
+  },
+  "waveClips": [],
+  "waving": {
+    "mode": "unipolar",
+    "polarity": "positive",
+    "shape": "cosine",
+    "bodyChestGain": 100,
+    "bodyWaistGain": 100,
+    "bodyHipGain": 100,
+    "startNode": "lFinger",
+    "endNode": "rFinger",
+    "route": "both",
+    "direction": "lr",
+    "repeat": "loop",
+    "amplitude": 25,
+    "width": 1.4,
+    "beats": 4,
+    "fingers": true,
+    "fingerGain": 100,
+    "wristGain": 100,
+    "elbowGain": 100,
+    "shoulderGain": 100,
+    "compensation": 0,
+    "speed": 1
+  },
+  "lookAtPath": {
+    "part": "rHand",
+    "shape": "circle",
+    "plane": "xy",
+    "size": 0.12,
+    "beats": 4,
+    "x": 0,
+    "y": 0,
+    "z": 0.25,
+    "mode": "line",
+    "closed": false,
+    "points": []
+  },
+  "torsoLookAt": {
+    "head": {
+      "range": {
+        "min": 0.08,
+        "max": 0.4
+      },
+      "enabled": false,
+      "target": [
+        4.329156604061862e-09,
+        1.5472787011475027,
+        0.37428406823327126
+      ],
+      "source": "free"
+    },
+    "chest": {
+      "range": {
+        "min": 0.08,
+        "max": 0.4
+      },
+      "enabled": false,
+      "target": [
+        2.3060685003362866e-09,
+        1.2929966195282077,
+        0.38232330478507887
+      ]
+    }
+  },
+  "handAim": {
+    "rHand": {
+      "source": "free",
+      "followLast": null,
+      "range": {
+        "min": 0.08,
+        "max": 0.4
+      },
+      "enabled": false,
+      "mode": "palm",
+      "roll": 0,
+      "flip": false,
+      "reference": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "target": [
+        -0.6899595945934943,
+        1.3937960719177396,
+        0.33531521165750855
+      ],
+      "effector": false
+    },
+    "lHand": {
+      "source": "free",
+      "followLast": null,
+      "range": {
+        "min": 0.08,
+        "max": 0.4
+      },
+      "enabled": false,
+      "mode": "palm",
+      "roll": 0,
+      "flip": false,
+      "reference": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "target": [
+        0.6899596268784531,
+        1.3937956291619353,
+        0.3353153592471961
+      ],
+      "effector": false
+    }
+  },
+  "poleEditor": {
+    "radii": {},
+    "limbs": {
+      "rArm": {
+        "enabled": false,
+        "pole": [
+          -0.4159530896512908,
+          1.3081895266144314,
+          0.13506309108787706
+        ],
+        "target": [
+          -0.6899595945934943,
+          1.3937961337027445,
+          -0.0646847883424867
+        ]
+      },
+      "lArm": {
+        "enabled": false,
+        "pole": [
+          0.41595312193624967,
+          1.308189231437522,
+          0.13506342777547387
+        ],
+        "target": [
+          0.6899596268784531,
+          1.3937956909376377,
+          -0.06468464075279919
+        ]
+      },
+      "rLeg": {
+        "enabled": false,
+        "pole": [
+          -0.07938889811192172,
+          0.5040514786286087,
+          0.33509906988625754
+        ],
+        "target": [
+          -0.0793887975242045,
+          0.08477496800540613,
+          -0.037548641241243304
+        ]
+      },
+      "lLeg": {
+        "enabled": false,
+        "pole": [
+          0.0793882541160836,
+          0.5040518204717064,
+          0.3350843909335296
+        ],
+        "target": [
+          0.0793884643538892,
+          0.08477352901865937,
+          -0.03754778165446514
+        ]
+      }
+    }
+  },
+  "footPlant": {
+    "enabled": false,
+    "body": {
+      "position": [
+        -9.279096585546043e-08,
+        0.0031252128750632467,
+        -0.01606526077704455
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "legs": {
+      "rLeg": {
+        "enabled": false,
+        "target": [
+          -0.0793887975242045,
+          0.08477496800540613,
+          -0.037548641241243304
+        ],
+        "pole": [
+          -0.07938889811192172,
+          0.5040514786286087,
+          0.33509906988625754
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "orientEnabled": false,
+        "anchor": null
+      },
+      "lLeg": {
+        "enabled": false,
+        "target": [
+          0.0793884643538892,
+          0.08477352901865937,
+          -0.03754778165446514
+        ],
+        "pole": [
+          0.0793882541160836,
+          0.5040518204717064,
+          0.3350843909335296
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "orientEnabled": false,
+        "anchor": null
+      }
+    },
+    "angles": {}
+  },
+  "grabBox": {
+    "visible": false,
+    "mode": "translate",
+    "shapeType": "box",
+    "shapeParams": {
+      "box": {
+        "w": 0.32,
+        "h": 0.32,
+        "d": 0.24
+      },
+      "sphere": {
+        "r": 0.18
+      },
+      "cylinder": {
+        "r": 0.14,
+        "h": 0.34
+      }
+    },
+    "grabbed": {
+      "rArm": false,
+      "lArm": false
+    },
+    "preset": null,
+    "sizeTween": false,
+    "palmAligned": false,
+    "palmTwist": {
+      "rArm": 0,
+      "lArm": 0
+    },
+    "position": [
+      2.3060685003362866e-09,
+      1.2929966796918038,
+      0.20232330478508345
+    ],
+    "quaternion": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "grabLocal": {
+      "rArm": null,
+      "lArm": null
+    },
+    "rig": {
+      "model": {
+        "position": [
+          -9.279096585546043e-08,
+          0.0031252128750632467,
+          -0.01606526077704455
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "arms": {
+        "rArm": {
+          "enabled": false,
+          "target": [
+            -0.6899595945934943,
+            1.3937961337027445,
+            -0.0646847883424867
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "pole": [
+            -0.4159530896512908,
+            1.3081895266144314,
+            0.13506309108787706
+          ]
+        },
+        "lArm": {
+          "enabled": false,
+          "target": [
+            0.6899596268784531,
+            1.3937956909376377,
+            -0.06468464075279919
+          ],
+          "quaternion": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "pole": [
+            0.41595312193624967,
+            1.308189231437522,
+            0.13506342777547387
+          ]
+        }
+      },
+      "fingers": {
+        "rThumb": {
+          "enabled": false,
+          "target": [
+            -0.7896021945041742,
+            1.3348211360278202,
+            0.005026705132298635
+          ]
+        },
+        "rIndex": {
+          "enabled": false,
+          "target": [
+            -0.8646471978473147,
+            1.3887981828503155,
+            -0.042823186409712256
+          ]
+        },
+        "rMiddle": {
+          "enabled": false,
+          "target": [
+            -0.8738849023642536,
+            1.3937964056737622,
+            -0.06468433066017652
+          ]
+        },
+        "rRing": {
+          "enabled": false,
+          "target": [
+            -0.8625410378193719,
+            1.3933717867740232,
+            -0.0827243943487971
+          ]
+        },
+        "rPinky": {
+          "enabled": false,
+          "target": [
+            -0.8424600885546698,
+            1.3890724659330438,
+            -0.10149726923036938
+          ]
+        },
+        "lThumb": {
+          "enabled": false,
+          "target": [
+            0.7896149193901212,
+            1.3347975229071818,
+            0.005024556893061777
+          ]
+        },
+        "lIndex": {
+          "enabled": false,
+          "target": [
+            0.8646571185539736,
+            1.38879537867216,
+            -0.04282423102573938
+          ]
+        },
+        "lMiddle": {
+          "enabled": false,
+          "target": [
+            0.8738936423638439,
+            1.3937946346146168,
+            -0.06468426144375042
+          ]
+        },
+        "lRing": {
+          "enabled": false,
+          "target": [
+            0.862550220584113,
+            1.3933701633030575,
+            -0.08272438508987981
+          ]
+        },
+        "lPinky": {
+          "enabled": false,
+          "target": [
+            0.8424707472032468,
+            1.389069956930633,
+            -0.10149900105271238
+          ]
+        }
+      }
+    },
+    "version": 1,
+    "target": {
+      "hips": [
+        0,
+        0,
+        0
+      ],
+      "spine": [
+        0,
+        0,
+        0
+      ],
+      "spine1": [
+        0,
+        0,
+        0
+      ],
+      "spine2": [
+        0,
+        0,
+        0
+      ],
+      "neck": [
+        0,
+        0,
+        0
+      ],
+      "head": [
+        0,
+        0,
+        0
+      ],
+      "rShoulder": [
+        0,
+        0,
+        0
+      ],
+      "rArm": [
+        0,
+        0,
+        -45
+      ],
+      "rForeArm": [
+        0,
+        0,
+        -90
+      ],
+      "rHand": [
+        0,
+        0,
+        0
+      ],
+      "lShoulder": [
+        0,
+        0,
+        0
+      ],
+      "lArm": [
+        0,
+        0,
+        -45
+      ],
+      "lForeArm": [
+        0,
+        0,
+        90
+      ],
+      "lHand": [
+        0,
+        0,
+        0
+      ],
+      "rUpLeg": [
+        0,
+        0,
+        0
+      ],
+      "rLeg": [
+        0,
+        0,
+        0
+      ],
+      "rFoot": [
+        0,
+        0,
+        0
+      ],
+      "lUpLeg": [
+        0,
+        0,
+        0
+      ],
+      "lLeg": [
+        0,
+        0,
+        0
+      ],
+      "lFoot": [
+        0,
+        0,
+        0
+      ],
+      "rThumb1": [
+        0,
+        0,
+        0
+      ],
+      "rThumb2": [
+        0,
+        0,
+        0
+      ],
+      "rThumb3": [
+        0,
+        0,
+        0
+      ],
+      "rIndex1": [
+        0,
+        0,
+        0
+      ],
+      "rIndex2": [
+        0,
+        0,
+        0
+      ],
+      "rIndex3": [
+        0,
+        0,
+        0
+      ],
+      "rMiddle1": [
+        0,
+        0,
+        0
+      ],
+      "rMiddle2": [
+        0,
+        0,
+        0
+      ],
+      "rMiddle3": [
+        0,
+        0,
+        0
+      ],
+      "rRing1": [
+        0,
+        0,
+        0
+      ],
+      "rRing2": [
+        0,
+        0,
+        0
+      ],
+      "rRing3": [
+        0,
+        0,
+        0
+      ],
+      "rPinky1": [
+        0,
+        0,
+        0
+      ],
+      "rPinky2": [
+        0,
+        0,
+        0
+      ],
+      "rPinky3": [
+        0,
+        0,
+        0
+      ],
+      "lThumb1": [
+        0,
+        0,
+        0
+      ],
+      "lThumb2": [
+        0,
+        0,
+        0
+      ],
+      "lThumb3": [
+        0,
+        0,
+        0
+      ],
+      "lIndex1": [
+        0,
+        0,
+        0
+      ],
+      "lIndex2": [
+        0,
+        0,
+        0
+      ],
+      "lIndex3": [
+        0,
+        0,
+        0
+      ],
+      "lMiddle1": [
+        0,
+        0,
+        0
+      ],
+      "lMiddle2": [
+        0,
+        0,
+        0
+      ],
+      "lMiddle3": [
+        0,
+        0,
+        0
+      ],
+      "lRing1": [
+        0,
+        0,
+        0
+      ],
+      "lRing2": [
+        0,
+        0,
+        0
+      ],
+      "lRing3": [
+        0,
+        0,
+        0
+      ],
+      "lPinky1": [
+        0,
+        0,
+        0
+      ],
+      "lPinky2": [
+        0,
+        0,
+        0
+      ],
+      "lPinky3": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "savedAt": 1791852813609,
+  "keyframes": [
+    {
+      "angles": {
+        "hips": [
+          0,
+          0,
+          0
+        ],
+        "spine": [
+          0,
+          0,
+          0
+        ],
+        "spine1": [
+          0,
+          0,
+          0
+        ],
+        "spine2": [
+          0,
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          0,
+          0
+        ],
+        "head": [
+          0,
+          0,
+          0
+        ],
+        "rShoulder": [
+          0,
+          0,
+          0
+        ],
+        "rArm": [
+          0,
+          0,
+          0
+        ],
+        "rForeArm": [
+          0,
+          0,
+          -90
+        ],
+        "rHand": [
+          0,
+          0,
+          0
+        ],
+        "lShoulder": [
+          0,
+          0,
+          0
+        ],
+        "lArm": [
+          0,
+          0,
+          0
+        ],
+        "lForeArm": [
+          0,
+          0,
+          90
+        ],
+        "lHand": [
+          0,
+          0,
+          45
+        ],
+        "rUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "rLeg": [
+          0,
+          0,
+          0
+        ],
+        "rFoot": [
+          0,
+          0,
+          0
+        ],
+        "lUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "lLeg": [
+          0,
+          0,
+          0
+        ],
+        "lFoot": [
+          0,
+          0,
+          0
+        ],
+        "rThumb1": [
+          0,
+          0,
+          0
+        ],
+        "rThumb2": [
+          0,
+          0,
+          0
+        ],
+        "rThumb3": [
+          0,
+          0,
+          0
+        ],
+        "rIndex1": [
+          0,
+          0,
+          0
+        ],
+        "rIndex2": [
+          0,
+          0,
+          0
+        ],
+        "rIndex3": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "rRing1": [
+          0,
+          0,
+          0
+        ],
+        "rRing2": [
+          0,
+          0,
+          0
+        ],
+        "rRing3": [
+          0,
+          0,
+          0
+        ],
+        "rPinky1": [
+          0,
+          0,
+          0
+        ],
+        "rPinky2": [
+          0,
+          0,
+          0
+        ],
+        "rPinky3": [
+          0,
+          0,
+          0
+        ],
+        "lThumb1": [
+          0,
+          0,
+          0
+        ],
+        "lThumb2": [
+          0,
+          0,
+          0
+        ],
+        "lThumb3": [
+          0,
+          0,
+          0
+        ],
+        "lIndex1": [
+          0,
+          0,
+          0
+        ],
+        "lIndex2": [
+          0,
+          0,
+          0
+        ],
+        "lIndex3": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "lRing1": [
+          0,
+          0,
+          0
+        ],
+        "lRing2": [
+          0,
+          0,
+          0
+        ],
+        "lRing3": [
+          0,
+          0,
+          0
+        ],
+        "lPinky1": [
+          0,
+          0,
+          0
+        ],
+        "lPinky2": [
+          0,
+          0,
+          0
+        ],
+        "lPinky3": [
+          0,
+          0,
+          0
+        ]
+      },
+      "body": {
+        "position": [
+          -9.279096585546043e-08,
+          0.0031252128750632467,
+          -0.01606526077704455
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "easing": "easeInOutQuad",
+      "beats": 1,
+      "label": "TG-2.1：基礎候選"
+    },
+    {
+      "angles": {
+        "hips": [
+          0,
+          0,
+          0
+        ],
+        "spine": [
+          0,
+          0,
+          0
+        ],
+        "spine1": [
+          0,
+          0,
+          0
+        ],
+        "spine2": [
+          0,
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          0,
+          0
+        ],
+        "head": [
+          0,
+          0,
+          0
+        ],
+        "rShoulder": [
+          0,
+          0,
+          0
+        ],
+        "rArm": [
+          0,
+          0,
+          -45
+        ],
+        "rForeArm": [
+          0,
+          0,
+          -90
+        ],
+        "rHand": [
+          0,
+          0,
+          0
+        ],
+        "lShoulder": [
+          0,
+          0,
+          0
+        ],
+        "lArm": [
+          0,
+          0,
+          -45
+        ],
+        "lForeArm": [
+          0,
+          0,
+          90
+        ],
+        "lHand": [
+          0,
+          0,
+          0
+        ],
+        "rUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "rLeg": [
+          0,
+          0,
+          0
+        ],
+        "rFoot": [
+          0,
+          0,
+          0
+        ],
+        "lUpLeg": [
+          0,
+          0,
+          0
+        ],
+        "lLeg": [
+          0,
+          0,
+          0
+        ],
+        "lFoot": [
+          0,
+          0,
+          0
+        ],
+        "rThumb1": [
+          0,
+          0,
+          0
+        ],
+        "rThumb2": [
+          0,
+          0,
+          0
+        ],
+        "rThumb3": [
+          0,
+          0,
+          0
+        ],
+        "rIndex1": [
+          0,
+          0,
+          0
+        ],
+        "rIndex2": [
+          0,
+          0,
+          0
+        ],
+        "rIndex3": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "rMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "rRing1": [
+          0,
+          0,
+          0
+        ],
+        "rRing2": [
+          0,
+          0,
+          0
+        ],
+        "rRing3": [
+          0,
+          0,
+          0
+        ],
+        "rPinky1": [
+          0,
+          0,
+          0
+        ],
+        "rPinky2": [
+          0,
+          0,
+          0
+        ],
+        "rPinky3": [
+          0,
+          0,
+          0
+        ],
+        "lThumb1": [
+          0,
+          0,
+          0
+        ],
+        "lThumb2": [
+          0,
+          0,
+          0
+        ],
+        "lThumb3": [
+          0,
+          0,
+          0
+        ],
+        "lIndex1": [
+          0,
+          0,
+          0
+        ],
+        "lIndex2": [
+          0,
+          0,
+          0
+        ],
+        "lIndex3": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle1": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle2": [
+          0,
+          0,
+          0
+        ],
+        "lMiddle3": [
+          0,
+          0,
+          0
+        ],
+        "lRing1": [
+          0,
+          0,
+          0
+        ],
+        "lRing2": [
+          0,
+          0,
+          0
+        ],
+        "lRing3": [
+          0,
+          0,
+          0
+        ],
+        "lPinky1": [
+          0,
+          0,
+          0
+        ],
+        "lPinky2": [
+          0,
+          0,
+          0
+        ],
+        "lPinky3": [
+          0,
+          0,
+          0
+        ]
+      },
+      "body": {
+        "position": [
+          -9.279096585546043e-08,
+          0.0031252128750632467,
+          -0.01606526077704455
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "easing": "easeInOutQuad",
+      "beats": 1,
+      "grabBox": {
+        "version": 1,
+        "visible": false,
+        "shapeType": "box",
+        "shapeParams": {
+          "box": {
+            "w": 0.32,
+            "h": 0.32,
+            "d": 0.24
+          },
+          "sphere": {
+            "r": 0.18
+          },
+          "cylinder": {
+            "r": 0.14,
+            "h": 0.34
+          }
+        },
+        "position": [
+          2.3060685003362866e-09,
+          1.2929966796918038,
+          0.20232330478508345
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "grabbed": {
+          "rArm": false,
+          "lArm": false
+        },
+        "grabLocal": {
+          "rArm": null,
+          "lArm": null
+        },
+        "palmAligned": false,
+        "palmTwist": {
+          "rArm": 0,
+          "lArm": 0
+        },
+        "preset": null,
+        "sizeTween": false,
+        "poles": {
+          "rArm": [
+            -0.4159530896512908,
+            1.3081895266144314,
+            0.13506309108787706
+          ],
+          "lArm": [
+            0.41595312193624967,
+            1.308189231437522,
+            0.13506342777547387
+          ]
+        }
+      },
+      "label": "TG-2.1：雙上臂幾何候選"
+    }
+  ],
+  "trajPoints": {
+    "rArm": [],
+    "lArm": [],
+    "rLeg": [],
+    "lLeg": []
+  },
+  "trajMode": {
+    "rArm": "line",
+    "lArm": "line",
+    "rLeg": "line",
+    "lLeg": "line"
+  },
+  "trajClosed": {
+    "rArm": false,
+    "lArm": false,
+    "rLeg": false,
+    "lLeg": false
+  },
+  "bpm": 128,
+  "kfPendingEasing": "easeInOutQuad",
+  "kfPendingBeats": 1,
+  "grooveJoints": [],
+  "grooveCustom": {},
+  "grooveSquatEnabled": false,
+  "grooveSquatCustom": {},
+  "grooveWarmupEnabled": true,
+  "grooveWarmupBeats": 1.5,
+  "grooveWarmupCurve": "linear",
+  "grooveSequence": []
+}

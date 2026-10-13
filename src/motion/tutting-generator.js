@@ -1,4 +1,5 @@
 import { eulerToQuat } from "../math/quaternions.js";
+import { cleanGeometryRules } from './tutting-rules.js';
 
 // TG-1: bounded, seeded candidates. Preview never changes target/current or saved poses.
 const TG_KEYS=['lShoulder','lArm','lForeArm','lHand','rShoulder','rArm','rForeArm','rHand'];
@@ -10,15 +11,15 @@ function cleanTGConfig(raw={}){
   const num=(v,d,lo,hi)=>Number.isFinite(Number(v))?Math.max(lo,Math.min(hi,Number(v))):d;
   const axes={};for(const k of TG_KEYS)axes[k]=Array.isArray(raw.axes?.[k])?['x','y','z'].filter(a=>raw.axes[k].includes(a)):TG_DEFAULT.axes[k].slice();
   return {mode:raw.mode==='absolute'?'absolute':'delta',values:Array.isArray(raw.values)?[...new Set(raw.values.filter(v=>Number.isFinite(v)&&Math.abs(v)<=180))].slice(0,24):[-45,45],
-    maxDelta:num(raw.maxDelta,45,1,180),maxJoints:Math.round(num(raw.maxJoints,2,1,8)),seed:Math.trunc(num(raw.seed,2026,0,4294967295)),axes};
+    maxDelta:num(raw.maxDelta,45,1,180),maxJoints:Math.round(num(raw.maxJoints,2,1,8)),seed:Math.trunc(num(raw.seed,2026,0,4294967295)),axes,geometry:cleanGeometryRules(raw.geometry)};
 }
 function tgRng(seed){let a=seed>>>0;return ()=>{a=(a+0x6D2B79F5)>>>0;let t=Math.imul(a^(a>>>15),a|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 function tgAngleDiff(a,b){return Math.abs(((a-b+180)%360+360)%360-180);}
 function tgPoseKey(p){return TG_KEYS.map(k=>{const q=eulerToQuat(p[k]||[0,0,0]);const sign=[q.w,q.x,q.y,q.z].find(v=>Math.abs(v)>1e-8)||1;if(sign<0)q.set(-q.x,-q.y,-q.z,-q.w);return q.toArray().map(v=>Math.round(v*1e5)).join(',');}).join('|');}
-function tgGenerateCandidates(base,config,available,clampFn){
+function tgGenerateCandidates(base,config,available,clampFn,assess){
   const rng=tgRng(config.seed),keys=TG_KEYS.filter(k=>available.includes(k)&&config.axes[k].length),results=[],seen=new Set([tgPoseKey(base)]);
   if(!keys.length||!config.values.length)return {results,attempts:0};
-  let attempts=0;
+  let attempts=0,rejectedGeometry=0,bestFailure=null;
   for(;attempts<2000&&results.length<6;attempts++){
     const pose=tgCopy(base),pool=keys.slice(),count=1+Math.floor(rng()*Math.min(config.maxJoints,pool.length));let valid=true;
     for(let j=0;j<count;j++){
@@ -42,10 +43,12 @@ function tgGenerateCandidates(base,config,available,clampFn){
     const changed=keys.filter(k=>eulerToQuat(base[k]).angleTo(eulerToQuat(pose[k]))>1e-5);
     if(!changed.length||changed.length>config.maxJoints)continue;
     const signature=tgPoseKey(pose);if(seen.has(signature))continue;seen.add(signature);
+    const evaluation=assess?.(pose);
+    if(evaluation&&!evaluation.rules.ok){rejectedGeometry++;if(!bestFailure||evaluation.rules.maxNormalizedError<bestFailure.maxNormalizedError)bestFailure=evaluation.rules;continue;}
     let maximum=0,total=0;for(const k of changed)for(let i=0;i<3;i++){const d=Math.abs(pose[k][i]-base[k][i]);maximum=Math.max(maximum,d);total+=d;}
-    results.push({angles:pose,changed,maxDelta:maximum,score:total});
+    results.push({angles:pose,changed,maxDelta:maximum,score:total,...(evaluation?{geometry:evaluation.geometry,rules:evaluation.rules}:{})});
   }
-  results.sort((a,b)=>a.score-b.score);return {results,attempts};
+  results.sort((a,b)=>a.score-b.score);return {results,attempts,rejectedGeometry,bestFailure};
 }
 
 export { TG_KEYS, TG_DEFAULT, tgCopy, cleanTGConfig, tgGenerateCandidates };

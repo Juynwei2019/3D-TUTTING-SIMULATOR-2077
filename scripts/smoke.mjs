@@ -33,6 +33,8 @@ window.__smoke = {
   copyBeatGridRange, duplicateBeatGridRange, clearBeatGridRange,
   setRange(start, end){ beatGridRangeStart = start; beatGridRangeEnd = end; updateBeatGridRangeUI(); },
   get bones() { return bones; }, get model() { return model; }, get scene(){return scene;},
+  get restQuat() { return restQuat; },
+  get tgCandidates() { return tgCandidates; },
   get fingerTut(){return fingerTutController;},
   get camera() { return camera; }, get controls() { return controls; },
   get target() { return typeof poseController === "undefined" ? target : poseController.snapshotTarget(); },
@@ -105,6 +107,48 @@ try {
       }));
       assert.equal(initial.bones, 50);
       assert.notEqual(initial.ui, 'none');
+      // TG-2.0: real Xbot FK must match live endpoints in model-root space.
+      const geometryCheck = await page.evaluate(async () => {
+        const { createTuttingGeometryEvaluator } = await import('/src/motion/tutting-geometry.js');
+        const { eulerToQuat } = await import('/src/math/quaternions.js');
+        const a = window.__smoke;
+        const evaluator = createTuttingGeometryEvaluator(a);
+        const saved = Object.fromEntries(Object.entries(a.bones).map(([k, b]) => [k, b.quaternion.clone()]));
+        let maximumError = 0, untouched = true;
+        try {
+          for (let sample = 0; sample < 12; sample++) {
+            const angles = structuredClone(a.target);
+            for (const key of ['spine', 'lShoulder', 'rShoulder', 'lArm', 'rArm', 'lForeArm', 'rForeArm'])
+              angles[key] = [sample * 2 - 10, sample * 3 - 15, sample * 4 - 20];
+            const before = Object.values(a.bones).map(b => b.quaternion.toArray());
+            const result = evaluator.evaluate(angles);
+            if (!result.ok) throw new Error(JSON.stringify(result));
+            untouched &&= JSON.stringify(before) === JSON.stringify(Object.values(a.bones).map(b => b.quaternion.toArray()));
+            for (const [key, bone] of Object.entries(a.bones)) bone.quaternion.copy(a.restQuat[key]).multiply(eulerToQuat(angles[key]));
+            a.model.updateMatrixWorld(true);
+            for (const segment of Object.values(result.segments)) for (const [key, point] of [[segment.startKey, segment.start], [segment.endKey, segment.end]]) {
+              const actual = a.model.worldToLocal(a.bones[key].getWorldPosition(a.model.position.clone()));
+              maximumError = Math.max(maximumError, actual.distanceTo(actual.clone().fromArray(point)));
+            }
+          }
+        } finally {
+          for (const [key, bone] of Object.entries(a.bones)) bone.quaternion.copy(saved[key]);
+          a.model.updateMatrixWorld(true);
+        }
+        return { maximumError, untouched, samples: 12 };
+      });
+      assert.equal(geometryCheck.untouched, true);
+      assert.ok(geometryCheck.maximumError < 1e-7, JSON.stringify(geometryCheck));
+      console.log(`${entry}: TG-2.0 Xbot geometry ${JSON.stringify(geometryCheck)}`);
+      const beforeGeneration = await page.evaluate(() => window.__smoke.snapshotTimelineData());
+      await page.locator('.tabBtn[data-tab="tuttingGen"]').evaluate(el => el.click());
+      await page.locator('#tgCapture').evaluate(el => el.click());
+      await page.locator('#tgGenerate').evaluate(el => el.click());
+      const segmentCounts = await page.evaluate(() => window.__smoke.tgCandidates.map(c => c.geometry.ok ? Object.keys(c.geometry.segments).length : -1));
+      assert.ok(segmentCounts.length > 0);
+      assert.ok(segmentCounts.every(count => count === 4));
+      await page.locator('#tgCancel').evaluate(el => el.click());
+      await page.evaluate(data => window.__smoke.restoreTimelineData(data), beforeGeneration);
       // Camera presets and floating panel bindings remain functional after extraction.
       const cameraBefore = await page.evaluate(() => window.__smoke.camera.position.toArray());
       await page.locator('#camSelect').selectOption('right');
@@ -445,7 +489,7 @@ try {
       assert.equal(await page.locator('#gestureLibList .libChip').count(), 1);
       assert.deepEqual(errors, [], `${entry} JavaScript errors`);
       assert.deepEqual(failedRequests, [], `${entry} failed requests`);
-      results.push({ initial, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
+      results.push({ initial, geometryCheck, segmentCounts, mirrored, symmetric, generated, keyframes: exported.keyframes, interpolation });
       await context.tracing.stop();
       console.log(`PASS ${entry}: model, all tabs, IK, grab workspace Undo/Redo and zero-pose JSON/autosave, JSON pose, mirror/symmetry, Tutting preview/commit, Wave restore, history, libraries, clipboard/range editing, clip editing, timeline/audio playback, waveform decode, JSON roundtrip, split view, autosave reload`);
     } catch (error) {
