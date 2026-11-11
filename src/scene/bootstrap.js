@@ -23,13 +23,15 @@ export function createSceneBootstrap(context){
     context.renderer.outputColorSpace = THREE.SRGBColorSpace;
     document.getElementById("canvasHolder").appendChild(context.renderer.domElement);
 
-    context.scene.add(new THREE.AmbientLight(0x8899ff, 0.7));
+    const ambient = new THREE.AmbientLight(0x8899ff, 0.7);
+    context.scene.add(ambient);
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
     keyLight.position.set(3, 5, 4);
     context.scene.add(keyLight);
     const rim = new THREE.DirectionalLight(0xff2f7e, 0.5);
     rim.position.set(-4, 3, -3);
     context.scene.add(rim);
+    context.appearance?.attachLights({ambient,key:keyLight,rim});
 
     context.controls = new OrbitControls(context.camera, context.renderer.domElement);
     context.controls.target.set(0, 1, 0);
@@ -56,7 +58,8 @@ export function createSceneBootstrap(context){
       placeModelOnGround(context.model, targetHeight);
 
       context.scene.add(context.model);
-      context.scene.add(new THREE.GridHelper(20, 20, 0x2a2a55, 0x1a1a33));
+      const grid = new THREE.GridHelper(20, 20, 0x2a2a55, 0x1a1a33);
+      context.scene.add(grid);context.appearance?.attachGrid(grid);
 
       context.model.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
 

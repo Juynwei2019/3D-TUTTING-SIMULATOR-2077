@@ -1,3 +1,4 @@
+import { createAppearanceController } from "./scene/appearance.js";
 import { createGrabTimelineUI } from './ui/grab-timeline.js';
 import { cleanGrabFrame } from './timeline/grab-state.js';
 import { createGrabTimeline } from './timeline/grab-controller.js';
@@ -2164,7 +2165,7 @@ function symmetrizePose(){
 // 扶握箱操作另記錄形狀變換、接觸點與雙臂／手指 IK，跨越扶握箱編輯時還原。
 // 其餘 IK 與即時身體位置仍依各領域的既有快照契約處理。
 function snapshotAngleState(){
-  return {...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot(), grabBox:grabBoxCore?.snapshot()};
+  return {appearance:appearanceController.snapshot(), ...snapshots.captureHistory(), fingerTut:fingerTutController.snapshot(), grabBox:grabBoxCore?.snapshot()};
 }
 
 function pushHistory(){
@@ -2172,6 +2173,7 @@ function pushHistory(){
 }
 
 function restoreSnapshot(snap){
+  appearanceController.restore(snap.appearance);
   grabTimelineUI.reset();
   if(kfPlaying)stopKeyframePlayback();
   grabTimelineController.reset();
@@ -2263,7 +2265,7 @@ function scheduleAutoSave(){
 // 組出一份完整的「編舞資料快照」——自動存檔與手動匯出共用同一個格式，
 // 這樣匯出的檔案將來也能直接被拿來當自動存檔還原，兩條路徑資料互通。
 function snapshotTimelineData(){
-  return snapshots.captureProject();
+  return {...snapshots.captureProject(),appearance:appearanceController.snapshot()};
 }
 
 function doAutoSave(){
@@ -2288,6 +2290,7 @@ function showAutosaveIndicator(){
 // 手動匯入檔案共用同一套邏輯，只有「資料從哪裡來、要不要跳確認框」不一樣。
 // 呼叫前務必先確認 data 已通過基本驗證（見 tryLoadAutosave / importTimelineFromFile）。
 function restoreTimelineData(data){
+  appearanceController.restore(data.appearance);
   grabTimelineUI.reset();
   fingerTutController.clear();
   tgCancelPreview();restoreGenerationRules(data.generationRules);restoreTG(data.tuttingGenerator);
@@ -5471,6 +5474,7 @@ const cameraController = createCameraController({
 });
 
 const splitViewController = createSplitView({
+  get appearance(){return appearanceController;},
   get splitViewPanes(){ return splitViewPanes; },
   get SPLIT_VIEW_LABELS(){ return SPLIT_VIEW_LABELS; },
   get SPLIT_VIEW_MAX_PANES(){ return SPLIT_VIEW_MAX_PANES; },
@@ -5606,7 +5610,10 @@ const workspacePanelsController = createWorkspacePanels({
   get updateOnionSkins(){ return updateOnionSkins; },
 });
 
+const appearanceController = createAppearanceController({get scene(){return scene;},get renderer(){return renderer;},get splitViewPanes(){return splitViewPanes;},preferences,pushHistory,scheduleAutoSave,refreshHelpers:()=>highlightMarkers(),beforeEdit:()=>tgCancelPreview()});
+
 const sceneBootstrapController = createSceneBootstrap({
+  get appearance(){return appearanceController;},
   get scene(){ return scene; },
   set scene(value){ scene = value; },
   get camera(){ return camera; },
@@ -5703,6 +5710,7 @@ const sceneBootstrapController = createSceneBootstrap({
 });
 
 const rigVisualsController = createRigVisuals({
+  get palette(){return appearanceController.palette;},
   get modelHeight(){ return modelHeight; },
   get bones(){ return bones; },
   get scene(){ return scene; },
@@ -5791,6 +5799,7 @@ const animationLoopController = createAnimationLoop({
 
 bindLanguageUI();
 init();
+appearanceController.bind();
 
 function bindTimelineUI(...args){
   return timelineToolbarController.bindTimelineUI(...args);

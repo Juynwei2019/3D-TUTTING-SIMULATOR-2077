@@ -14,7 +14,7 @@ export function createRigVisuals(context){
     for (const key of ALL_JOINT_KEYS){
       if (!context.bones[key]) continue;
       const isFinger = FINGER_JOINT_KEY_SET.has(key);
-      const mat = new THREE.MeshBasicMaterial({ color: isFinger ? 0xffa8e8 : 0x7fe0ff, transparent:true, opacity:0.9, depthTest:false });
+      const mat = new THREE.MeshBasicMaterial({ color: isFinger ? (context.palette?.finger??0xffa8e8) : (context.palette?.joint??0x7fe0ff), transparent:true, opacity:0.9, depthTest:false });
       const marker = new THREE.Mesh(isFinger ? fingerGeo : geo, mat);
       marker.renderOrder = 999;
       marker.userData.jointKey = key;
@@ -74,6 +74,7 @@ export function createRigVisuals(context){
   function updateSkeletonLines(){
     if (!context.skeletonLines) return;
     context.skeletonLines.visible = context.showSkeleton;
+    context.skeletonLines.material.color.set(context.palette?.skeleton??0x7fe0ff);
     if (!context.showSkeleton) return;
     const posAttr = context.skeletonLines.geometry.attributes.position;
     const v = new THREE.Vector3();
@@ -97,7 +98,7 @@ export function createRigVisuals(context){
       const m = context.markerMeshes[key];
       const isSel = key === context.selectedKey;
       const isFinger = FINGER_JOINT_KEY_SET.has(key);
-      m.material.color.set(isSel ? 0xff2f7e : (isFinger ? 0xffa8e8 : 0x7fe0ff));
+      m.material.color.set(isSel ? 0xff2f7e : (isFinger ? (context.palette?.finger??0xffa8e8) : (context.palette?.joint??0x7fe0ff)));
       m.scale.setScalar(isSel ? 1.6 : 1.0);
     }
     context.highlightFingerButtons();

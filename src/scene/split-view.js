@@ -24,6 +24,7 @@ export function createSplitView(context){
     const paneRenderer = new THREE.WebGLRenderer({ canvas, antialias:true });
     paneRenderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); // 預覽視窗解析度不用跟主視窗一樣高，省效能
     paneRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    context.appearance?.applyRenderer(paneRenderer,true);
     const paneCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 
     context.splitViewPanes[name] = {

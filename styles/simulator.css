@@ -851,3 +851,15 @@ html[lang="en"] .fingerTutSlider { grid-template-columns:110px minmax(0,1fr) 48p
 
 #tgGeometryInfo { white-space: pre-line; overflow-wrap: anywhere; }
 #tabTuttingGen input[type="number"] { max-width: 110px; }
+
+#appearanceControls {display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;margin:12px 0;}
+.appearanceField {display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:8px;border:1px solid #3a3a66;border-radius:6px;}
+.appearanceField input[type=color] {width:46px;height:30px;padding:2px;}
+.appearanceField input[type=range] {width:110px;}
+.appearanceHint {font-size:12px;line-height:1.7;color:#b0b0ca;}
+
+.sceneBright #ui {background:rgba(10,10,18,.94);}
+.sceneBright #title {color:#07556b;}
+.appearanceField {white-space:normal;}
+.appearanceField span {min-width:0;}
+.appearanceField output {font:12px monospace;min-width:3em;text-align:right;color:#e8e8f5;}

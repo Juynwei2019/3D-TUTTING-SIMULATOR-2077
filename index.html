@@ -113,6 +113,7 @@
     <button class="tabBtn" data-tab="traj" data-i18n="軌跡">軌跡</button>
     <button class="tabBtn" data-tab="overview" data-i18n="關節總覽">關節總覽</button>
     <button class="tabBtn" data-tab="jointLimits" data-i18n="關節限制">關節限制</button>
+    <button class="tabBtn" data-tab="appearance" data-i18n="場景與畫質">場景與畫質</button>
     <button class="tabBtn" data-tab="tuttingGen" data-i18n="Tutting 生成器">Tutting 生成器</button>
     <button class="tabBtn" data-tab="easingGallery" data-i18n="Easing 圖鑑">Easing 圖鑑</button>
   </div>
@@ -1095,6 +1096,16 @@
       <div id="jointLimitGroups"></div>
     </div>
 
+
+
+    <div class="tabPanel" data-tab="appearance" id="tabAppearance">
+      <div class="panelTitle" data-i18n="場景與畫質">場景與畫質</div>
+      <p class="appearanceHint" data-i18n="外觀隨專案保存；清晰度只保存在這台裝置。外觀不影響姿勢或時間軸。">外觀隨專案保存；清晰度只保存在這台裝置。外觀不影響姿勢或時間軸。</p>
+      <div class="row"><label><span data-i18n="外觀預設">外觀預設</span> <select id="appearancePreset"><option value="" data-i18n="選擇預設">選擇預設</option><option value="original" data-i18n="原始風格">原始風格</option><option value="neutral" data-i18n="中性練習">中性練習</option><option value="bright" data-i18n="明亮背景">明亮背景</option></select></label><button id="appearanceReset" data-i18n="恢復原始外觀">恢復原始外觀</button></div>
+      <div id="appearanceControls"></div>
+      <div class="row"><label><span data-i18n="清晰度（裝置偏好）">清晰度（裝置偏好）</span> <select id="appearanceQuality"><option value="economy" data-i18n="省電">省電</option><option value="standard" data-i18n="標準">標準</option><option value="clear" data-i18n="清晰">清晰</option></select></label></div>
+      <p class="appearanceHint" data-i18n="清晰度調整渲染解析度，不保證固定 FPS。分割視窗同步套用，最高像素比例為 1.5。">清晰度調整渲染解析度，不保證固定 FPS。分割視窗同步套用，最高像素比例為 1.5。</p>
+    </div>
 
     <div class="tabPanel" data-tab="tuttingGen" id="tabTuttingGen">
       <div class="panelTitle"><span data-i18n="Tutting 姿勢生成器 · TG-2 幾何規則">Tutting 姿勢生成器 · TG-2 幾何規則</span></div>

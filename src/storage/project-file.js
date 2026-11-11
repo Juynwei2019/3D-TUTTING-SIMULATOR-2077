@@ -1,3 +1,4 @@
+import { isAppearanceProject } from "../scene/appearance.js";
 import { t as tr } from "../i18n/index.js";
 import { isGrabProject } from "./grab-project.js";
 import { PROJECT_SCHEMA_VERSION } from "./project-format.js";
@@ -5,7 +6,7 @@ import { PROJECT_SCHEMA_VERSION } from "./project-format.js";
 export function createProjectFiles({ getKeyframes, snapshotTimelineData, downloadJSON, readJSONFile, restoreTimelineData, pushHistory, scheduleAutoSave, alert, confirm }){
   function exportTimeline(){
     const data = snapshotTimelineData();
-    if (getKeyframes().length === 0 && !isGrabProject(data.grabBox)){
+    if (getKeyframes().length === 0 && !isGrabProject(data.grabBox) && !isAppearanceProject(data.appearance)){
       alert(tr("目前時間軸是空的，沒有可匯出的拍點。"));
       return;
     }
@@ -21,12 +22,12 @@ export function createProjectFiles({ getKeyframes, snapshotTimelineData, downloa
         alert(tr("匯入失敗：檔案版本（schemaVersion）不符，可能是舊版或不相容的檔案。"));
         return;
       }
-      if (data.keyframes.length === 0 && !isGrabProject(data.grabBox)){
+      if (data.keyframes.length === 0 && !isGrabProject(data.grabBox) && !isAppearanceProject(data.appearance)){
         alert(tr("這個檔案裡的時間軸是空的，沒有可匯入的拍點。"));
         return;
       }
       const ok = confirm(
-        tr("即將匯入 {p0} 個拍點與扶握箱工作區，並覆蓋目前時間軸與扶握箱設定。可使用復原／重做還原。確定要匯入嗎？", {p0:data.keyframes.length})
+        tr("即將匯入 {p0} 個拍點、扶握箱與場景外觀，並覆蓋目前設定。可使用復原／重做還原。確定要匯入嗎？", {p0:data.keyframes.length})
       );
       if (!ok) return;
       pushHistory();

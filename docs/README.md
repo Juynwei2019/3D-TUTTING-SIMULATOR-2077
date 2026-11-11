@@ -13,6 +13,7 @@
 | 文章 | 內容 |
 | --- | --- |
 | [FingerTut 胸前編輯模式](features/fingertut-mode.md) | 胸前擺位、手掌朝向、介面與測試紀錄 |
+| [場景與畫質](features/scene-appearance.md) | 背景、網格、燈光、霧效、外觀預設與裝置清晰度 |
 | [扶握箱模式](features/grab-box-mode.md) | 形狀尺寸、雙手接觸、一鍵擺位、掌面貼合與儲存 |
 | [扶握箱時間軸](features/grab-timeline.md) | 逐拍記錄、移動與旋轉、扶握與放手、播放規則及驗證 |
 | [尺寸連續變化（第三批 3A）](features/grab-size-animation.md) | 同形狀尺寸動畫、接觸規則、舊資料相容與操作 |

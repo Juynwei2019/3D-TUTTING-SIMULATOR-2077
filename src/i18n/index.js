@@ -1,9 +1,10 @@
 import { grabTimelineEnglish } from './grab-timeline-messages.js';
+import { appearanceEnglish } from './appearance-messages.js';
 import { tuttingEnglish } from './tutting-messages.js';
 import { english as firstBatchEnglish } from './messages.js';
 import { batch2English } from './batch2-messages.js';
 import { batch3English } from './batch3-messages.js';
-export const english = {...firstBatchEnglish,...batch2English,...batch3English,...grabTimelineEnglish,...tuttingEnglish};
+export const english = {...firstBatchEnglish,...batch2English,...batch3English,...grabTimelineEnglish,...tuttingEnglish,...appearanceEnglish};
 export const LANGUAGE_STORAGE_KEY = 'tuttingLanguage';
 export function createI18n(storage){
   let language='zh-Hant';
