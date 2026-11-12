@@ -45,6 +45,8 @@
 
 完整文章已按主題整理，請見 [文件分類總覽](docs/README.md)。
 
+姿勢檔與預覽圖片可存放在 [Tutting Pose 資料夾](tutting-poses/README.md)，內含保存、命名及讀取方式；目前採手動套用。
+
 第一次使用請從 [基礎圖文操作手冊](docs/guides/basic-user-manual.md) 開始，內含實際介面截圖、FingerTut、手掌／手指編輯、三姿勢播放練習、備份與手機操作。
 
 扶握箱的形狀尺寸、雙手接觸與移動／旋轉操作見 [扶握箱模式](docs/features/grab-box-mode.md)。
