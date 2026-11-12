@@ -34,6 +34,7 @@
 
 | 文章 | 內容 |
 | --- | --- |
+| [新手引導模式：三步認識介面](planning/beginner-guide.md) | 最簡圖文導覽、三步流程、範圍與驗收清單；尚未開發 |
 | [扶握箱時間軸第二批：操作便利](planning/grab-timeline-usability.md) | 快捷操作、拍點狀態、扶握／放手提示、複製與範圍編輯規格及驗收條件 |
 | [後續拆分順序](planning/refactor-roadmap.md) | 模組拆分批次、完成進度與後續邊界 |
 | [手機使用評估](planning/mobile-readiness.md) | 手機布局、觸控操作、已完成驗證與待處理項目 |
