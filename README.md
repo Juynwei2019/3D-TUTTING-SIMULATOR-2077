@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/3d-tutting-2077-logo-monochrome.png" alt="3D Tutting 模擬器 2077 黑白 LOGO" width="720">
+</p>
+
 # 3D Tutting 模擬器 2077
 
 以 Three.js 製作的人體姿勢與編舞工具，支援手臂／手指編輯、時間軸播放、可控姿勢生成，以及場景與人偶外觀調整。開發版本使用原生 ES Modules。
