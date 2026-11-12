@@ -71,6 +71,7 @@ export function createSceneBootstrap(context){
         if (context.bones[key]) context.restQuat[key] = context.bones[key].quaternion.clone();
       }
       context.buildOnionGhosts();
+      context.appearance?.attachModel(context.model);
 
       // 手指IK effector：優先找指尖第4節骨（只讀位置，不開放FK），模型萬一沒有這根骨頭，
       // 優雅退回用第3節自己當effector，只是精準度變差、不會整個壞掉。

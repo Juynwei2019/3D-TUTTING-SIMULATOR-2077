@@ -1103,6 +1103,11 @@
       <p class="appearanceHint" data-i18n="外觀隨專案保存；清晰度只保存在這台裝置。外觀不影響姿勢或時間軸。">外觀隨專案保存；清晰度只保存在這台裝置。外觀不影響姿勢或時間軸。</p>
       <div class="row"><label><span data-i18n="外觀預設">外觀預設</span> <select id="appearancePreset"><option value="" data-i18n="選擇預設">選擇預設</option><option value="original" data-i18n="原始風格">原始風格</option><option value="neutral" data-i18n="中性練習">中性練習</option><option value="bright" data-i18n="明亮背景">明亮背景</option></select></label><button id="appearanceReset" data-i18n="恢復原始外觀">恢復原始外觀</button></div>
       <div id="appearanceControls"></div>
+      <details class="kfCollapsible" open><summary data-i18n="人偶顏色與材質">人偶顏色與材質</summary><div class="kfCollapsibleBody">
+        <div class="row"><label><span data-i18n="人偶材質">人偶材質</span> <select id="appearance_modelStyle"><option value="original" data-i18n="原始材質">原始材質</option><option value="matte" data-i18n="霧面">霧面</option><option value="glossy" data-i18n="亮面塑膠">亮面塑膠</option><option value="metal" data-i18n="金屬">金屬</option><option value="custom" data-i18n="自訂材質">自訂材質</option></select></label><button id="modelMaterialReset" data-i18n="恢復原始人偶">恢復原始人偶</button></div>
+        <p class="appearanceHint" data-i18n="選擇顏色會啟用自訂外觀；粗糙度越高越霧面。金屬效果受場景燈光影響。">選擇顏色會啟用自訂外觀；粗糙度越高越霧面。金屬效果受場景燈光影響。</p>
+        <div id="modelMaterialControls"></div>
+      </div></details>
       <div class="row"><label><span data-i18n="清晰度（裝置偏好）">清晰度（裝置偏好）</span> <select id="appearanceQuality"><option value="economy" data-i18n="省電">省電</option><option value="standard" data-i18n="標準">標準</option><option value="clear" data-i18n="清晰">清晰</option></select></label></div>
       <p class="appearanceHint" data-i18n="清晰度調整渲染解析度，不保證固定 FPS。分割視窗同步套用，最高像素比例為 1.5。">清晰度調整渲染解析度，不保證固定 FPS。分割視窗同步套用，最高像素比例為 1.5。</p>
     </div>

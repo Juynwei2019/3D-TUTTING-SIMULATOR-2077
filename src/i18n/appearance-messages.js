@@ -1,4 +1,7 @@
 export const appearanceEnglish = {
+ '人偶顏色與材質':'Mannequin color & material','人偶材質':'Mannequin material','原始材質':'Original material','霧面':'Matte','亮面塑膠':'Glossy plastic','金屬':'Metal','自訂材質':'Custom material','恢復原始人偶':'Reset mannequin','人偶顏色':'Mannequin color','表面粗糙度':'Surface roughness','金屬感':'Metalness',
+ '選擇顏色會啟用自訂外觀；粗糙度越高越霧面。金屬效果受場景燈光影響。':'Choosing a color enables a custom appearance. Higher roughness gives a matte finish. Metal appearance depends on scene lighting.',
+
  '環境光顏色':'Ambient light color',
  '即將匯入 {p0} 個拍點、扶握箱與場景外觀，並覆蓋目前設定。可使用復原／重做還原。確定要匯入嗎？':'Import {p0} keyframes, the grab workspace and scene appearance, replacing current settings? You can undo or redo this operation.',
 
