@@ -7,6 +7,7 @@
 | 姿勢 | 說明 | 檔案 |
 | --- | --- | --- |
 | 基礎直角框架 | 雙上臂側展、前臂向上，雙肘約 90° | [姿勢 JSON](basic-right-angle-frame.pose.json) · [預覽](basic-right-angle-frame.png) · [詳細說明](basic-right-angle-frame.md) |
+| 雙層橫向框架 | 胸前兩條水平前臂反向排列，一高一低 | [姿勢 JSON](stacked-horizontal-frame.pose.json) · [預覽](stacked-horizontal-frame.png) · [詳細說明](stacked-horizontal-frame.md) |
 
 ## 保存單一姿勢
 
