@@ -1,6 +1,12 @@
 # Tutting Pose 資料夾
 
-用來保存 Tutting 姿勢與相關預覽圖片。目前先建立儲存位置，尚未加入姿勢檔；模擬器不會自動讀取這個資料夾。
+用來保存 Tutting 姿勢與相關預覽圖片。模擬器目前不會自動讀取這個資料夾，請依下方方式手動套用。
+
+## 姿勢清單
+
+| 姿勢 | 說明 | 檔案 |
+| --- | --- | --- |
+| 基礎直角框架 | 雙上臂側展、前臂向上，雙肘約 90° | [姿勢 JSON](basic-right-angle-frame.pose.json) · [預覽](basic-right-angle-frame.png) · [詳細說明](basic-right-angle-frame.md) |
 
 ## 保存單一姿勢
 
